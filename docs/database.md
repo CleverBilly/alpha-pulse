@@ -229,8 +229,15 @@
 - `absorption`
 - `iceberg`
 - `aggression_burst`
+- `failed_auction`
+- `failed_auction_high_reject`
+- `failed_auction_low_reclaim`
 - `initiative_shift`
 - `large_trade_cluster`
+- `order_book_migration`
+- `order_book_migration_layered`
+- `order_book_migration_accelerated`
+- `microstructure_confluence`
 
 唯一约束：
 

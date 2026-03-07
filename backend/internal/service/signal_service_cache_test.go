@@ -1,9 +1,11 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"testing"
@@ -136,6 +138,116 @@ func TestAnalysisSeriesUseCache(t *testing.T) {
 	}
 }
 
+func TestInvalidateAllSymbolCacheScopesRemovesSupportedIntervalsOnlyForMatchingSymbol(t *testing.T) {
+	cache := &memorySnapshotCache{
+		values: map[string][]byte{
+			marketSnapshotCacheKey("BTCUSDT", "1m", 24):   []byte("snapshot"),
+			marketSnapshotCacheKey("BTCUSDT", "5m", 48):   []byte("snapshot"),
+			indicatorSeriesCacheKey("BTCUSDT", "15m", 24): []byte("indicator"),
+			liquiditySeriesCacheKey("BTCUSDT", "1h", 24):  []byte("liquidity"),
+			signalTimelineCacheKey("BTCUSDT", "4h", 24):   []byte("timeline"),
+			marketSnapshotCacheKey("ETHUSDT", "1m", 24):   []byte("other"),
+			indicatorSeriesCacheKey("ETHUSDT", "15m", 24): []byte("other"),
+			liquiditySeriesCacheKey("ETHUSDT", "1h", 24):  []byte("other"),
+			signalTimelineCacheKey("ETHUSDT", "4h", 24):   []byte("other"),
+		},
+	}
+
+	invalidateAllSymbolCacheScopes(cache, "BTCUSDT", allCacheScopes()...)
+
+	for _, interval := range supportedCacheIntervals {
+		if _, exists := cache.values[marketSnapshotCacheKey("BTCUSDT", interval, 24)]; exists && interval == "1m" {
+			t.Fatalf("expected BTC market snapshot key for %s to be removed", interval)
+		}
+	}
+	if _, exists := cache.values[indicatorSeriesCacheKey("BTCUSDT", "15m", 24)]; exists {
+		t.Fatal("expected BTC indicator series key to be removed")
+	}
+	if _, exists := cache.values[liquiditySeriesCacheKey("BTCUSDT", "1h", 24)]; exists {
+		t.Fatal("expected BTC liquidity series key to be removed")
+	}
+	if _, exists := cache.values[signalTimelineCacheKey("BTCUSDT", "4h", 24)]; exists {
+		t.Fatal("expected BTC signal timeline key to be removed")
+	}
+	if _, exists := cache.values[marketSnapshotCacheKey("ETHUSDT", "1m", 24)]; !exists {
+		t.Fatal("expected ETH market snapshot key to remain")
+	}
+	if _, exists := cache.values[indicatorSeriesCacheKey("ETHUSDT", "15m", 24)]; !exists {
+		t.Fatal("expected ETH indicator series key to remain")
+	}
+}
+
+func TestGetMarketSnapshotWithRefreshBypassesCacheAndRepopulatesCurrentKey(t *testing.T) {
+	db := newServiceTestDB(t)
+	cache := &memorySnapshotCache{
+		values: make(map[string][]byte),
+	}
+	service := newTestSignalService(t, db, cache, 10*time.Second)
+	service.SetViewCache(cache, 10*time.Second)
+
+	first, err := service.GetMarketSnapshot("BTCUSDT", "5m", 24)
+	if err != nil {
+		t.Fatalf("initial GetMarketSnapshot failed: %v", err)
+	}
+
+	cache.values[indicatorSeriesCacheKey("BTCUSDT", "1m", 24)] = []byte("stale-indicator")
+	cache.values[liquiditySeriesCacheKey("BTCUSDT", "15m", 24)] = []byte("stale-liquidity")
+	cache.values[signalTimelineCacheKey("BTCUSDT", "4h", 24)] = []byte("stale-timeline")
+	cache.values[marketSnapshotCacheKey("ETHUSDT", "5m", 24)] = []byte("other-symbol")
+
+	second, err := service.GetMarketSnapshotWithRefresh("BTCUSDT", "5m", 24, true)
+	if err != nil {
+		t.Fatalf("refresh GetMarketSnapshot failed: %v", err)
+	}
+
+	if second.Price.Time == first.Price.Time {
+		t.Fatalf("expected refresh to rebuild snapshot timestamp: first=%d second=%d", first.Price.Time, second.Price.Time)
+	}
+	if _, exists := cache.values[indicatorSeriesCacheKey("BTCUSDT", "1m", 24)]; exists {
+		t.Fatal("expected BTC indicator series cache to be invalidated on refresh")
+	}
+	if _, exists := cache.values[liquiditySeriesCacheKey("BTCUSDT", "15m", 24)]; exists {
+		t.Fatal("expected BTC liquidity series cache to be invalidated on refresh")
+	}
+	if _, exists := cache.values[signalTimelineCacheKey("BTCUSDT", "4h", 24)]; exists {
+		t.Fatal("expected BTC signal timeline cache to be invalidated on refresh")
+	}
+	if _, exists := cache.values[marketSnapshotCacheKey("ETHUSDT", "5m", 24)]; !exists {
+		t.Fatal("expected other symbol cache key to remain after refresh")
+	}
+	if _, exists := cache.values[marketSnapshotCacheKey("BTCUSDT", "5m", 24)]; !exists {
+		t.Fatal("expected refreshed market snapshot key to be repopulated")
+	}
+}
+
+func TestGetMarketSnapshotEmitsUnifiedDurationLogs(t *testing.T) {
+	db := newServiceTestDB(t)
+	cache := &memorySnapshotCache{
+		values: make(map[string][]byte),
+	}
+	service := newTestSignalService(t, db, cache, 10*time.Second)
+	service.SetViewCache(cache, 10*time.Second)
+
+	logs := captureLogs(t, func() {
+		if _, err := service.GetMarketSnapshotWithRefresh("BTCUSDT", "5m", 24, true); err != nil {
+			t.Fatalf("GetMarketSnapshotWithRefresh failed: %v", err)
+		}
+	})
+
+	for _, token := range []string{
+		"component=collector stage=klines",
+		"component=service stage=orderflow",
+		"source=kline_fallback",
+		"component=signal_service stage=market_snapshot.load_klines",
+		"component=signal_service stage=market_snapshot.signal_timeline",
+		"duration=",
+	} {
+		if !strings.Contains(logs, token) {
+			t.Fatalf("expected log output to contain %q, got logs=%s", token, logs)
+		}
+	}
+}
+
 type memorySnapshotCache struct {
 	mu       sync.Mutex
 	values   map[string][]byte
@@ -143,6 +255,7 @@ type memorySnapshotCache struct {
 	setCalls int
 	delCalls int
 	setKeys  []string
+	delKeys  []string
 }
 
 func (c *memorySnapshotCache) Get(_ context.Context, key string) ([]byte, error) {
@@ -177,7 +290,22 @@ func (c *memorySnapshotCache) Delete(_ context.Context, key string) error {
 	defer c.mu.Unlock()
 
 	c.delCalls++
+	c.delKeys = append(c.delKeys, key)
 	delete(c.values, key)
+	return nil
+}
+
+func (c *memorySnapshotCache) DeletePrefix(_ context.Context, prefix string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.delCalls++
+	for key := range c.values {
+		if strings.HasPrefix(key, prefix) {
+			c.delKeys = append(c.delKeys, key)
+			delete(c.values, key)
+		}
+	}
 	return nil
 }
 
@@ -280,4 +408,21 @@ func countKeysWithPrefix(keys []string, prefix string) int {
 		}
 	}
 	return count
+}
+
+func captureLogs(t *testing.T, fn func()) string {
+	t.Helper()
+
+	var buffer bytes.Buffer
+	currentWriter := log.Writer()
+	currentFlags := log.Flags()
+	log.SetOutput(&buffer)
+	log.SetFlags(0)
+	t.Cleanup(func() {
+		log.SetOutput(currentWriter)
+		log.SetFlags(currentFlags)
+	})
+
+	fn()
+	return buffer.String()
 }

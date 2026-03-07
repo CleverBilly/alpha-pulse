@@ -164,6 +164,94 @@ func TestMarketSnapshotEndpointReturnsAggregatedPayload(t *testing.T) {
 	}
 }
 
+func TestMarketSnapshotEndpointMaintainsJSONContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := newTestDB(t)
+	r := newTestRouter(t, db)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/market-snapshot?symbol=BTCUSDT&interval=5m&limit=24", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode raw response failed: %v", err)
+	}
+
+	assertJSONKeys(t, payload, "code", "message", "data")
+
+	data, ok := payload["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected data to be object, got=%T", payload["data"])
+	}
+	assertJSONKeys(
+		t,
+		data,
+		"price",
+		"klines",
+		"indicator",
+		"indicator_series",
+		"orderflow",
+		"microstructure_events",
+		"structure",
+		"structure_series",
+		"liquidity",
+		"liquidity_series",
+		"signal",
+		"signal_timeline",
+	)
+
+	price, ok := data["price"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected price to be object, got=%T", data["price"])
+	}
+	assertJSONKeys(t, price, "symbol", "price", "time")
+
+	orderFlow, ok := data["orderflow"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected orderflow to be object, got=%T", data["orderflow"])
+	}
+	assertJSONKeys(
+		t,
+		orderFlow,
+		"buy_volume",
+		"sell_volume",
+		"delta",
+		"cvd",
+		"absorption_bias",
+		"absorption_strength",
+		"iceberg_bias",
+		"iceberg_strength",
+		"data_source",
+		"microstructure_events",
+	)
+
+	microEvents, ok := data["microstructure_events"].([]any)
+	if !ok || len(microEvents) == 0 {
+		t.Fatalf("expected non-empty microstructure_events array, got=%T", data["microstructure_events"])
+	}
+	firstMicro, ok := microEvents[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected first microstructure event to be object, got=%T", microEvents[0])
+	}
+	assertJSONKeys(t, firstMicro, "type", "bias", "score", "strength", "price", "trade_time", "detail")
+
+	signalTimeline, ok := data["signal_timeline"].([]any)
+	if !ok || len(signalTimeline) == 0 {
+		t.Fatalf("expected non-empty signal_timeline array, got=%T", data["signal_timeline"])
+	}
+	firstSignal, ok := signalTimeline[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected first signal timeline point to be object, got=%T", signalTimeline[0])
+	}
+	assertJSONKeys(t, firstSignal, "interval_type", "open_time", "signal", "score", "confidence", "entry_price", "stop_loss", "target_price")
+}
+
 func TestMarketSnapshotEndpointPersistsAnalysisRowsAndAppliesFallbackLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -658,4 +746,14 @@ func maxInt(values ...int) int {
 		}
 	}
 	return maxValue
+}
+
+func assertJSONKeys(t *testing.T, object map[string]any, keys ...string) {
+	t.Helper()
+
+	for _, key := range keys {
+		if _, exists := object[key]; !exists {
+			t.Fatalf("expected JSON object to contain key %q, object=%v", key, object)
+		}
+	}
 }

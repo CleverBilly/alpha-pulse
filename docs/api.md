@@ -140,6 +140,7 @@ Base URL：
 - `symbol`：可选，默认 `BTCUSDT`
 - `interval`：可选，默认 `1m`
 - `limit`：可选，默认 `48`
+- `refresh`：可选，传 `1` 时显式绕过缓存并回填新结果
 
 返回结构：
 
@@ -238,8 +239,15 @@ Base URL：
 - `absorption`
 - `iceberg`
 - `aggression_burst`
+- `failed_auction`
+- `failed_auction_high_reject`
+- `failed_auction_low_reclaim`
 - `initiative_shift`
 - `large_trade_cluster`
+- `order_book_migration`
+- `order_book_migration_layered`
+- `order_book_migration_accelerated`
+- `microstructure_confluence`
 
 ### 3.7 `GET /api/structure`
 
@@ -298,6 +306,7 @@ Base URL：
 - `symbol`：可选，默认 `BTCUSDT`
 - `interval`：可选，默认 `1m`
 - `limit`：可选，默认 `48`
+- `refresh`：可选，传 `1` 时显式绕过缓存并回填新结果
 
 返回结构：
 
@@ -369,6 +378,7 @@ Base URL：
 - `symbol`：可选，默认 `BTCUSDT`
 - `interval`：可选，默认 `1m`
 - `limit`：可选，默认 `48`
+- `refresh`：可选，传 `1` 时显式绕过缓存并回填新结果
 
 返回结构：
 
@@ -433,6 +443,7 @@ Base URL：
 - `symbol`：可选，默认 `BTCUSDT`
 - `interval`：可选，默认 `1m`
 - `limit`：可选，默认 `48`
+- `refresh`：可选，传 `1` 时显式绕过缓存并回填新结果
 
 返回结构：
 
@@ -483,6 +494,7 @@ Base URL：
 - `orderflow.microstructure_events` 是当前订单流分析窗口内的摘要
 - 顶层 `microstructure_events` 是和图表时间范围对齐的历史事件序列
 - 图表和时间线组件应优先使用顶层 `microstructure_events`
+- `refresh=1` 时会显式跳过缓存读取，并刷新当前 symbol 的相关缓存视图
 
 响应骨架示例：
 

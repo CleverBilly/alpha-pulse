@@ -175,6 +175,151 @@ func TestGenerateOrderFlowFactorIncludesMicrostructureReason(t *testing.T) {
 	}
 }
 
+func TestGenerateMicrostructureConfluenceAddsBonus(t *testing.T) {
+	engine := NewEngine()
+
+	base := engine.Generate(
+		"BTCUSDT",
+		64980,
+		models.Indicator{
+			RSI:             59,
+			MACD:            84,
+			MACDSignal:      58,
+			MACDHistogram:   26,
+			EMA20:           64860,
+			EMA50:           64420,
+			ATR:             360,
+			BollingerUpper:  65520,
+			BollingerMiddle: 64910,
+			BollingerLower:  64280,
+			VWAP:            64740,
+		},
+		models.OrderFlow{
+			BuyVolume:              1200,
+			SellVolume:             860,
+			Delta:                  340,
+			CVD:                    1720,
+			BuyLargeTradeNotional:  780000,
+			SellLargeTradeNotional: 240000,
+			LargeTradeDelta:        540000,
+			AbsorptionBias:         "buy_absorption",
+			AbsorptionStrength:     0.63,
+			IcebergBias:            "buy_iceberg",
+			IcebergStrength:        0.41,
+			DataSource:             "agg_trade",
+			MicrostructureEvents: []models.OrderFlowMicrostructureEvent{
+				{
+					Type:      "large_trade_cluster",
+					Bias:      "bullish",
+					Score:     3,
+					Strength:  0.74,
+					Price:     64960,
+					TradeTime: 1741300000000,
+					Detail:    "连续卖方大单被市场吸收，承接强度提升",
+				},
+				{
+					Type:      "initiative_shift",
+					Bias:      "bullish",
+					Score:     2,
+					Strength:  0.31,
+					Price:     64980,
+					TradeTime: 1741300060000,
+					Detail:    "买方主动性较前半段明显增强",
+				},
+			},
+		},
+		models.Structure{Trend: "uptrend", Support: 64720, Resistance: 65480, BOS: true},
+		models.Liquidity{
+			BuyLiquidity:       64780,
+			SellLiquidity:      65360,
+			SweepType:          "sell_sweep",
+			OrderBookImbalance: 0.14,
+			DataSource:         "orderbook",
+		},
+	)
+
+	withConfluence := engine.Generate(
+		"BTCUSDT",
+		64980,
+		models.Indicator{
+			RSI:             59,
+			MACD:            84,
+			MACDSignal:      58,
+			MACDHistogram:   26,
+			EMA20:           64860,
+			EMA50:           64420,
+			ATR:             360,
+			BollingerUpper:  65520,
+			BollingerMiddle: 64910,
+			BollingerLower:  64280,
+			VWAP:            64740,
+		},
+		models.OrderFlow{
+			BuyVolume:              1200,
+			SellVolume:             860,
+			Delta:                  340,
+			CVD:                    1720,
+			BuyLargeTradeNotional:  780000,
+			SellLargeTradeNotional: 240000,
+			LargeTradeDelta:        540000,
+			AbsorptionBias:         "buy_absorption",
+			AbsorptionStrength:     0.63,
+			IcebergBias:            "buy_iceberg",
+			IcebergStrength:        0.41,
+			DataSource:             "agg_trade",
+			MicrostructureEvents: []models.OrderFlowMicrostructureEvent{
+				{
+					Type:      "large_trade_cluster",
+					Bias:      "bullish",
+					Score:     3,
+					Strength:  0.74,
+					Price:     64960,
+					TradeTime: 1741300000000,
+					Detail:    "连续卖方大单被市场吸收，承接强度提升",
+				},
+				{
+					Type:      "initiative_shift",
+					Bias:      "bullish",
+					Score:     2,
+					Strength:  0.31,
+					Price:     64980,
+					TradeTime: 1741300060000,
+					Detail:    "买方主动性较前半段明显增强",
+				},
+				{
+					Type:      "microstructure_confluence",
+					Bias:      "bullish",
+					Score:     7,
+					Strength:  0.82,
+					Price:     64982,
+					TradeTime: 1741300120000,
+					Detail:    "高阶微结构共振：large_trade_cluster + initiative_shift",
+				},
+			},
+		},
+		models.Structure{Trend: "uptrend", Support: 64720, Resistance: 65480, BOS: true},
+		models.Liquidity{
+			BuyLiquidity:       64780,
+			SellLiquidity:      65360,
+			SweepType:          "sell_sweep",
+			OrderBookImbalance: 0.14,
+			DataSource:         "orderbook",
+		},
+	)
+
+	baseFactor := findFactor(base.Factors, "microstructure")
+	withConfluenceFactor := findFactor(withConfluence.Factors, "microstructure")
+	if baseFactor == nil || withConfluenceFactor == nil {
+		t.Fatal("expected microstructure factors to exist")
+	}
+	if withConfluenceFactor.Score <= baseFactor.Score {
+		t.Fatalf("expected confluence factor to increase score: base=%d with=%d", baseFactor.Score, withConfluenceFactor.Score)
+	}
+	if !containsText(withConfluenceFactor.Reason, "共振") {
+		t.Fatalf("expected confluence factor reason to mention 共振, got %s", withConfluenceFactor.Reason)
+	}
+}
+
 func TestGenerateReturnsSellSignalForBearishConfluence(t *testing.T) {
 	engine := NewEngine()
 
@@ -335,6 +480,15 @@ func bullishMicrostructureEvents() []models.OrderFlowMicrostructureEvent {
 			TradeTime: 1741300120000,
 			Detail:    "买方主动性较前半段明显增强",
 		},
+		{
+			Type:      "microstructure_confluence",
+			Bias:      "bullish",
+			Score:     7,
+			Strength:  0.84,
+			Price:     65020,
+			TradeTime: 1741300180000,
+			Detail:    "高阶微结构共振：large_trade_cluster + initiative_shift",
+		},
 	}
 }
 
@@ -366,6 +520,15 @@ func bearishMicrostructureEvents() []models.OrderFlowMicrostructureEvent {
 			Price:     3208,
 			TradeTime: 1741300120000,
 			Detail:    "卖方主动性较前半段明显增强",
+		},
+		{
+			Type:      "microstructure_confluence",
+			Bias:      "bearish",
+			Score:     -7,
+			Strength:  0.79,
+			Price:     3206,
+			TradeTime: 1741300180000,
+			Detail:    "高阶微结构共振：large_trade_cluster + initiative_shift",
 		},
 	}
 }

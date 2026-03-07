@@ -32,14 +32,23 @@ describe("KlineChart", () => {
     expect(screen.getByText("AGR")).toBeInTheDocument();
     expect(screen.queryByText("SHF")).not.toBeInTheDocument();
     expect(screen.queryByText("LTC")).not.toBeInTheDocument();
+    expect(screen.queryByText("FAH")).not.toBeInTheDocument();
+    expect(screen.queryByText("OBL")).not.toBeInTheDocument();
+    expect(screen.queryByText("MCF")).not.toBeInTheDocument();
     expect(screen.getByText("Events")).toBeInTheDocument();
     expect(screen.getByText("uptrend")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Initiative Shift" }));
     await user.click(screen.getByRole("button", { name: "Large Trade Cluster" }));
+    await user.click(screen.getByRole("button", { name: "Failed Auction" }));
+    await user.click(screen.getByRole("button", { name: "Order Book Migration" }));
+    await user.click(screen.getByRole("button", { name: "Microstructure Confluence" }));
 
     expect(screen.getByText("SHF")).toBeInTheDocument();
     expect(screen.getByText("LTC")).toBeInTheDocument();
+    expect(screen.getByText("FAH")).toBeInTheDocument();
+    expect(screen.getByText("OBL")).toBeInTheDocument();
+    expect(screen.getByText("MCF")).toBeInTheDocument();
 
     await user.hover(screen.getByRole("button", { name: "Micro ABS Absorption" }));
     expect(screen.getByText("Absorption · ABS")).toBeInTheDocument();

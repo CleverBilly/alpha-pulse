@@ -63,7 +63,8 @@ func (h *MarketHandler) GetIndicatorSeries(c *gin.Context) {
 	symbol := c.DefaultQuery("symbol", "BTCUSDT")
 	interval := c.DefaultQuery("interval", "1m")
 	limit := parseLimit(c.DefaultQuery("limit", "48"), 48)
-	result, err := h.marketService.GetIndicatorSeries(symbol, interval, limit)
+	refresh := parseRefresh(c.Query("refresh"))
+	result, err := h.marketService.GetIndicatorSeriesWithRefresh(symbol, interval, limit, refresh)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.Error(500, err.Error()))
 		return
@@ -162,7 +163,8 @@ func (h *MarketHandler) GetLiquiditySeries(c *gin.Context) {
 	symbol := c.DefaultQuery("symbol", "BTCUSDT")
 	interval := c.DefaultQuery("interval", "1m")
 	limit := parseLimit(c.DefaultQuery("limit", "48"), 48)
-	result, err := h.marketService.GetLiquiditySeries(symbol, interval, limit)
+	refresh := parseRefresh(c.Query("refresh"))
+	result, err := h.marketService.GetLiquiditySeriesWithRefresh(symbol, interval, limit, refresh)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.Error(500, err.Error()))
 		return
@@ -175,8 +177,9 @@ func (h *MarketHandler) GetMarketSnapshot(c *gin.Context) {
 	symbol := c.DefaultQuery("symbol", "BTCUSDT")
 	interval := c.DefaultQuery("interval", "1m")
 	limit := parseLimit(c.DefaultQuery("limit", "48"), 48)
+	refresh := parseRefresh(c.Query("refresh"))
 
-	result, err := h.signalService.GetMarketSnapshot(symbol, interval, limit)
+	result, err := h.signalService.GetMarketSnapshotWithRefresh(symbol, interval, limit, refresh)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.Error(500, err.Error()))
 		return
@@ -190,4 +193,13 @@ func parseLimit(raw string, fallback int) int {
 		return fallback
 	}
 	return parsed
+}
+
+func parseRefresh(raw string) bool {
+	switch raw {
+	case "1", "true", "TRUE", "yes", "YES":
+		return true
+	default:
+		return false
+	}
 }

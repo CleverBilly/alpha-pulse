@@ -49,9 +49,9 @@ export const marketApi = {
   getIndicators(symbol: string, interval: MarketInterval = "1m") {
     return request<Indicator>(`/indicators?symbol=${symbol}&interval=${interval}`);
   },
-  getIndicatorSeries(symbol: string, interval: MarketInterval = "1m", limit = 48) {
+  getIndicatorSeries(symbol: string, interval: MarketInterval = "1m", limit = 48, refresh = false) {
     return request<IndicatorSeriesResult>(
-      `/indicator-series?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      `/indicator-series?symbol=${symbol}&interval=${interval}&limit=${limit}${refresh ? "&refresh=1" : ""}`,
     );
   },
   getOrderFlow(symbol: string, interval: MarketInterval = "1m") {
@@ -79,13 +79,15 @@ export const marketApi = {
   getLiquidityMap(symbol: string, interval: MarketInterval = "1m") {
     return request<Liquidity>(`/liquidity-map?symbol=${symbol}&interval=${interval}`);
   },
-  getLiquiditySeries(symbol: string, interval: MarketInterval = "1m", limit = 48) {
+  getLiquiditySeries(symbol: string, interval: MarketInterval = "1m", limit = 48, refresh = false) {
     return request<LiquiditySeriesResult>(
-      `/liquidity-series?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      `/liquidity-series?symbol=${symbol}&interval=${interval}&limit=${limit}${refresh ? "&refresh=1" : ""}`,
     );
   },
-  getMarketSnapshot(symbol: string, interval: MarketInterval = "1m", limit = 48) {
-    return request<MarketSnapshot>(`/market-snapshot?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+  getMarketSnapshot(symbol: string, interval: MarketInterval = "1m", limit = 48, refresh = false) {
+    return request<MarketSnapshot>(
+      `/market-snapshot?symbol=${symbol}&interval=${interval}&limit=${limit}${refresh ? "&refresh=1" : ""}`,
+    );
   },
 };
 
@@ -93,9 +95,9 @@ export const signalApi = {
   getSignal(symbol: string, interval: MarketInterval = "1m") {
     return request<SignalBundle>(`/signal?symbol=${symbol}&interval=${interval}`);
   },
-  getSignalTimeline(symbol: string, interval: MarketInterval = "1m", limit = 48) {
+  getSignalTimeline(symbol: string, interval: MarketInterval = "1m", limit = 48, refresh = false) {
     return request<SignalTimelineResult>(
-      `/signal-timeline?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      `/signal-timeline?symbol=${symbol}&interval=${interval}&limit=${limit}${refresh ? "&refresh=1" : ""}`,
     );
   },
 };

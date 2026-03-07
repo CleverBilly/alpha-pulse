@@ -101,7 +101,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     try {
       const { symbol, interval } = get();
       set({ loading: true, error: null });
-      const snapshot = await marketApi.getMarketSnapshot(symbol, interval, 48);
+      const snapshot = await marketApi.getMarketSnapshot(symbol, interval, 48, true);
       const latestKline = snapshot.klines[snapshot.klines.length - 1] ?? null;
 
       set({

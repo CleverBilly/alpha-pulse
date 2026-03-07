@@ -2,14 +2,13 @@ package service
 
 import (
 	"context"
-	"log"
-	"strconv"
 	"strings"
 	"time"
 
 	"alpha-pulse/backend/internal/collector"
 	"alpha-pulse/backend/internal/indicator"
 	"alpha-pulse/backend/internal/liquidity"
+	"alpha-pulse/backend/internal/observability"
 	"alpha-pulse/backend/internal/orderflow"
 	structureengine "alpha-pulse/backend/internal/structure"
 	"alpha-pulse/backend/models"
@@ -87,6 +86,7 @@ func (s *MarketService) GetPrice(symbol string) (map[string]any, error) {
 // GetKline 获取并落库最新 K 线。
 func (s *MarketService) GetKline(symbol, interval string) (models.Kline, error) {
 	symbol = normalizeSymbol(symbol)
+	interval = normalizeInterval(interval)
 	kline, err := s.collector.GetKline(symbol, interval)
 	if err != nil {
 		return models.Kline{}, err
@@ -95,6 +95,7 @@ func (s *MarketService) GetKline(symbol, interval string) (models.Kline, error) 
 	if err := s.klineRepo.Create(&kline); err != nil {
 		return models.Kline{}, err
 	}
+	invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
 
 	return kline, nil
 }
@@ -102,6 +103,7 @@ func (s *MarketService) GetKline(symbol, interval string) (models.Kline, error) 
 // GetIndicators 获取并落库技术指标。
 func (s *MarketService) GetIndicators(symbol, interval string) (models.Indicator, error) {
 	symbol = normalizeSymbol(symbol)
+	interval = normalizeInterval(interval)
 	klines, err := loadAnalysisKlines(s.collector, s.indicatorEngine, s.klineRepo, symbol, interval)
 	if err != nil {
 		return models.Indicator{}, err
@@ -115,23 +117,38 @@ func (s *MarketService) GetIndicators(symbol, interval string) (models.Indicator
 	if err := s.indicatorRepo.Create(&result); err != nil {
 		return models.Indicator{}, err
 	}
+	invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
 
 	return result, nil
 }
 
 // GetIndicatorSeries 获取指标时间序列视图。
 func (s *MarketService) GetIndicatorSeries(symbol, interval string, limit int) (IndicatorSeriesResult, error) {
+	return s.GetIndicatorSeriesWithRefresh(symbol, interval, limit, false)
+}
+
+// GetIndicatorSeriesWithRefresh 获取指标时间序列视图，并可显式绕过缓存。
+func (s *MarketService) GetIndicatorSeriesWithRefresh(symbol, interval string, limit int, refresh bool) (IndicatorSeriesResult, error) {
 	symbol = normalizeSymbol(symbol)
 	interval = normalizeInterval(interval)
 	limit = clampInt(limit, 1, 120)
 
-	if cached, ok, err := s.getCachedIndicatorSeries(symbol, interval, limit); err == nil && ok {
-		log.Printf("indicator-series cache hit symbol=%s interval=%s limit=%d", symbol, interval, limit)
-		return cached, nil
-	} else if err != nil {
-		log.Printf("indicator-series cache read failed symbol=%s interval=%s limit=%d err=%v", symbol, interval, limit, err)
+	cacheStartedAt := time.Now()
+	if refresh {
+		invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
+		logServiceDuration("market_service", "indicator_series.cache_read", symbol, interval, limit, cacheStartedAt, "refresh", "", observability.Bool("refresh", true))
+	} else {
+		if cached, ok, err := s.getCachedIndicatorSeries(symbol, interval, limit); err == nil && ok {
+			logServiceDuration("market_service", "indicator_series.cache_read", symbol, interval, limit, cacheStartedAt, "hit", "", observability.String("source", "cache"))
+			return cached, nil
+		} else if err != nil {
+			logServiceDuration("market_service", "indicator_series.cache_read", symbol, interval, limit, cacheStartedAt, "error", err.Error(), observability.String("source", "cache"))
+		} else {
+			logServiceDuration("market_service", "indicator_series.cache_read", symbol, interval, limit, cacheStartedAt, "miss", "", observability.String("source", "cache"))
+		}
 	}
 
+	buildStartedAt := time.Now()
 	requiredLimit := maxInt(limit+s.indicatorEngine.MinimumRequired()-1, s.indicatorEngine.HistoryLimit())
 
 	klines, err := loadAnalysisKlinesWithLimit(
@@ -143,11 +160,13 @@ func (s *MarketService) GetIndicatorSeries(symbol, interval string, limit int) (
 		s.indicatorEngine.MinimumRequired(),
 	)
 	if err != nil {
+		logServiceDuration("market_service", "indicator_series.build", symbol, interval, limit, buildStartedAt, "error", err.Error())
 		return IndicatorSeriesResult{}, err
 	}
 
 	points, err := buildIndicatorSeries(s.indicatorEngine, symbol, klines, limit)
 	if err != nil {
+		logServiceDuration("market_service", "indicator_series.build", symbol, interval, limit, buildStartedAt, "error", err.Error())
 		return IndicatorSeriesResult{}, err
 	}
 
@@ -157,8 +176,9 @@ func (s *MarketService) GetIndicatorSeries(symbol, interval string, limit int) (
 		Points:   points,
 	}
 	if err := s.setCachedIndicatorSeries(symbol, interval, limit, result); err != nil {
-		log.Printf("indicator-series cache write failed symbol=%s interval=%s limit=%d err=%v", symbol, interval, limit, err)
+		logServiceDuration("market_service", "indicator_series.cache_write", symbol, interval, limit, time.Now(), "error", err.Error())
 	}
+	logServiceDuration("market_service", "indicator_series.build", symbol, interval, limit, buildStartedAt, "ok", "", observability.Int("points", len(points)))
 	return result, nil
 }
 
@@ -200,6 +220,7 @@ func (s *MarketService) GetOrderFlow(symbol, interval string) (models.OrderFlow,
 	if err := persistMicrostructureEvents(s.microEventRepo, result); err != nil {
 		return models.OrderFlow{}, err
 	}
+	invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
 	return result, nil
 }
 
@@ -246,6 +267,7 @@ func (s *MarketService) GetStructure(symbol, interval string) (models.Structure,
 	if err := s.db.Create(&result).Error; err != nil {
 		return models.Structure{}, err
 	}
+	invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
 	return result, nil
 }
 
@@ -317,6 +339,7 @@ func (s *MarketService) GetLiquidity(symbol, interval string) (models.Liquidity,
 	if err := s.db.Create(&result).Error; err != nil {
 		return models.Liquidity{}, err
 	}
+	invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
 	return result, nil
 }
 
@@ -344,17 +367,31 @@ func (s *MarketService) GetLiquidityMap(symbol, interval string) (LiquidityMapRe
 
 // GetLiquiditySeries 获取流动性时间序列视图。
 func (s *MarketService) GetLiquiditySeries(symbol, interval string, limit int) (LiquiditySeriesResult, error) {
+	return s.GetLiquiditySeriesWithRefresh(symbol, interval, limit, false)
+}
+
+// GetLiquiditySeriesWithRefresh 获取流动性时间序列视图，并可显式绕过缓存。
+func (s *MarketService) GetLiquiditySeriesWithRefresh(symbol, interval string, limit int, refresh bool) (LiquiditySeriesResult, error) {
 	symbol = normalizeSymbol(symbol)
 	interval = normalizeInterval(interval)
 	limit = clampInt(limit, 1, 120)
 
-	if cached, ok, err := s.getCachedLiquiditySeries(symbol, interval, limit); err == nil && ok {
-		log.Printf("liquidity-series cache hit symbol=%s interval=%s limit=%d", symbol, interval, limit)
-		return cached, nil
-	} else if err != nil {
-		log.Printf("liquidity-series cache read failed symbol=%s interval=%s limit=%d err=%v", symbol, interval, limit, err)
+	cacheStartedAt := time.Now()
+	if refresh {
+		invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
+		logServiceDuration("market_service", "liquidity_series.cache_read", symbol, interval, limit, cacheStartedAt, "refresh", "", observability.Bool("refresh", true))
+	} else {
+		if cached, ok, err := s.getCachedLiquiditySeries(symbol, interval, limit); err == nil && ok {
+			logServiceDuration("market_service", "liquidity_series.cache_read", symbol, interval, limit, cacheStartedAt, "hit", "", observability.String("source", "cache"))
+			return cached, nil
+		} else if err != nil {
+			logServiceDuration("market_service", "liquidity_series.cache_read", symbol, interval, limit, cacheStartedAt, "error", err.Error(), observability.String("source", "cache"))
+		} else {
+			logServiceDuration("market_service", "liquidity_series.cache_read", symbol, interval, limit, cacheStartedAt, "miss", "", observability.String("source", "cache"))
+		}
 	}
 
+	buildStartedAt := time.Now()
 	requiredLimit := maxInt(limit+s.liquidityEngine.MinimumRequired()-1, s.liquidityEngine.HistoryLimit())
 
 	klines, err := loadAnalysisKlinesWithLimit(
@@ -366,11 +403,13 @@ func (s *MarketService) GetLiquiditySeries(symbol, interval string, limit int) (
 		s.liquidityEngine.MinimumRequired(),
 	)
 	if err != nil {
+		logServiceDuration("market_service", "liquidity_series.build", symbol, interval, limit, buildStartedAt, "error", err.Error())
 		return LiquiditySeriesResult{}, err
 	}
 
 	points, err := buildLiquiditySeries(s.liquidityEngine, s.orderBookRepo, symbol, interval, klines, limit)
 	if err != nil {
+		logServiceDuration("market_service", "liquidity_series.build", symbol, interval, limit, buildStartedAt, "error", err.Error())
 		return LiquiditySeriesResult{}, err
 	}
 
@@ -380,8 +419,9 @@ func (s *MarketService) GetLiquiditySeries(symbol, interval string, limit int) (
 		Points:   points,
 	}
 	if err := s.setCachedLiquiditySeries(symbol, interval, limit, result); err != nil {
-		log.Printf("liquidity-series cache write failed symbol=%s interval=%s limit=%d err=%v", symbol, interval, limit, err)
+		logServiceDuration("market_service", "liquidity_series.cache_write", symbol, interval, limit, time.Now(), "error", err.Error())
 	}
+	logServiceDuration("market_service", "liquidity_series.build", symbol, interval, limit, buildStartedAt, "ok", "", observability.Int("points", len(points)))
 	return result, nil
 }
 
@@ -458,12 +498,4 @@ func (s *MarketService) setCachedLiquiditySeries(symbol, interval string, limit 
 	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
 	defer cancel()
 	return setCachedJSON(ctx, s.analysisCache, liquiditySeriesCacheKey(symbol, interval, limit), result, s.analysisCacheTTL)
-}
-
-func indicatorSeriesCacheKey(symbol, interval string, limit int) string {
-	return "alpha-pulse:indicator-series:v1:" + symbol + ":" + interval + ":" + strconv.Itoa(limit)
-}
-
-func liquiditySeriesCacheKey(symbol, interval string, limit int) string {
-	return "alpha-pulse:liquidity-series:v1:" + symbol + ":" + interval + ":" + strconv.Itoa(limit)
 }

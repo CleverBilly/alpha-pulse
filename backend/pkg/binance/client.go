@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"alpha-pulse/backend/internal/observability"
 	binancesdk "github.com/adshao/go-binance/v2"
 )
 
@@ -78,19 +79,25 @@ func (c *Client) GetTickerPrice(symbol string) (float64, error) {
 	symbol = strings.ToUpper(symbol)
 	ctx, cancel := c.newContext()
 	defer cancel()
+	startedAt := time.Now()
 
 	prices, err := c.sdkClient.NewListPricesService().
 		Symbol(symbol).
 		Do(ctx)
 	if err != nil || len(prices) == 0 {
-		return c.mockPrice(symbol), nil
+		price := c.mockPrice(symbol)
+		c.logRequest("price", startedAt, "fallback", reasonFromError(err, "empty_payload"), symbol, "", 1, "mock")
+		return price, nil
 	}
 
 	price, err := strconv.ParseFloat(prices[0].Price, 64)
 	if err != nil {
-		return c.mockPrice(symbol), nil
+		mocked := c.mockPrice(symbol)
+		c.logRequest("price", startedAt, "fallback", err.Error(), symbol, "", 1, "mock")
+		return mocked, nil
 	}
 
+	c.logRequest("price", startedAt, "ok", "", symbol, "", 1, "sdk")
 	return price, nil
 }
 
@@ -114,6 +121,7 @@ func (c *Client) GetKlines(symbol, interval string, limit int) ([]KlineData, err
 	symbol = strings.ToUpper(symbol)
 	ctx, cancel := c.newContext()
 	defer cancel()
+	startedAt := time.Now()
 
 	payload, err := c.sdkClient.NewKlinesService().
 		Symbol(symbol).
@@ -121,7 +129,9 @@ func (c *Client) GetKlines(symbol, interval string, limit int) ([]KlineData, err
 		Limit(limit).
 		Do(ctx)
 	if err != nil {
-		return c.mockKlines(symbol, interval, limit), nil
+		klines := c.mockKlines(symbol, interval, limit)
+		c.logRequest("klines", startedAt, "fallback", err.Error(), symbol, interval, limit, "mock")
+		return klines, nil
 	}
 
 	klines := make([]KlineData, 0, len(payload))
@@ -146,9 +156,12 @@ func (c *Client) GetKlines(symbol, interval string, limit int) ([]KlineData, err
 	}
 
 	if len(klines) == 0 {
-		return c.mockKlines(symbol, interval, limit), nil
+		mocked := c.mockKlines(symbol, interval, limit)
+		c.logRequest("klines", startedAt, "fallback", "empty_payload", symbol, interval, limit, "mock")
+		return mocked, nil
 	}
 
+	c.logRequest("klines", startedAt, "ok", "", symbol, interval, limit, "sdk")
 	return klines, nil
 }
 
@@ -161,13 +174,16 @@ func (c *Client) GetAggTrades(symbol string, limit int) ([]AggTradeData, error) 
 	symbol = strings.ToUpper(symbol)
 	ctx, cancel := c.newContext()
 	defer cancel()
+	startedAt := time.Now()
 
 	payload, err := c.sdkClient.NewAggTradesService().
 		Symbol(symbol).
 		Limit(limit).
 		Do(ctx)
 	if err != nil {
-		return c.mockAggTrades(symbol, limit), nil
+		mocked := c.mockAggTrades(symbol, limit)
+		c.logRequest("agg_trades", startedAt, "fallback", err.Error(), symbol, "", limit, "mock")
+		return mocked, nil
 	}
 
 	trades := make([]AggTradeData, 0, len(payload))
@@ -192,9 +208,12 @@ func (c *Client) GetAggTrades(symbol string, limit int) ([]AggTradeData, error) 
 	}
 
 	if len(trades) == 0 {
-		return c.mockAggTrades(symbol, limit), nil
+		mocked := c.mockAggTrades(symbol, limit)
+		c.logRequest("agg_trades", startedAt, "fallback", "empty_payload", symbol, "", limit, "mock")
+		return mocked, nil
 	}
 
+	c.logRequest("agg_trades", startedAt, "ok", "", symbol, "", limit, "sdk")
 	return trades, nil
 }
 
@@ -207,12 +226,14 @@ func (c *Client) GetDepthSnapshot(symbol string, limit int) (DepthSnapshotData, 
 	symbol = strings.ToUpper(symbol)
 	ctx, cancel := c.newContext()
 	defer cancel()
+	startedAt := time.Now()
 
 	payload, err := c.sdkClient.NewDepthService().
 		Symbol(symbol).
 		Limit(limit).
 		Do(ctx)
 	if err != nil {
+		c.logRequest("depth_snapshot", startedAt, "error", err.Error(), symbol, "", limit, "sdk")
 		return DepthSnapshotData{}, err
 	}
 
@@ -245,9 +266,12 @@ func (c *Client) GetDepthSnapshot(symbol string, limit int) (DepthSnapshotData, 
 	}
 
 	if len(snapshot.Bids) == 0 || len(snapshot.Asks) == 0 {
-		return DepthSnapshotData{}, errors.New("binance depth snapshot is empty")
+		err := errors.New("binance depth snapshot is empty")
+		c.logRequest("depth_snapshot", startedAt, "error", err.Error(), symbol, "", limit, "sdk")
+		return DepthSnapshotData{}, err
 	}
 
+	c.logRequest("depth_snapshot", startedAt, "ok", "", symbol, "", limit, "sdk")
 	return snapshot, nil
 }
 
@@ -269,6 +293,25 @@ func NewFailingHTTPClient(err error) *http.Client {
 			return nil, err
 		}),
 	}
+}
+
+func (c *Client) logRequest(stage string, startedAt time.Time, status, reason, symbol, interval string, limit int, source string) {
+	fields := []observability.Field{
+		observability.String("symbol", symbol),
+		observability.String("source", source),
+		observability.Int("limit", limit),
+	}
+	if strings.TrimSpace(interval) != "" {
+		fields = append(fields, observability.String("interval", interval))
+	}
+	observability.LogDuration("collector", stage, startedAt, status, reason, fields...)
+}
+
+func reasonFromError(err error, fallback string) string {
+	if err != nil {
+		return err.Error()
+	}
+	return fallback
 }
 
 func (c *Client) mockPrice(symbol string) float64 {

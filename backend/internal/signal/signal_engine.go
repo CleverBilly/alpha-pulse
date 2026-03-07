@@ -631,6 +631,12 @@ func scoreMicrostructureSequence(events []models.OrderFlowMicrostructureEvent) (
 		if len(reasons) < 3 && event.Detail != "" {
 			reasons = append(reasons, event.Detail)
 		}
+		if event.Type == "microstructure_confluence" {
+			rawScore += float64(signInt(event.Score)) * 2
+			if len(reasons) < 3 {
+				reasons = append(reasons, "高阶微结构事件出现同向共振")
+			}
+		}
 	}
 
 	switch {

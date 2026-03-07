@@ -3,9 +3,11 @@ package service
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"alpha-pulse/backend/internal/collector"
 	"alpha-pulse/backend/internal/liquidity"
+	"alpha-pulse/backend/internal/observability"
 	"alpha-pulse/backend/models"
 	"alpha-pulse/backend/repository"
 	"gorm.io/gorm"
@@ -22,31 +24,102 @@ func loadLatestOrderBookSnapshot(
 		return models.OrderBookSnapshot{}, errors.New("binance collector is nil")
 	}
 
+	startedAt := time.Now()
 	var fetchErr error
 	if repo != nil {
 		snapshot, err := collector.GetDepthSnapshot(symbol, depthLimit)
 		if err == nil {
 			if persistErr := repo.Create(&snapshot); persistErr != nil {
+				observability.LogDuration(
+					"service",
+					"orderbook_snapshot",
+					startedAt,
+					"error",
+					persistErr.Error(),
+					observability.String("symbol", symbol),
+					observability.String("source", "exchange"),
+					observability.Int("limit", depthLimit),
+				)
 				return models.OrderBookSnapshot{}, persistErr
 			}
+			observability.LogDuration(
+				"service",
+				"orderbook_snapshot",
+				startedAt,
+				"ok",
+				"",
+				observability.String("symbol", symbol),
+				observability.String("source", "exchange"),
+				observability.Int("limit", depthLimit),
+			)
 			return snapshot, nil
 		}
 		fetchErr = err
 
 		cached, cacheErr := repo.GetLatest(symbol)
 		if cacheErr == nil {
+			observability.LogDuration(
+				"service",
+				"orderbook_snapshot",
+				startedAt,
+				"fallback",
+				fetchErr.Error(),
+				observability.String("symbol", symbol),
+				observability.String("source", "repo"),
+				observability.Int("limit", depthLimit),
+			)
 			return cached, nil
 		}
 		if !errors.Is(cacheErr, gorm.ErrRecordNotFound) {
+			observability.LogDuration(
+				"service",
+				"orderbook_snapshot",
+				startedAt,
+				"error",
+				cacheErr.Error(),
+				observability.String("symbol", symbol),
+				observability.String("source", "repo"),
+				observability.Int("limit", depthLimit),
+			)
 			return models.OrderBookSnapshot{}, cacheErr
 		}
+		observability.LogDuration(
+			"service",
+			"orderbook_snapshot",
+			startedAt,
+			"error",
+			fetchErr.Error(),
+			observability.String("symbol", symbol),
+			observability.String("source", "exchange"),
+			observability.Int("limit", depthLimit),
+		)
 		return models.OrderBookSnapshot{}, fetchErr
 	}
 
 	snapshot, err := collector.GetDepthSnapshot(symbol, depthLimit)
 	if err != nil {
+		observability.LogDuration(
+			"service",
+			"orderbook_snapshot",
+			startedAt,
+			"error",
+			err.Error(),
+			observability.String("symbol", symbol),
+			observability.String("source", "exchange"),
+			observability.Int("limit", depthLimit),
+		)
 		return models.OrderBookSnapshot{}, err
 	}
+	observability.LogDuration(
+		"service",
+		"orderbook_snapshot",
+		startedAt,
+		"ok",
+		"",
+		observability.String("symbol", symbol),
+		observability.String("source", "exchange"),
+		observability.Int("limit", depthLimit),
+	)
 	return snapshot, nil
 }
 
@@ -78,12 +151,23 @@ func analyzeLiquidityWithKlineFallback(
 	symbol, interval string,
 	preloadedKlines []models.Kline,
 ) (models.Liquidity, error) {
+	startedAt := time.Now()
 	klines := preloadedKlines
 	var klineErr error
 	if len(klines) < engine.MinimumRequired() {
 		klines, klineErr = loadAnalysisKlines(collector, engine, klineRepo, symbol, interval)
 	}
 	if klineErr != nil {
+		observability.LogDuration(
+			"service",
+			"liquidity",
+			startedAt,
+			"error",
+			klineErr.Error(),
+			observability.String("symbol", symbol),
+			observability.String("interval", interval),
+			observability.String("source", "kline"),
+		)
 		return models.Liquidity{}, klineErr
 	}
 
@@ -93,6 +177,16 @@ func analyzeLiquidityWithKlineFallback(
 		if err == nil {
 			result, analyzeErr := engine.AnalyzeWithOrderBook(symbol, klines, snapshot)
 			if analyzeErr == nil {
+				observability.LogDuration(
+					"service",
+					"liquidity",
+					startedAt,
+					"ok",
+					"",
+					observability.String("symbol", symbol),
+					observability.String("interval", interval),
+					observability.String("source", "orderbook"),
+				)
 				return result, nil
 			}
 			orderBookErr = analyzeErr
@@ -104,10 +198,44 @@ func analyzeLiquidityWithKlineFallback(
 	result, err := engine.Analyze(symbol, klines)
 	if err != nil {
 		if orderBookErr != nil {
+			observability.LogDuration(
+				"service",
+				"liquidity",
+				startedAt,
+				"error",
+				fmt.Sprintf("orderbook=%v kline=%v", orderBookErr, err),
+				observability.String("symbol", symbol),
+				observability.String("interval", interval),
+				observability.String("source", "kline_fallback"),
+			)
 			return models.Liquidity{}, fmt.Errorf("order book analyze failed: %w; kline fallback failed: %v", orderBookErr, err)
 		}
+		observability.LogDuration(
+			"service",
+			"liquidity",
+			startedAt,
+			"error",
+			err.Error(),
+			observability.String("symbol", symbol),
+			observability.String("interval", interval),
+			observability.String("source", "kline"),
+		)
 		return models.Liquidity{}, err
 	}
 
+	reason := ""
+	if orderBookErr != nil {
+		reason = orderBookErr.Error()
+	}
+	observability.LogDuration(
+		"service",
+		"liquidity",
+		startedAt,
+		"fallback",
+		reason,
+		observability.String("symbol", symbol),
+		observability.String("interval", interval),
+		observability.String("source", "kline_fallback"),
+	)
 	return result, nil
 }

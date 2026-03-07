@@ -2,8 +2,10 @@ package service
 
 import (
 	"fmt"
+	"time"
 
 	"alpha-pulse/backend/internal/collector"
+	"alpha-pulse/backend/internal/observability"
 	"alpha-pulse/backend/internal/orderflow"
 	"alpha-pulse/backend/models"
 	"alpha-pulse/backend/repository"
@@ -108,12 +110,23 @@ func analyzeOrderFlowWithKlineFallback(
 	symbol, interval string,
 	preloadedKlines []models.Kline,
 ) (models.OrderFlow, error) {
+	startedAt := time.Now()
 	var tradeErr error
 	if aggTradeRepo != nil {
 		trades, err := loadAnalysisAggTrades(collector, engine, aggTradeRepo, symbol)
 		if err == nil {
 			result, analyzeErr := engine.AnalyzeAggTrades(symbol, trades)
 			if analyzeErr == nil {
+				observability.LogDuration(
+					"service",
+					"orderflow",
+					startedAt,
+					"ok",
+					"",
+					observability.String("symbol", symbol),
+					observability.String("interval", interval),
+					observability.String("source", "agg_trade"),
+				)
 				return result, nil
 			}
 			tradeErr = analyzeErr
@@ -129,18 +142,72 @@ func analyzeOrderFlowWithKlineFallback(
 	}
 	if klineErr != nil {
 		if tradeErr != nil {
+			observability.LogDuration(
+				"service",
+				"orderflow",
+				startedAt,
+				"error",
+				fmt.Sprintf("agg_trade=%v kline=%v", tradeErr, klineErr),
+				observability.String("symbol", symbol),
+				observability.String("interval", interval),
+				observability.String("source", "kline_fallback"),
+			)
 			return models.OrderFlow{}, fmt.Errorf("agg trade analyze failed: %w; kline fallback failed: %v", tradeErr, klineErr)
 		}
+		observability.LogDuration(
+			"service",
+			"orderflow",
+			startedAt,
+			"error",
+			klineErr.Error(),
+			observability.String("symbol", symbol),
+			observability.String("interval", interval),
+			observability.String("source", "kline_fallback"),
+		)
 		return models.OrderFlow{}, klineErr
 	}
 
 	result, err := engine.Analyze(symbol, klines)
 	if err != nil {
 		if tradeErr != nil {
+			observability.LogDuration(
+				"service",
+				"orderflow",
+				startedAt,
+				"error",
+				fmt.Sprintf("agg_trade=%v kline=%v", tradeErr, err),
+				observability.String("symbol", symbol),
+				observability.String("interval", interval),
+				observability.String("source", "kline_fallback"),
+			)
 			return models.OrderFlow{}, fmt.Errorf("agg trade analyze failed: %w; kline analyze failed: %v", tradeErr, err)
 		}
+		observability.LogDuration(
+			"service",
+			"orderflow",
+			startedAt,
+			"error",
+			err.Error(),
+			observability.String("symbol", symbol),
+			observability.String("interval", interval),
+			observability.String("source", "kline_fallback"),
+		)
 		return models.OrderFlow{}, err
 	}
 
+	reason := ""
+	if tradeErr != nil {
+		reason = tradeErr.Error()
+	}
+	observability.LogDuration(
+		"service",
+		"orderflow",
+		startedAt,
+		"fallback",
+		reason,
+		observability.String("symbol", symbol),
+		observability.String("interval", interval),
+		observability.String("source", "kline_fallback"),
+	)
 	return result, nil
 }

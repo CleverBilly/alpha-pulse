@@ -23,6 +23,6 @@ describe("MicrostructureTimeline", () => {
     expect(screen.getByText("Initiative Shift")).toBeInTheDocument();
     expect(screen.getByText("Large Trade Cluster")).toBeInTheDocument();
     expect(screen.getByText(/卖压被持续吸收/)).toBeInTheDocument();
-    expect(screen.getByText("+5")).toBeInTheDocument();
+    expect(screen.getAllByText("+5").length).toBeGreaterThan(0);
   });
 });

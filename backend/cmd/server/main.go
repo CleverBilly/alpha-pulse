@@ -89,6 +89,7 @@ func main() {
 		microEventRepo,
 	)
 	marketService.SetAnalysisCache(sharedCache, time.Duration(cfg.AnalysisCacheTTL)*time.Second)
+	cacheInvalidator := service.NewSymbolCacheInvalidator(sharedCache)
 
 	signalService := service.NewSignalService(
 		db,
@@ -125,6 +126,11 @@ func main() {
 		[]string{"BTCUSDT", "ETHUSDT"},
 		aggTradeRepo,
 		orderBookRepo,
+		func(symbol string) {
+			if cacheInvalidator != nil {
+				cacheInvalidator.InvalidateSymbol(symbol)
+			}
+		},
 	)
 	streamCollector.Start(ctx)
 	jobs := scheduler.NewJobs(marketService, signalService)

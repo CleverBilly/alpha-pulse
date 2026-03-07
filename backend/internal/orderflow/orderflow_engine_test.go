@@ -102,6 +102,9 @@ func TestAnalyzeAggTradesDetectsMicrostructureSignals(t *testing.T) {
 	if !hasMicrostructureEvent(result.MicrostructureEvents, "continuous_absorption", "bullish") {
 		t.Fatalf("expected bullish continuous absorption event, got %#v", result.MicrostructureEvents)
 	}
+	if !hasMicrostructureEvent(result.MicrostructureEvents, "microstructure_confluence", "bullish") {
+		t.Fatalf("expected bullish microstructure confluence event, got %#v", result.MicrostructureEvents)
+	}
 }
 
 func TestAnalyzeAggTradesDetectsFailedAuction(t *testing.T) {
@@ -115,6 +118,26 @@ func TestAnalyzeAggTradesDetectsFailedAuction(t *testing.T) {
 
 	if !hasMicrostructureEvent(result.MicrostructureEvents, "failed_auction", "bearish") {
 		t.Fatalf("expected bearish failed auction event, got %#v", result.MicrostructureEvents)
+	}
+	if !hasMicrostructureEvent(result.MicrostructureEvents, "failed_auction_high_reject", "bearish") {
+		t.Fatalf("expected bearish failed auction high reject event, got %#v", result.MicrostructureEvents)
+	}
+}
+
+func TestAnalyzeAggTradesDetectsFailedAuctionLowReclaim(t *testing.T) {
+	engine := NewEngine()
+	trades := buildFailedAuctionLowReclaimAggTrades(engine.TradeMinimumRequired())
+
+	result, err := engine.AnalyzeAggTrades("BTCUSDT", trades)
+	if err != nil {
+		t.Fatalf("analyze agg trades failed: %v", err)
+	}
+
+	if !hasMicrostructureEvent(result.MicrostructureEvents, "failed_auction", "bullish") {
+		t.Fatalf("expected bullish failed auction event, got %#v", result.MicrostructureEvents)
+	}
+	if !hasMicrostructureEvent(result.MicrostructureEvents, "failed_auction_low_reclaim", "bullish") {
+		t.Fatalf("expected bullish failed auction low reclaim event, got %#v", result.MicrostructureEvents)
 	}
 }
 
@@ -131,6 +154,12 @@ func TestAnalyzeOrderBookMicrostructureDetectsMigration(t *testing.T) {
 	}
 	if !hasMicrostructureEvent(events, "order_book_migration", "bullish") {
 		t.Fatalf("expected bullish order book migration event, got %#v", events)
+	}
+	if !hasMicrostructureEvent(events, "order_book_migration_layered", "bullish") {
+		t.Fatalf("expected bullish layered migration event, got %#v", events)
+	}
+	if !hasMicrostructureEvent(events, "order_book_migration_accelerated", "bullish") {
+		t.Fatalf("expected bullish accelerated migration event, got %#v", events)
 	}
 }
 
@@ -294,23 +323,74 @@ func buildFailedAuctionAggTrades(limit int) []models.AggTrade {
 	return trades
 }
 
+func buildFailedAuctionLowReclaimAggTrades(limit int) []models.AggTrade {
+	trades := make([]models.AggTrade, 0, limit)
+	start := time.Date(2026, 3, 6, 2, 30, 0, 0, time.UTC)
+	basePrice := 64520.0
+	extensionPrices := []float64{64512, 64508, 64502, 64498, 64472, 64444, 64408, 64428, 64472, 64505, 64528, 64544}
+
+	prefixCount := maxInt(limit-len(extensionPrices), 24)
+	for i := 0; i < prefixCount; i++ {
+		price := basePrice + math.Sin(float64(i)/4.0)*7
+		quantity := 0.31 + math.Mod(float64(i), 4)*0.03
+		trades = append(trades, models.AggTrade{
+			Symbol:           "BTCUSDT",
+			AggTradeID:       int64(i + 5000),
+			Price:            price,
+			Quantity:         quantity,
+			QuoteQuantity:    price * quantity,
+			FirstTradeID:     int64(i*2 + 1500),
+			LastTradeID:      int64(i*2 + 1501),
+			TradeTime:        start.Add(time.Duration(i) * 1500 * time.Millisecond).UnixMilli(),
+			IsBuyerMaker:     i%4 != 0,
+			IsBestPriceMatch: true,
+			CreatedAt:        start.Add(time.Duration(i) * 1500 * time.Millisecond),
+		})
+	}
+
+	for i, price := range extensionPrices {
+		quantity := 0.26
+		isBuyerMaker := i < 7
+		if i < 7 {
+			quantity = 1.08 + float64(i)*0.05
+		}
+		trades = append(trades, models.AggTrade{
+			Symbol:           "BTCUSDT",
+			AggTradeID:       int64(prefixCount + i + 6000),
+			Price:            price,
+			Quantity:         quantity,
+			QuoteQuantity:    price * quantity,
+			FirstTradeID:     int64((prefixCount+i)*2 + 1800),
+			LastTradeID:      int64((prefixCount+i)*2 + 1801),
+			TradeTime:        start.Add(time.Duration(prefixCount+i) * 1500 * time.Millisecond).UnixMilli(),
+			IsBuyerMaker:     isBuyerMaker,
+			IsBestPriceMatch: true,
+			CreatedAt:        start.Add(time.Duration(prefixCount+i) * 1500 * time.Millisecond),
+		})
+	}
+
+	return trades
+}
+
 func buildMigrationOrderBookSnapshots(t *testing.T) []models.OrderBookSnapshot {
 	t.Helper()
 
 	baseTime := time.Date(2026, 3, 6, 3, 0, 0, 0, time.UTC)
 	snapshots := make([]models.OrderBookSnapshot, 0, 6)
+	bidOffsets := []float64{0, 7, 15, 24, 34, 52}
+	askOffsets := []float64{0, 1, 2, 3, 4, 5}
 	for i := 0; i < 6; i++ {
 		bids := []binancepkg.OrderBookLevel{
-			{Price: 64500 + float64(i)*7, Quantity: 1.4},
-			{Price: 64496 + float64(i)*7, Quantity: 2.2},
-			{Price: 64492 + float64(i)*7, Quantity: 7.1 + float64(i)*0.4},
-			{Price: 64488 + float64(i)*7, Quantity: 4.5},
+			{Price: 64500 + bidOffsets[i], Quantity: 1.4},
+			{Price: 64496 + bidOffsets[i], Quantity: 2.2},
+			{Price: 64492 + bidOffsets[i], Quantity: 7.1 + float64(i)*0.55},
+			{Price: 64488 + bidOffsets[i], Quantity: 4.7 + float64(i)*0.1},
 		}
 		asks := []binancepkg.OrderBookLevel{
-			{Price: 64520 + float64(i), Quantity: 1.0},
-			{Price: 64524 + float64(i), Quantity: 2.0},
-			{Price: 64528 + float64(i), Quantity: 6.1},
-			{Price: 64532 + float64(i), Quantity: 4.1},
+			{Price: 64520 + askOffsets[i], Quantity: 1.0},
+			{Price: 64524 + askOffsets[i], Quantity: 2.0},
+			{Price: 64528 + askOffsets[i], Quantity: 6.1},
+			{Price: 64532 + askOffsets[i], Quantity: 4.1},
 		}
 		bidsJSON, err := json.Marshal(bids)
 		if err != nil {

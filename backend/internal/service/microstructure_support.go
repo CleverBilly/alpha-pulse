@@ -129,10 +129,10 @@ func mergeMicrostructureEvents(
 		return merged[i].TradeTime < merged[j].TradeTime
 	})
 
-	if len(merged) <= 12 {
+	if len(merged) <= 18 {
 		return merged
 	}
-	return merged[len(merged)-12:]
+	return merged[len(merged)-18:]
 }
 
 func formatInt64(value int64) string {

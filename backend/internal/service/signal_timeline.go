@@ -2,37 +2,55 @@ package service
 
 import (
 	"context"
-	"log"
 	"sort"
 	"time"
 
+	"alpha-pulse/backend/internal/observability"
 	"alpha-pulse/backend/models"
 	"gorm.io/gorm"
 )
 
 // GetSignalTimeline 获取指定交易对与周期的历史信号时间线。
 func (s *SignalService) GetSignalTimeline(symbol, interval string, limit int) (SignalTimelineResult, error) {
+	return s.GetSignalTimelineWithRefresh(symbol, interval, limit, false)
+}
+
+// GetSignalTimelineWithRefresh 获取指定交易对与周期的历史信号时间线，并可显式绕过缓存。
+func (s *SignalService) GetSignalTimelineWithRefresh(symbol, interval string, limit int, refresh bool) (SignalTimelineResult, error) {
 	symbol = normalizeSymbol(symbol)
 	interval = normalizeInterval(interval)
 	limit = clampInt(limit, 1, 120)
 
-	if cached, ok, err := s.getCachedSignalTimeline(symbol, interval, limit); err == nil && ok {
-		log.Printf("signal-timeline cache hit symbol=%s interval=%s limit=%d", symbol, interval, limit)
-		return cached, nil
-	} else if err != nil {
-		log.Printf("signal-timeline cache read failed symbol=%s interval=%s limit=%d err=%v", symbol, interval, limit, err)
+	cacheStartedAt := time.Now()
+	if refresh {
+		invalidateAllSymbolCacheScopes(s.viewCache, symbol, allCacheScopes()...)
+		invalidateAllSymbolCacheScopes(s.snapshotCache, symbol, allCacheScopes()...)
+		logServiceDuration("signal_service", "signal_timeline.cache_read", symbol, interval, limit, cacheStartedAt, "refresh", "", observability.Bool("refresh", true))
+	} else {
+		if cached, ok, err := s.getCachedSignalTimeline(symbol, interval, limit); err == nil && ok {
+			logServiceDuration("signal_service", "signal_timeline.cache_read", symbol, interval, limit, cacheStartedAt, "hit", "", observability.String("source", "cache"))
+			return cached, nil
+		} else if err != nil {
+			logServiceDuration("signal_service", "signal_timeline.cache_read", symbol, interval, limit, cacheStartedAt, "error", err.Error(), observability.String("source", "cache"))
+		} else {
+			logServiceDuration("signal_service", "signal_timeline.cache_read", symbol, interval, limit, cacheStartedAt, "miss", "", observability.String("source", "cache"))
+		}
 	}
 
+	buildStartedAt := time.Now()
 	points, err := s.loadSignalTimeline(symbol, interval, limit)
 	if err != nil {
+		logServiceDuration("signal_service", "signal_timeline.build", symbol, interval, limit, buildStartedAt, "error", err.Error())
 		return SignalTimelineResult{}, err
 	}
 	if len(points) == 0 {
 		if _, err := s.GetSignal(symbol, interval); err != nil {
+			logServiceDuration("signal_service", "signal_timeline.build", symbol, interval, limit, buildStartedAt, "error", err.Error())
 			return SignalTimelineResult{}, err
 		}
 		points, err = s.loadSignalTimeline(symbol, interval, limit)
 		if err != nil {
+			logServiceDuration("signal_service", "signal_timeline.build", symbol, interval, limit, buildStartedAt, "error", err.Error())
 			return SignalTimelineResult{}, err
 		}
 	}
@@ -43,8 +61,9 @@ func (s *SignalService) GetSignalTimeline(symbol, interval string, limit int) (S
 		Points:   points,
 	}
 	if err := s.setCachedSignalTimeline(symbol, interval, limit, result); err != nil {
-		log.Printf("signal-timeline cache write failed symbol=%s interval=%s limit=%d err=%v", symbol, interval, limit, err)
+		logServiceDuration("signal_service", "signal_timeline.cache_write", symbol, interval, limit, time.Now(), "error", err.Error())
 	}
+	logServiceDuration("signal_service", "signal_timeline.build", symbol, interval, limit, buildStartedAt, "ok", "", observability.Int("points", len(points)))
 	return result, nil
 }
 

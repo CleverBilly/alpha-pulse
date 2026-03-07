@@ -21,6 +21,31 @@ const PADDING_RIGHT = 118;
 const PADDING_BOTTOM = 36;
 const PADDING_LEFT = 18;
 const PRIMARY_MICROSTRUCTURE_TYPES = ["absorption", "iceberg", "aggression_burst"] as const;
+const SECONDARY_MICROSTRUCTURE_LAYERS = [
+  { key: "initiative_shift", label: "Initiative Shift", types: ["initiative_shift"] },
+  { key: "large_trade_cluster", label: "Large Trade Cluster", types: ["large_trade_cluster"] },
+  {
+    key: "failed_auction",
+    label: "Failed Auction",
+    types: ["failed_auction", "failed_auction_high_reject", "failed_auction_low_reclaim"],
+  },
+  {
+    key: "order_book_migration",
+    label: "Order Book Migration",
+    types: ["order_book_migration", "order_book_migration_layered", "order_book_migration_accelerated"],
+  },
+  { key: "microstructure_confluence", label: "Microstructure Confluence", types: ["microstructure_confluence"] },
+] as const;
+
+type SecondaryLayerKey = (typeof SECONDARY_MICROSTRUCTURE_LAYERS)[number]["key"];
+
+const DEFAULT_SECONDARY_LAYER_STATE: Record<SecondaryLayerKey, boolean> = {
+  initiative_shift: false,
+  large_trade_cluster: false,
+  failed_auction: false,
+  order_book_migration: false,
+  microstructure_confluence: false,
+};
 
 export default function KlineChart() {
   const {
@@ -38,20 +63,18 @@ export default function KlineChart() {
     error,
     refreshDashboard,
   } = useMarketStore();
-  const [showInitiativeShift, setShowInitiativeShift] = useState(false);
-  const [showLargeTradeCluster, setShowLargeTradeCluster] = useState(false);
+  const [enabledLayers, setEnabledLayers] = useState<Record<SecondaryLayerKey, boolean>>(DEFAULT_SECONDARY_LAYER_STATE);
   const [activeMicrostructureMarkerKey, setActiveMicrostructureMarkerKey] = useState<string | null>(null);
   const visibleKlines = klines.slice(-48);
   const visibleMicrostructureTypes = useMemo(() => {
     const types: string[] = [...PRIMARY_MICROSTRUCTURE_TYPES];
-    if (showInitiativeShift) {
-      types.push("initiative_shift");
-    }
-    if (showLargeTradeCluster) {
-      types.push("large_trade_cluster");
+    for (const layer of SECONDARY_MICROSTRUCTURE_LAYERS) {
+      if (enabledLayers[layer.key]) {
+        types.push(...layer.types);
+      }
     }
     return types;
-  }, [showInitiativeShift, showLargeTradeCluster]);
+  }, [enabledLayers]);
 
   const chart = useMemo(
     () =>
@@ -121,22 +144,17 @@ export default function KlineChart() {
             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-500">
               Core Layers: ABS / ICE / AGR
             </span>
-            <LayerToggle
-              label="Initiative Shift"
-              active={showInitiativeShift}
-              onClick={() => {
-                setShowInitiativeShift((value) => !value);
-                setActiveMicrostructureMarkerKey(null);
-              }}
-            />
-            <LayerToggle
-              label="Large Trade Cluster"
-              active={showLargeTradeCluster}
-              onClick={() => {
-                setShowLargeTradeCluster((value) => !value);
-                setActiveMicrostructureMarkerKey(null);
-              }}
-            />
+            {SECONDARY_MICROSTRUCTURE_LAYERS.map((layer) => (
+              <LayerToggle
+                key={layer.key}
+                label={layer.label}
+                active={enabledLayers[layer.key]}
+                onClick={() => {
+                  setEnabledLayers((value) => ({ ...value, [layer.key]: !value[layer.key] }));
+                  setActiveMicrostructureMarkerKey(null);
+                }}
+              />
+            ))}
           </div>
 
           <div className="overflow-hidden rounded-xl border border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-3">
@@ -1271,12 +1289,40 @@ function resolveMicrostructureMarkerLabel(type: string) {
       return "SHF";
     case "large_trade_cluster":
       return "LTC";
+    case "failed_auction":
+      return "FAU";
+    case "failed_auction_high_reject":
+      return "FAH";
+    case "failed_auction_low_reclaim":
+      return "FAL";
+    case "order_book_migration":
+      return "OBM";
+    case "order_book_migration_layered":
+      return "OBL";
+    case "order_book_migration_accelerated":
+      return "OBA";
+    case "microstructure_confluence":
+      return "MCF";
     default:
       return "MIC";
   }
 }
 
 function resolveMicrostructureMarkerTone(type: string, bias: string) {
+  if (type === "microstructure_confluence") {
+    return bias === "bearish"
+      ? {
+          color: "#7f1d1d",
+          labelColor: "#991b1b",
+          labelBackground: "#fee2e2",
+        }
+      : {
+          color: "#92400e",
+          labelColor: "#b45309",
+          labelBackground: "#fef3c7",
+        };
+  }
+
   if (type === "large_trade_cluster") {
     return bias === "bearish"
       ? {
@@ -1291,6 +1337,24 @@ function resolveMicrostructureMarkerTone(type: string, bias: string) {
         };
   }
 
+  if (
+    type === "failed_auction" ||
+    type === "failed_auction_high_reject" ||
+    type === "failed_auction_low_reclaim"
+  ) {
+    return bias === "bearish"
+      ? {
+          color: "#be123c",
+          labelColor: "#9f1239",
+          labelBackground: "#ffe4e6",
+        }
+      : {
+          color: "#0f766e",
+          labelColor: "#0f766e",
+          labelBackground: "#ccfbf1",
+        };
+  }
+
   if (type === "initiative_shift") {
     return bias === "bearish"
       ? {
@@ -1301,6 +1365,24 @@ function resolveMicrostructureMarkerTone(type: string, bias: string) {
       : {
           color: "#0369a1",
           labelColor: "#075985",
+          labelBackground: "#e0f2fe",
+        };
+  }
+
+  if (
+    type === "order_book_migration" ||
+    type === "order_book_migration_layered" ||
+    type === "order_book_migration_accelerated"
+  ) {
+    return bias === "bearish"
+      ? {
+          color: "#6d28d9",
+          labelColor: "#5b21b6",
+          labelBackground: "#ede9fe",
+        }
+      : {
+          color: "#075985",
+          labelColor: "#0369a1",
           labelBackground: "#e0f2fe",
         };
   }

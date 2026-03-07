@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"alpha-pulse/backend/models"
@@ -19,7 +20,7 @@ const (
 	aggregationWindow     = 6
 	largeTradeThreshold   = 100000.0
 	maxLargeTradeEvents   = 8
-	maxMicroEvents        = 8
+	maxMicroEvents        = 14
 	icebergBucketPct      = 0.00025
 	icebergPriceDriftPct  = 0.0015
 	aggressionWindow      = 20
@@ -30,6 +31,16 @@ const (
 // Engine 负责订单流分析。
 type Engine struct {
 	historyLimit int
+}
+
+type wallState struct {
+	bestBid     float64
+	bestAsk     float64
+	bidWall     float64
+	askWall     float64
+	bidNotional float64
+	askNotional float64
+	eventTime   int64
 }
 
 // NewEngine 创建订单流引擎。
@@ -198,10 +209,7 @@ func (e *Engine) AnalyzeOrderBookMicrostructure(_ string, snapshots []models.Ord
 	}
 
 	sortedSnapshots := sortOrderBookSnapshotsAscending(snapshots)
-	if event, ok := detectOrderBookMigration(sortedSnapshots); ok {
-		return []models.OrderFlowMicrostructureEvent{event}, nil
-	}
-	return nil, nil
+	return detectOrderBookMigrationEvents(sortedSnapshots), nil
 }
 
 func appendLargeTradeEvent(events []models.OrderFlowLargeTrade, trade models.AggTrade, side string) []models.OrderFlowLargeTrade {
@@ -323,9 +331,7 @@ func buildMicrostructureEvents(
 	if event, ok := detectContinuousAbsorption(trades); ok {
 		events = append(events, event)
 	}
-	if event, ok := detectFailedAuction(trades); ok {
-		events = append(events, event)
-	}
+	events = append(events, detectFailedAuctionEvents(trades)...)
 
 	events = append(events, detectAggressionBursts(trades)...)
 
@@ -340,6 +346,9 @@ func buildMicrostructureEvents(
 		buyLargeTradeNotional,
 		sellLargeTradeNotional,
 	); ok {
+		events = append(events, event)
+	}
+	if event, ok := detectMicrostructureConfluence(events); ok {
 		events = append(events, event)
 	}
 
@@ -492,15 +501,15 @@ func detectContinuousAbsorption(trades []models.AggTrade) (models.OrderFlowMicro
 	}
 }
 
-func detectFailedAuction(trades []models.AggTrade) (models.OrderFlowMicrostructureEvent, bool) {
+func detectFailedAuctionEvents(trades []models.AggTrade) []models.OrderFlowMicrostructureEvent {
 	if len(trades) < 24 {
-		return models.OrderFlowMicrostructureEvent{}, false
+		return nil
 	}
 
 	recent := trades[maxInt(len(trades)-24, 0):]
 	split := len(recent) * 2 / 3
 	if split < 8 || split >= len(recent) {
-		return models.OrderFlowMicrostructureEvent{}, false
+		return nil
 	}
 
 	reference := recent[:split]
@@ -510,12 +519,13 @@ func detectFailedAuction(trades []models.AggTrade) (models.OrderFlowMicrostructu
 	endPrice := recent[len(recent)-1].Price
 	latestTrade := recent[len(recent)-1]
 	probeBuyNotional, probeSellNotional := sumTradeNotionalBySide(probe)
+	events := make([]models.OrderFlowMicrostructureEvent, 0, 2)
 
 	upsideBreak := priorHigh > 0 && probeHigh > priorHigh*1.00035
 	upsideRejected := upsideBreak && endPrice <= priorHigh*1.00005 && endPrice < probeHigh*0.99955
 	if upsideRejected && probeBuyNotional > probeSellNotional*1.08 {
 		rejectionStrength := clamp((probeHigh-endPrice)/math.Max(priorHigh, 1)*1200, 0, 1)
-		return models.OrderFlowMicrostructureEvent{
+		events = append(events, models.OrderFlowMicrostructureEvent{
 			Type:      "failed_auction",
 			Bias:      "bearish",
 			Score:     -5,
@@ -523,14 +533,26 @@ func detectFailedAuction(trades []models.AggTrade) (models.OrderFlowMicrostructu
 			Price:     roundFloat(probeHigh, 8),
 			TradeTime: latestTrade.TradeTime,
 			Detail:    "上方拍卖突破失败，价格重新回到前高下方",
-		}, true
+		})
+		reclaimDepth := (priorHigh - endPrice) / math.Max(priorHigh, 1)
+		if reclaimDepth >= 0.00035 || probeSellNotional >= probeBuyNotional*0.72 {
+			events = append(events, models.OrderFlowMicrostructureEvent{
+				Type:      "failed_auction_high_reject",
+				Bias:      "bearish",
+				Score:     -6,
+				Strength:  roundFloat(clamp(rejectionStrength+reclaimDepth*800, 0, 1), 6),
+				Price:     roundFloat(probeHigh, 8),
+				TradeTime: latestTrade.TradeTime,
+				Detail:    "上方失败拍卖形成强回落分型，突破后迅速被压回区间内",
+			})
+		}
 	}
 
 	downsideBreak := priorLow > 0 && probeLow < priorLow*0.99965
 	downsideRejected := downsideBreak && endPrice >= priorLow*0.99995 && endPrice > probeLow*1.00045
 	if downsideRejected && probeSellNotional > probeBuyNotional*1.08 {
 		rejectionStrength := clamp((endPrice-probeLow)/math.Max(priorLow, 1)*1200, 0, 1)
-		return models.OrderFlowMicrostructureEvent{
+		events = append(events, models.OrderFlowMicrostructureEvent{
 			Type:      "failed_auction",
 			Bias:      "bullish",
 			Score:     5,
@@ -538,10 +560,22 @@ func detectFailedAuction(trades []models.AggTrade) (models.OrderFlowMicrostructu
 			Price:     roundFloat(probeLow, 8),
 			TradeTime: latestTrade.TradeTime,
 			Detail:    "下方拍卖突破失败，价格重新回到前低上方",
-		}, true
+		})
+		reclaimDepth := (endPrice - priorLow) / math.Max(priorLow, 1)
+		if reclaimDepth >= 0.00035 || probeBuyNotional >= probeSellNotional*0.72 {
+			events = append(events, models.OrderFlowMicrostructureEvent{
+				Type:      "failed_auction_low_reclaim",
+				Bias:      "bullish",
+				Score:     6,
+				Strength:  roundFloat(clamp(rejectionStrength+reclaimDepth*800, 0, 1), 6),
+				Price:     roundFloat(probeLow, 8),
+				TradeTime: latestTrade.TradeTime,
+				Detail:    "下方失败拍卖形成强收回分型，跌破后快速收回前低上方",
+			})
+		}
 	}
 
-	return models.OrderFlowMicrostructureEvent{}, false
+	return events
 }
 
 func detectAggressionBursts(trades []models.AggTrade) []models.OrderFlowMicrostructureEvent {
@@ -722,6 +756,88 @@ func detectLargeTradeCluster(
 	}
 }
 
+func detectMicrostructureConfluence(events []models.OrderFlowMicrostructureEvent) (models.OrderFlowMicrostructureEvent, bool) {
+	if len(events) < 2 {
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+
+	recent := events
+	if len(recent) > 6 {
+		recent = recent[len(recent)-6:]
+	}
+
+	bullishScore := 0.0
+	bearishScore := 0.0
+	bullishTypes := make([]string, 0, len(recent))
+	bearishTypes := make([]string, 0, len(recent))
+	seenBullish := map[string]struct{}{}
+	seenBearish := map[string]struct{}{}
+	latestEvent := recent[len(recent)-1]
+
+	for _, event := range recent {
+		if !isHighOrderMicrostructureEvent(event.Type) {
+			continue
+		}
+		weightedScore := math.Abs(float64(event.Score)) * (1 + event.Strength*0.45)
+		switch event.Bias {
+		case "bullish":
+			bullishScore += weightedScore
+			if _, exists := seenBullish[event.Type]; !exists {
+				seenBullish[event.Type] = struct{}{}
+				bullishTypes = append(bullishTypes, event.Type)
+			}
+		case "bearish":
+			bearishScore += weightedScore
+			if _, exists := seenBearish[event.Type]; !exists {
+				seenBearish[event.Type] = struct{}{}
+				bearishTypes = append(bearishTypes, event.Type)
+			}
+		}
+	}
+
+	switch {
+	case len(bullishTypes) >= 2 && bullishScore >= 11:
+		return models.OrderFlowMicrostructureEvent{
+			Type:      "microstructure_confluence",
+			Bias:      "bullish",
+			Score:     7,
+			Strength:  roundFloat(clamp(bullishScore/18, 0, 1), 6),
+			Price:     roundFloat(latestEvent.Price, 8),
+			TradeTime: latestEvent.TradeTime,
+			Detail:    "高阶微结构共振：" + strings.Join(bullishTypes, " + "),
+		}, true
+	case len(bearishTypes) >= 2 && bearishScore >= 11:
+		return models.OrderFlowMicrostructureEvent{
+			Type:      "microstructure_confluence",
+			Bias:      "bearish",
+			Score:     -7,
+			Strength:  roundFloat(clamp(bearishScore/18, 0, 1), 6),
+			Price:     roundFloat(latestEvent.Price, 8),
+			TradeTime: latestEvent.TradeTime,
+			Detail:    "高阶微结构共振：" + strings.Join(bearishTypes, " + "),
+		}, true
+	default:
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+}
+
+func isHighOrderMicrostructureEvent(eventType string) bool {
+	switch eventType {
+	case "continuous_absorption",
+		"failed_auction",
+		"failed_auction_high_reject",
+		"failed_auction_low_reclaim",
+		"initiative_shift",
+		"large_trade_cluster",
+		"order_book_migration",
+		"order_book_migration_layered",
+		"order_book_migration_accelerated":
+		return true
+	default:
+		return false
+	}
+}
+
 func calculateNotionalDeltaRatio(trades []models.AggTrade) float64 {
 	buyNotional := 0.0
 	sellNotional := 0.0
@@ -866,19 +982,9 @@ func sortOrderBookSnapshotsAscending(snapshots []models.OrderBookSnapshot) []mod
 	return sorted
 }
 
-func detectOrderBookMigration(snapshots []models.OrderBookSnapshot) (models.OrderFlowMicrostructureEvent, bool) {
+func detectOrderBookMigrationEvents(snapshots []models.OrderBookSnapshot) []models.OrderFlowMicrostructureEvent {
 	if len(snapshots) < 3 {
-		return models.OrderFlowMicrostructureEvent{}, false
-	}
-
-	type wallState struct {
-		bestBid     float64
-		bestAsk     float64
-		bidWall     float64
-		askWall     float64
-		bidNotional float64
-		askNotional float64
-		eventTime   int64
+		return nil
 	}
 
 	states := make([]wallState, 0, len(snapshots))
@@ -905,7 +1011,7 @@ func detectOrderBookMigration(snapshots []models.OrderBookSnapshot) (models.Orde
 		})
 	}
 	if len(states) < 3 {
-		return models.OrderFlowMicrostructureEvent{}, false
+		return nil
 	}
 
 	first := states[0]
@@ -923,37 +1029,134 @@ func detectOrderBookMigration(snapshots []models.OrderBookSnapshot) (models.Orde
 	askShiftPct := (latest.askWall - first.askWall) / math.Max(first.askWall, 1)
 	bestBidShiftPct := (latest.bestBid - first.bestBid) / math.Max(first.bestBid, 1)
 	bestAskShiftPct := (latest.bestAsk - first.bestAsk) / math.Max(first.bestAsk, 1)
+	events := make([]models.OrderFlowMicrostructureEvent, 0, 3)
 
 	switch {
 	case bidShiftPct >= 0.00045 &&
 		bestBidShiftPct >= 0.00025 &&
 		latest.bidNotional >= avgBidNotional*0.9 &&
 		askShiftPct >= -0.00015:
-		return models.OrderFlowMicrostructureEvent{
+		baseStrength := clamp(bidShiftPct*1200+latest.bidNotional/math.Max(avgBidNotional, 1)-1, 0, 1)
+		events = append(events, models.OrderFlowMicrostructureEvent{
 			Type:      "order_book_migration",
 			Bias:      "bullish",
 			Score:     4,
-			Strength:  roundFloat(clamp(bidShiftPct*1200+latest.bidNotional/math.Max(avgBidNotional, 1)-1, 0, 1), 6),
+			Strength:  roundFloat(baseStrength, 6),
 			Price:     roundFloat(latest.bidWall, 8),
 			TradeTime: latest.eventTime,
 			Detail:    "买方挂单墙持续上移，盘口承接价格带被主动抬高",
-		}, true
+		})
+		layeredSteps := countLayeredBidShifts(states)
+		if layeredSteps >= 2 {
+			events = append(events, models.OrderFlowMicrostructureEvent{
+				Type:      "order_book_migration_layered",
+				Bias:      "bullish",
+				Score:     5,
+				Strength:  roundFloat(clamp(baseStrength+float64(layeredSteps)*0.12, 0, 1), 6),
+				Price:     roundFloat(latest.bidWall, 8),
+				TradeTime: latest.eventTime,
+				Detail:    "买方挂单墙连续多层上移，分层承接同步抬高",
+			})
+		}
+		if isBullishMigrationAccelerating(states, avgBidNotional) {
+			events = append(events, models.OrderFlowMicrostructureEvent{
+				Type:      "order_book_migration_accelerated",
+				Bias:      "bullish",
+				Score:     6,
+				Strength:  roundFloat(clamp(baseStrength+0.2, 0, 1), 6),
+				Price:     roundFloat(latest.bidWall, 8),
+				TradeTime: latest.eventTime,
+				Detail:    "买方挂单迁移出现加速，best bid 与承接墙同步快速上抬",
+			})
+		}
 	case askShiftPct <= -0.00045 &&
 		bestAskShiftPct <= -0.00025 &&
 		latest.askNotional >= avgAskNotional*0.9 &&
 		bidShiftPct <= 0.00015:
-		return models.OrderFlowMicrostructureEvent{
+		baseStrength := clamp(math.Abs(askShiftPct)*1200+latest.askNotional/math.Max(avgAskNotional, 1)-1, 0, 1)
+		events = append(events, models.OrderFlowMicrostructureEvent{
 			Type:      "order_book_migration",
 			Bias:      "bearish",
 			Score:     -4,
-			Strength:  roundFloat(clamp(math.Abs(askShiftPct)*1200+latest.askNotional/math.Max(avgAskNotional, 1)-1, 0, 1), 6),
+			Strength:  roundFloat(baseStrength, 6),
 			Price:     roundFloat(latest.askWall, 8),
 			TradeTime: latest.eventTime,
 			Detail:    "卖方挂单墙持续下移，上方压单主动向现价靠拢",
-		}, true
+		})
+		layeredSteps := countLayeredAskShifts(states)
+		if layeredSteps >= 2 {
+			events = append(events, models.OrderFlowMicrostructureEvent{
+				Type:      "order_book_migration_layered",
+				Bias:      "bearish",
+				Score:     -5,
+				Strength:  roundFloat(clamp(baseStrength+float64(layeredSteps)*0.12, 0, 1), 6),
+				Price:     roundFloat(latest.askWall, 8),
+				TradeTime: latest.eventTime,
+				Detail:    "卖方挂单墙连续多层下移，分层压制同步靠近现价",
+			})
+		}
+		if isBearishMigrationAccelerating(states, avgAskNotional) {
+			events = append(events, models.OrderFlowMicrostructureEvent{
+				Type:      "order_book_migration_accelerated",
+				Bias:      "bearish",
+				Score:     -6,
+				Strength:  roundFloat(clamp(baseStrength+0.2, 0, 1), 6),
+				Price:     roundFloat(latest.askWall, 8),
+				TradeTime: latest.eventTime,
+				Detail:    "卖方挂单迁移出现加速，best ask 与压单墙同步快速下压",
+			})
+		}
 	default:
-		return models.OrderFlowMicrostructureEvent{}, false
+		return nil
 	}
+
+	return events
+}
+
+func countLayeredBidShifts(states []wallState) int {
+	count := 0
+	for index := 1; index < len(states); index++ {
+		prev := states[index-1]
+		current := states[index]
+		if current.bidWall > prev.bidWall*1.00012 && current.bidNotional >= prev.bidNotional*0.88 {
+			count++
+		}
+	}
+	return count
+}
+
+func countLayeredAskShifts(states []wallState) int {
+	count := 0
+	for index := 1; index < len(states); index++ {
+		prev := states[index-1]
+		current := states[index]
+		if current.askWall < prev.askWall*0.99988 && current.askNotional >= prev.askNotional*0.88 {
+			count++
+		}
+	}
+	return count
+}
+
+func isBullishMigrationAccelerating(states []wallState, avgBidNotional float64) bool {
+	if len(states) < 3 {
+		return false
+	}
+	prev := states[len(states)-2]
+	latest := states[len(states)-1]
+	return latest.bidWall > prev.bidWall*1.00025 &&
+		latest.bestBid > prev.bestBid*1.00018 &&
+		latest.bidNotional >= math.Max(avgBidNotional, 1)*1.02
+}
+
+func isBearishMigrationAccelerating(states []wallState, avgAskNotional float64) bool {
+	if len(states) < 3 {
+		return false
+	}
+	prev := states[len(states)-2]
+	latest := states[len(states)-1]
+	return latest.askWall < prev.askWall*0.99975 &&
+		latest.bestAsk < prev.bestAsk*0.99982 &&
+		latest.askNotional >= math.Max(avgAskNotional, 1)*1.02
 }
 
 func parseOrderBookSnapshot(snapshot models.OrderBookSnapshot) ([]binancepkg.OrderBookLevel, []binancepkg.OrderBookLevel, error) {

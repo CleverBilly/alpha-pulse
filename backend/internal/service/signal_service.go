@@ -3,14 +3,13 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
-	"log"
 	"time"
 
 	"alpha-pulse/backend/internal/ai"
 	"alpha-pulse/backend/internal/collector"
 	"alpha-pulse/backend/internal/indicator"
 	"alpha-pulse/backend/internal/liquidity"
+	"alpha-pulse/backend/internal/observability"
 	"alpha-pulse/backend/internal/orderflow"
 	signalengine "alpha-pulse/backend/internal/signal"
 	structureengine "alpha-pulse/backend/internal/structure"
@@ -130,64 +129,53 @@ func (s *SignalService) GetSignal(symbol, interval string) (SignalResult, error)
 
 // GetMarketSnapshot 返回聚合行情快照，供前端一次性拉取。
 func (s *SignalService) GetMarketSnapshot(symbol, interval string, limit int) (MarketSnapshot, error) {
+	return s.GetMarketSnapshotWithRefresh(symbol, interval, limit, false)
+}
+
+// GetMarketSnapshotWithRefresh 返回聚合行情快照，并可显式绕过缓存。
+func (s *SignalService) GetMarketSnapshotWithRefresh(symbol, interval string, limit int, refresh bool) (MarketSnapshot, error) {
 	symbol = normalizeSymbol(symbol)
 	interval = normalizeInterval(interval)
 	limit = clampInt(limit, 1, 120)
-	startedAt := time.Now()
-
-	if cached, ok, err := s.getCachedMarketSnapshot(symbol, interval, limit); err == nil && ok {
-		log.Printf(
-			"market-snapshot cache hit symbol=%s interval=%s limit=%d duration=%s",
-			symbol,
-			interval,
-			limit,
-			time.Since(startedAt),
-		)
-		return cached, nil
-	} else if err != nil {
-		log.Printf(
-			"market-snapshot cache read failed symbol=%s interval=%s limit=%d err=%v",
-			symbol,
-			interval,
-			limit,
-			err,
-		)
+	cacheStartedAt := time.Now()
+	if refresh {
+		invalidateAllSymbolCacheScopes(s.snapshotCache, symbol, allCacheScopes()...)
+		invalidateAllSymbolCacheScopes(s.viewCache, symbol, allCacheScopes()...)
+		logServiceDuration("signal_service", "market_snapshot.cache_read", symbol, interval, limit, cacheStartedAt, "refresh", "", observability.Bool("refresh", true))
+	} else {
+		if cached, ok, err := s.getCachedMarketSnapshot(symbol, interval, limit); err == nil && ok {
+			logServiceDuration("signal_service", "market_snapshot.cache_read", symbol, interval, limit, cacheStartedAt, "hit", "", observability.String("source", "cache"))
+			return cached, nil
+		} else if err != nil {
+			logServiceDuration("signal_service", "market_snapshot.cache_read", symbol, interval, limit, cacheStartedAt, "error", err.Error(), observability.String("source", "cache"))
+		} else {
+			logServiceDuration("signal_service", "market_snapshot.cache_read", symbol, interval, limit, cacheStartedAt, "miss", "", observability.String("source", "cache"))
+		}
 	}
-	log.Printf("market-snapshot cache miss symbol=%s interval=%s limit=%d", symbol, interval, limit)
 
 	buildStartedAt := time.Now()
 	snapshot, err := s.buildMarketSnapshot(symbol, interval, limit, true)
 	if err != nil {
-		log.Printf(
-			"market-snapshot build failed symbol=%s interval=%s limit=%d duration=%s err=%v",
-			symbol,
-			interval,
-			limit,
-			time.Since(buildStartedAt),
-			err,
-		)
+		logServiceDuration("signal_service", "market_snapshot.build", symbol, interval, limit, buildStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
-	log.Printf(
-		"market-snapshot build complete symbol=%s interval=%s limit=%d duration=%s klines=%d micro_events=%d signals=%d",
+
+	if err := s.setCachedMarketSnapshot(symbol, interval, limit, snapshot); err != nil {
+		logServiceDuration("signal_service", "market_snapshot.cache_write", symbol, interval, limit, time.Now(), "error", err.Error())
+	}
+	logServiceDuration(
+		"signal_service",
+		"market_snapshot.build",
 		symbol,
 		interval,
 		limit,
-		time.Since(buildStartedAt),
-		len(snapshot.Klines),
-		len(snapshot.MicrostructureEvents),
-		len(snapshot.SignalTimeline),
+		buildStartedAt,
+		"ok",
+		"",
+		observability.Int("klines", len(snapshot.Klines)),
+		observability.Int("micro_events", len(snapshot.MicrostructureEvents)),
+		observability.Int("signal_points", len(snapshot.SignalTimeline)),
 	)
-
-	if err := s.setCachedMarketSnapshot(symbol, interval, limit, snapshot); err != nil {
-		log.Printf(
-			"market-snapshot cache write failed symbol=%s interval=%s limit=%d err=%v",
-			symbol,
-			interval,
-			limit,
-			err,
-		)
-	}
 	return snapshot, nil
 }
 
@@ -228,6 +216,7 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 		s.liquidityEngine.HistoryLimit(),
 	)
 
+	stageStartedAt := time.Now()
 	allKlines, err := loadAnalysisKlinesWithLimit(
 		s.collector,
 		s.klineRepo,
@@ -237,12 +226,15 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 		minimumRequired,
 	)
 	if err != nil {
+		logServiceDuration("signal_service", "market_snapshot.load_klines", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
+	logServiceDuration("signal_service", "market_snapshot.load_klines", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.Int("samples", len(allKlines)))
 
 	latestKline := allKlines[len(allKlines)-1]
 	chartKlines := takeLastKlines(allKlines, chartLimit)
 
+	stageStartedAt = time.Now()
 	priceValue, err := s.collector.GetPrice(symbol)
 	if err != nil {
 		priceValue = latestKline.ClosePrice
@@ -252,15 +244,31 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 		Price:  priceValue,
 		Time:   time.Now().UnixMilli(),
 	}
+	priceStatus := "ok"
+	priceReason := ""
+	if err != nil {
+		priceStatus = "fallback"
+		priceReason = err.Error()
+	}
+	logServiceDuration("signal_service", "market_snapshot.price", symbol, interval, chartLimit, stageStartedAt, priceStatus, priceReason)
 
+	stageStartedAt = time.Now()
 	indicatorResult, err := s.indicatorEngine.Calculate(symbol, allKlines)
 	if err != nil {
+		logServiceDuration("signal_service", "market_snapshot.indicator", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
+	logServiceDuration("signal_service", "market_snapshot.indicator", symbol, interval, chartLimit, stageStartedAt, "ok", "")
+
+	stageStartedAt = time.Now()
 	indicatorSeries, err := buildIndicatorSeries(s.indicatorEngine, symbol, allKlines, chartLimit)
 	if err != nil {
+		logServiceDuration("signal_service", "market_snapshot.indicator_series", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
+	logServiceDuration("signal_service", "market_snapshot.indicator_series", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.Int("points", len(indicatorSeries)))
+
+	stageStartedAt = time.Now()
 	orderFlowResult, err := analyzeOrderFlowWithKlineFallback(
 		s.collector,
 		s.orderFlowEngine,
@@ -271,18 +279,30 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 		allKlines,
 	)
 	if err != nil {
+		logServiceDuration("signal_service", "market_snapshot.orderflow", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
 	orderFlowResult.IntervalType = interval
 	orderFlowResult.OpenTime = latestKline.OpenTime
+	logServiceDuration("signal_service", "market_snapshot.orderflow", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.String("source", orderFlowResult.DataSource))
+
+	stageStartedAt = time.Now()
 	structureResult, err := s.structureEngine.Analyze(symbol, allKlines)
 	if err != nil {
+		logServiceDuration("signal_service", "market_snapshot.structure", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
+	logServiceDuration("signal_service", "market_snapshot.structure", symbol, interval, chartLimit, stageStartedAt, "ok", "")
+
+	stageStartedAt = time.Now()
 	structureSeries, err := buildStructureSeries(s.structureEngine, symbol, allKlines, chartLimit)
 	if err != nil {
+		logServiceDuration("signal_service", "market_snapshot.structure_series", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
+	logServiceDuration("signal_service", "market_snapshot.structure_series", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.Int("points", len(structureSeries)))
+
+	stageStartedAt = time.Now()
 	liquidityResult, err := analyzeLiquidityWithKlineFallback(
 		s.collector,
 		s.liquidityEngine,
@@ -293,8 +313,12 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 		allKlines,
 	)
 	if err != nil {
+		logServiceDuration("signal_service", "market_snapshot.liquidity", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
+	logServiceDuration("signal_service", "market_snapshot.liquidity", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.String("source", liquidityResult.DataSource))
+
+	stageStartedAt = time.Now()
 	liquiditySeries, err := buildLiquiditySeries(
 		s.liquidityEngine,
 		s.orderBookRepo,
@@ -304,16 +328,24 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 		chartLimit,
 	)
 	if err != nil {
+		logServiceDuration("signal_service", "market_snapshot.liquidity_series", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
+	logServiceDuration("signal_service", "market_snapshot.liquidity_series", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.Int("points", len(liquiditySeries)))
+
+	stageStartedAt = time.Now()
 	if err := enrichOrderFlowMicrostructureWithOrderBook(
 		s.orderFlowEngine,
 		s.orderBookRepo,
 		symbol,
 		&orderFlowResult,
 	); err != nil {
+		logServiceDuration("signal_service", "market_snapshot.micro_enrich", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
+	logServiceDuration("signal_service", "market_snapshot.micro_enrich", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.Int("events", len(orderFlowResult.MicrostructureEvents)))
+
+	stageStartedAt = time.Now()
 	signalResult := s.signalEngine.Generate(
 		symbol,
 		latestKline.ClosePrice,
@@ -325,39 +357,57 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 	signalResult.IntervalType = interval
 	signalResult.OpenTime = latestKline.OpenTime
 	signalResult.Explain = s.explainEngine.Explain(signalResult)
+	logServiceDuration("signal_service", "market_snapshot.signal", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.Int("score", signalResult.Score))
 
 	if persist {
+		stageStartedAt = time.Now()
 		if err := s.indicatorRepo.Create(&indicatorResult); err != nil {
+			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 			return MarketSnapshot{}, err
 		}
 		if err := s.db.Create(&orderFlowResult).Error; err != nil {
+			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 			return MarketSnapshot{}, err
 		}
 		if err := persistMicrostructureEvents(s.microEventRepo, orderFlowResult); err != nil {
+			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 			return MarketSnapshot{}, err
 		}
 		if err := s.db.Create(&structureResult).Error; err != nil {
+			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 			return MarketSnapshot{}, err
 		}
 		if err := s.db.Create(&liquidityResult).Error; err != nil {
+			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 			return MarketSnapshot{}, err
 		}
 		if err := s.signalRepo.Create(&signalResult); err != nil {
+			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 			return MarketSnapshot{}, err
 		}
+		invalidateAllSymbolCacheScopes(s.viewCache, symbol, allCacheScopes()...)
+		invalidateAllSymbolCacheScopes(s.snapshotCache, symbol, allCacheScopes()...)
+		logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "ok", "")
 	}
 
+	stageStartedAt = time.Now()
 	signalTimeline, err := s.loadSignalTimeline(symbol, interval, chartLimit)
 	if err != nil {
+		logServiceDuration("signal_service", "market_snapshot.signal_timeline", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
 	if len(signalTimeline) == 0 {
 		signalTimeline = compactSignalTimeline([]models.Signal{signalResult}, chartLimit)
 	}
+	logServiceDuration("signal_service", "market_snapshot.signal_timeline", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.Int("points", len(signalTimeline)))
+
+	stageStartedAt = time.Now()
 	microstructureEvents, err := s.loadSnapshotMicrostructureEvents(symbol, interval, chartKlines, orderFlowResult)
 	if err != nil {
+		logServiceDuration("signal_service", "market_snapshot.micro_history", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
+	logServiceDuration("signal_service", "market_snapshot.micro_history", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.Int("events", len(microstructureEvents)))
 
 	return MarketSnapshot{
 		Price:                price,
@@ -407,14 +457,6 @@ func (s *SignalService) setCachedMarketSnapshot(symbol, interval string, limit i
 	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
 	defer cancel()
 	return setCachedJSON(ctx, s.snapshotCache, marketSnapshotCacheKey(symbol, interval, limit), snapshot, s.snapshotTTL)
-}
-
-func marketSnapshotCacheKey(symbol, interval string, limit int) string {
-	return fmt.Sprintf("alpha-pulse:market-snapshot:v3:%s:%s:%d", symbol, interval, limit)
-}
-
-func signalTimelineCacheKey(symbol, interval string, limit int) string {
-	return fmt.Sprintf("alpha-pulse:signal-timeline:v1:%s:%s:%d", symbol, interval, limit)
 }
 
 func maxInt(values ...int) int {

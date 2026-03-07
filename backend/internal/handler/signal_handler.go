@@ -36,7 +36,8 @@ func (h *SignalHandler) GetSignalTimeline(c *gin.Context) {
 	symbol := c.DefaultQuery("symbol", "BTCUSDT")
 	interval := c.DefaultQuery("interval", "1m")
 	limit := parseSignalLimit(c.DefaultQuery("limit", "48"), 48)
-	result, err := h.signalService.GetSignalTimeline(symbol, interval, limit)
+	refresh := parseRefresh(c.Query("refresh"))
+	result, err := h.signalService.GetSignalTimelineWithRefresh(symbol, interval, limit, refresh)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.Error(500, err.Error()))
 		return

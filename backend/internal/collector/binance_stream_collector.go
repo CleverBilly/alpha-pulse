@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"alpha-pulse/backend/internal/observability"
 	"alpha-pulse/backend/models"
 	binancepkg "alpha-pulse/backend/pkg/binance"
 	"alpha-pulse/backend/repository"
@@ -27,6 +28,7 @@ type BinanceStreamCollector struct {
 	reconnectDelay time.Duration
 	aggTradeRepo   *repository.AggTradeRepository
 	orderBookRepo  *repository.OrderBookSnapshotRepository
+	onWrite        func(symbol string)
 }
 
 // NewBinanceStreamCollector 创建流式采集器。
@@ -34,6 +36,7 @@ func NewBinanceStreamCollector(
 	symbols []string,
 	aggTradeRepo *repository.AggTradeRepository,
 	orderBookRepo *repository.OrderBookSnapshotRepository,
+	onWrite func(symbol string),
 ) *BinanceStreamCollector {
 	return &BinanceStreamCollector{
 		symbols:        normalizeSymbols(symbols),
@@ -41,6 +44,7 @@ func NewBinanceStreamCollector(
 		reconnectDelay: defaultReconnectDelay,
 		aggTradeRepo:   aggTradeRepo,
 		orderBookRepo:  orderBookRepo,
+		onWrite:        onWrite,
 	}
 }
 
@@ -140,13 +144,16 @@ func (c *BinanceStreamCollector) handleAggTrade(event *binancesdk.WsAggTradeEven
 	if event == nil || c.aggTradeRepo == nil {
 		return
 	}
+	startedAt := time.Now()
 
 	price, err := strconv.ParseFloat(event.Price, 64)
 	if err != nil {
+		observability.LogDuration("collector", "stream_agg_trade", startedAt, "error", err.Error(), observability.String("symbol", strings.ToUpper(event.Symbol)))
 		return
 	}
 	quantity, err := strconv.ParseFloat(event.Quantity, 64)
 	if err != nil {
+		observability.LogDuration("collector", "stream_agg_trade", startedAt, "error", err.Error(), observability.String("symbol", strings.ToUpper(event.Symbol)))
 		return
 	}
 
@@ -166,17 +173,25 @@ func (c *BinanceStreamCollector) handleAggTrade(event *binancesdk.WsAggTradeEven
 
 	if err := c.aggTradeRepo.Create(&trade); err != nil {
 		log.Printf("persist agg trade failed: symbol=%s agg_trade_id=%d err=%v", trade.Symbol, trade.AggTradeID, err)
+		observability.LogDuration("collector", "stream_agg_trade", startedAt, "error", err.Error(), observability.String("symbol", trade.Symbol), observability.Int64("trade_time", trade.TradeTime))
+		return
 	}
+	if c.onWrite != nil {
+		c.onWrite(trade.Symbol)
+	}
+	observability.LogDuration("collector", "stream_agg_trade", startedAt, "ok", "", observability.String("symbol", trade.Symbol), observability.Int64("trade_time", trade.TradeTime))
 }
 
 func (c *BinanceStreamCollector) handlePartialDepth(event *binancesdk.WsPartialDepthEvent) {
 	if event == nil || c.orderBookRepo == nil || len(event.Bids) == 0 || len(event.Asks) == 0 {
 		return
 	}
+	startedAt := time.Now()
 
 	levels, snapshot, err := buildOrderBookSnapshot(event, c.depthLevel)
 	if err != nil {
 		log.Printf("build order book snapshot failed: symbol=%s err=%v", event.Symbol, err)
+		observability.LogDuration("collector", "stream_partial_depth", startedAt, "error", err.Error(), observability.String("symbol", strings.ToUpper(event.Symbol)))
 		return
 	}
 
@@ -188,7 +203,13 @@ func (c *BinanceStreamCollector) handlePartialDepth(event *binancesdk.WsPartialD
 			levels,
 			err,
 		)
+		observability.LogDuration("collector", "stream_partial_depth", startedAt, "error", err.Error(), observability.String("symbol", snapshot.Symbol), observability.Int("levels", levels))
+		return
 	}
+	if c.onWrite != nil {
+		c.onWrite(snapshot.Symbol)
+	}
+	observability.LogDuration("collector", "stream_partial_depth", startedAt, "ok", "", observability.String("symbol", snapshot.Symbol), observability.Int("levels", levels))
 }
 
 func buildOrderBookSnapshot(event *binancesdk.WsPartialDepthEvent, depthLevel string) (int, models.OrderBookSnapshot, error) {
