@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -44,4 +45,37 @@ func (c *redisMarketSnapshotCache) Set(ctx context.Context, key string, value []
 
 func (c *redisMarketSnapshotCache) Delete(ctx context.Context, key string) error {
 	return c.client.Del(ctx, key).Err()
+}
+
+func getCachedJSON[T any](ctx context.Context, cache MarketSnapshotCache, key string) (T, bool, error) {
+	var zero T
+	if cache == nil {
+		return zero, false, nil
+	}
+
+	payload, err := cache.Get(ctx, key)
+	if err != nil || len(payload) == 0 {
+		return zero, false, err
+	}
+
+	var value T
+	if err := json.Unmarshal(payload, &value); err != nil {
+		_ = cache.Delete(ctx, key)
+		return zero, false, err
+	}
+
+	return value, true, nil
+}
+
+func setCachedJSON[T any](ctx context.Context, cache MarketSnapshotCache, key string, value T, ttl time.Duration) error {
+	if cache == nil || ttl <= 0 {
+		return nil
+	}
+
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+
+	return cache.Set(ctx, key, payload, ttl)
 }

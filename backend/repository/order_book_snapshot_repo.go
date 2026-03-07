@@ -41,6 +41,28 @@ func (r *OrderBookSnapshotRepository) GetLatestBefore(symbol string, eventTime i
 	return snapshot, err
 }
 
+// GetRecent 查询指定交易对最近 N 条盘口快照，并按事件时间升序返回。
+func (r *OrderBookSnapshotRepository) GetRecent(symbol string, limit int) ([]models.OrderBookSnapshot, error) {
+	if limit <= 0 {
+		limit = 8
+	}
+
+	snapshots := make([]models.OrderBookSnapshot, 0, limit)
+	err := r.db.
+		Where("symbol = ?", symbol).
+		Order("event_time DESC, last_update_id DESC").
+		Limit(limit).
+		Find(&snapshots).Error
+	if err != nil {
+		return nil, err
+	}
+
+	for left, right := 0, len(snapshots)-1; left < right; left, right = left+1, right-1 {
+		snapshots[left], snapshots[right] = snapshots[right], snapshots[left]
+	}
+	return snapshots, nil
+}
+
 func orderBookSnapshotUpsertClause() clause.OnConflict {
 	return clause.OnConflict{
 		Columns: []clause.Column{

@@ -1,6 +1,9 @@
 package service
 
 import (
+	"context"
+	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,17 +19,19 @@ import (
 
 // MarketService 聚合行情相关能力。
 type MarketService struct {
-	db              *gorm.DB
-	collector       *collector.BinanceCollector
-	indicatorEngine *indicator.Engine
-	orderFlowEngine *orderflow.Engine
-	structureEngine *structureengine.Engine
-	liquidityEngine *liquidity.Engine
-	klineRepo       *repository.KlineRepository
-	aggTradeRepo    *repository.AggTradeRepository
-	orderBookRepo   *repository.OrderBookSnapshotRepository
-	indicatorRepo   *repository.IndicatorRepository
-	microEventRepo  *repository.MicrostructureEventRepository
+	db               *gorm.DB
+	collector        *collector.BinanceCollector
+	indicatorEngine  *indicator.Engine
+	orderFlowEngine  *orderflow.Engine
+	structureEngine  *structureengine.Engine
+	liquidityEngine  *liquidity.Engine
+	klineRepo        *repository.KlineRepository
+	aggTradeRepo     *repository.AggTradeRepository
+	orderBookRepo    *repository.OrderBookSnapshotRepository
+	indicatorRepo    *repository.IndicatorRepository
+	microEventRepo   *repository.MicrostructureEventRepository
+	analysisCache    MarketSnapshotCache
+	analysisCacheTTL time.Duration
 }
 
 // NewMarketService 创建 MarketService。
@@ -56,6 +61,12 @@ func NewMarketService(
 		indicatorRepo:   indicatorRepo,
 		microEventRepo:  microEventRepo,
 	}
+}
+
+// SetAnalysisCache 为高频分析视图接口配置缓存。
+func (s *MarketService) SetAnalysisCache(cache MarketSnapshotCache, ttl time.Duration) {
+	s.analysisCache = cache
+	s.analysisCacheTTL = ttl
 }
 
 // GetPrice 获取实时价格。
@@ -111,7 +122,16 @@ func (s *MarketService) GetIndicators(symbol, interval string) (models.Indicator
 // GetIndicatorSeries 获取指标时间序列视图。
 func (s *MarketService) GetIndicatorSeries(symbol, interval string, limit int) (IndicatorSeriesResult, error) {
 	symbol = normalizeSymbol(symbol)
+	interval = normalizeInterval(interval)
 	limit = clampInt(limit, 1, 120)
+
+	if cached, ok, err := s.getCachedIndicatorSeries(symbol, interval, limit); err == nil && ok {
+		log.Printf("indicator-series cache hit symbol=%s interval=%s limit=%d", symbol, interval, limit)
+		return cached, nil
+	} else if err != nil {
+		log.Printf("indicator-series cache read failed symbol=%s interval=%s limit=%d err=%v", symbol, interval, limit, err)
+	}
+
 	requiredLimit := maxInt(limit+s.indicatorEngine.MinimumRequired()-1, s.indicatorEngine.HistoryLimit())
 
 	klines, err := loadAnalysisKlinesWithLimit(
@@ -131,16 +151,21 @@ func (s *MarketService) GetIndicatorSeries(symbol, interval string, limit int) (
 		return IndicatorSeriesResult{}, err
 	}
 
-	return IndicatorSeriesResult{
+	result := IndicatorSeriesResult{
 		Symbol:   symbol,
 		Interval: interval,
 		Points:   points,
-	}, nil
+	}
+	if err := s.setCachedIndicatorSeries(symbol, interval, limit, result); err != nil {
+		log.Printf("indicator-series cache write failed symbol=%s interval=%s limit=%d err=%v", symbol, interval, limit, err)
+	}
+	return result, nil
 }
 
 // GetOrderFlow 获取并落库订单流结果。
 func (s *MarketService) GetOrderFlow(symbol, interval string) (models.OrderFlow, error) {
 	symbol = normalizeSymbol(symbol)
+	interval = normalizeInterval(interval)
 	result, err := analyzeOrderFlow(
 		s.collector,
 		s.orderFlowEngine,
@@ -165,6 +190,9 @@ func (s *MarketService) GetOrderFlow(symbol, interval string) (models.OrderFlow,
 	if latestErr == nil {
 		result.IntervalType = interval
 		result.OpenTime = latestKline.OpenTime
+	}
+	if err := enrichOrderFlowMicrostructureWithOrderBook(s.orderFlowEngine, s.orderBookRepo, symbol, &result); err != nil {
+		return models.OrderFlow{}, err
 	}
 	if err := s.db.Create(&result).Error; err != nil {
 		return models.OrderFlow{}, err
@@ -205,6 +233,7 @@ func (s *MarketService) GetMicrostructureEvents(symbol, interval string, limit i
 // GetStructure 获取并落库市场结构结果。
 func (s *MarketService) GetStructure(symbol, interval string) (models.Structure, error) {
 	symbol = normalizeSymbol(symbol)
+	interval = normalizeInterval(interval)
 	klines, err := loadAnalysisKlines(s.collector, s.structureEngine, s.klineRepo, symbol, interval)
 	if err != nil {
 		return models.Structure{}, err
@@ -273,6 +302,7 @@ func (s *MarketService) GetStructureSeries(symbol, interval string, limit int) (
 // GetLiquidity 获取并落库流动性结果。
 func (s *MarketService) GetLiquidity(symbol, interval string) (models.Liquidity, error) {
 	symbol = normalizeSymbol(symbol)
+	interval = normalizeInterval(interval)
 	result, err := analyzeLiquidity(
 		s.collector,
 		s.liquidityEngine,
@@ -315,7 +345,16 @@ func (s *MarketService) GetLiquidityMap(symbol, interval string) (LiquidityMapRe
 // GetLiquiditySeries 获取流动性时间序列视图。
 func (s *MarketService) GetLiquiditySeries(symbol, interval string, limit int) (LiquiditySeriesResult, error) {
 	symbol = normalizeSymbol(symbol)
+	interval = normalizeInterval(interval)
 	limit = clampInt(limit, 1, 120)
+
+	if cached, ok, err := s.getCachedLiquiditySeries(symbol, interval, limit); err == nil && ok {
+		log.Printf("liquidity-series cache hit symbol=%s interval=%s limit=%d", symbol, interval, limit)
+		return cached, nil
+	} else if err != nil {
+		log.Printf("liquidity-series cache read failed symbol=%s interval=%s limit=%d err=%v", symbol, interval, limit, err)
+	}
+
 	requiredLimit := maxInt(limit+s.liquidityEngine.MinimumRequired()-1, s.liquidityEngine.HistoryLimit())
 
 	klines, err := loadAnalysisKlinesWithLimit(
@@ -335,11 +374,15 @@ func (s *MarketService) GetLiquiditySeries(symbol, interval string, limit int) (
 		return LiquiditySeriesResult{}, err
 	}
 
-	return LiquiditySeriesResult{
+	result := LiquiditySeriesResult{
 		Symbol:   symbol,
 		Interval: interval,
 		Points:   points,
-	}, nil
+	}
+	if err := s.setCachedLiquiditySeries(symbol, interval, limit, result); err != nil {
+		log.Printf("liquidity-series cache write failed symbol=%s interval=%s limit=%d err=%v", symbol, interval, limit, err)
+	}
+	return result, nil
 }
 
 // WarmupSymbol 用于定时任务预热核心数据。
@@ -375,4 +418,52 @@ func normalizeSymbol(symbol string) string {
 		return "BTCUSDT"
 	}
 	return strings.ToUpper(symbol)
+}
+
+func (s *MarketService) getCachedIndicatorSeries(symbol, interval string, limit int) (IndicatorSeriesResult, bool, error) {
+	if s.analysisCache == nil || s.analysisCacheTTL <= 0 {
+		return IndicatorSeriesResult{}, false, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
+	defer cancel()
+	return getCachedJSON[IndicatorSeriesResult](ctx, s.analysisCache, indicatorSeriesCacheKey(symbol, interval, limit))
+}
+
+func (s *MarketService) setCachedIndicatorSeries(symbol, interval string, limit int, result IndicatorSeriesResult) error {
+	if s.analysisCache == nil || s.analysisCacheTTL <= 0 {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
+	defer cancel()
+	return setCachedJSON(ctx, s.analysisCache, indicatorSeriesCacheKey(symbol, interval, limit), result, s.analysisCacheTTL)
+}
+
+func (s *MarketService) getCachedLiquiditySeries(symbol, interval string, limit int) (LiquiditySeriesResult, bool, error) {
+	if s.analysisCache == nil || s.analysisCacheTTL <= 0 {
+		return LiquiditySeriesResult{}, false, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
+	defer cancel()
+	return getCachedJSON[LiquiditySeriesResult](ctx, s.analysisCache, liquiditySeriesCacheKey(symbol, interval, limit))
+}
+
+func (s *MarketService) setCachedLiquiditySeries(symbol, interval string, limit int, result LiquiditySeriesResult) error {
+	if s.analysisCache == nil || s.analysisCacheTTL <= 0 {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
+	defer cancel()
+	return setCachedJSON(ctx, s.analysisCache, liquiditySeriesCacheKey(symbol, interval, limit), result, s.analysisCacheTTL)
+}
+
+func indicatorSeriesCacheKey(symbol, interval string, limit int) string {
+	return "alpha-pulse:indicator-series:v1:" + symbol + ":" + interval + ":" + strconv.Itoa(limit)
+}
+
+func liquiditySeriesCacheKey(symbol, interval string, limit int) string {
+	return "alpha-pulse:liquidity-series:v1:" + symbol + ":" + interval + ":" + strconv.Itoa(limit)
 }

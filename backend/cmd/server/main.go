@@ -43,14 +43,14 @@ func main() {
 	}
 
 	// 初始化 Redis 缓存；如果 Redis 不可用，则退化为无缓存模式。
-	var snapshotCache service.MarketSnapshotCache
-	if cfg.SnapshotCacheTTL > 0 {
+	var sharedCache service.MarketSnapshotCache
+	if cfg.SnapshotCacheTTL > 0 || cfg.AnalysisCacheTTL > 0 {
 		redisClient, redisErr := database.NewRedis(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
 		if redisErr != nil {
-			log.Printf("redis unavailable, market-snapshot cache disabled: %v", redisErr)
+			log.Printf("redis unavailable, view cache disabled: %v", redisErr)
 		} else {
 			defer redisClient.Close()
-			snapshotCache = service.NewRedisMarketSnapshotCache(redisClient)
+			sharedCache = service.NewRedisMarketSnapshotCache(redisClient)
 		}
 	}
 
@@ -88,6 +88,7 @@ func main() {
 		indicatorRepo,
 		microEventRepo,
 	)
+	marketService.SetAnalysisCache(sharedCache, time.Duration(cfg.AnalysisCacheTTL)*time.Second)
 
 	signalService := service.NewSignalService(
 		db,
@@ -104,9 +105,10 @@ func main() {
 		indicatorRepo,
 		signalRepo,
 		microEventRepo,
-		snapshotCache,
+		sharedCache,
 		time.Duration(cfg.SnapshotCacheTTL)*time.Second,
 	)
+	signalService.SetViewCache(sharedCache, time.Duration(cfg.AnalysisCacheTTL)*time.Second)
 
 	marketHandler := handler.NewMarketHandler(marketService, signalService)
 	signalHandler := handler.NewSignalHandler(signalService)

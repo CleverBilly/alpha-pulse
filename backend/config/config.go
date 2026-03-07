@@ -13,6 +13,7 @@ type Config struct {
 	RedisPassword    string
 	RedisDB          int
 	SnapshotCacheTTL int
+	AnalysisCacheTTL int
 	BinanceAPIKey    string
 	BinanceSecretKey string
 }
@@ -26,6 +27,7 @@ func Load() Config {
 		RedisPassword:    getEnv("REDIS_PASSWORD", ""),
 		RedisDB:          getEnvAsInt("REDIS_DB", 0),
 		SnapshotCacheTTL: getEnvAsInt("MARKET_SNAPSHOT_CACHE_TTL", 5),
+		AnalysisCacheTTL: getEnvAsInt("ANALYSIS_VIEW_CACHE_TTL", 15),
 		BinanceAPIKey:    getEnv("BINANCE_API_KEY", ""),
 		BinanceSecretKey: getEnv("BINANCE_SECRET_KEY", ""),
 	}

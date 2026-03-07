@@ -53,7 +53,12 @@ client := binance.NewClient(apiKey, secretKey)
 
 ## Redis 缓存
 
-后端当前已使用 Redis 缓存 `GET /api/market-snapshot` 聚合结果，用于降低前端高频轮询带来的重复计算与重复落库。
+后端当前已使用 Redis 缓存以下高频接口，用于降低前端轮询带来的重复计算与重复落库：
+
+- `GET /api/market-snapshot`
+- `GET /api/signal-timeline`
+- `GET /api/indicator-series`
+- `GET /api/liquidity-series`
 
 可配置项：
 
@@ -62,11 +67,14 @@ REDIS_ADDR=localhost:6379
 REDIS_PASSWORD=
 REDIS_DB=0
 MARKET_SNAPSHOT_CACHE_TTL=5
+ANALYSIS_VIEW_CACHE_TTL=15
 ```
 
 - `MARKET_SNAPSHOT_CACHE_TTL` 单位为秒
 - 默认值为 `5`
 - 设置为 `0` 或负数时将关闭 `market-snapshot` 缓存
+- `ANALYSIS_VIEW_CACHE_TTL` 单位为秒，控制 `signal-timeline / indicator-series / liquidity-series` 的缓存时长
+- 默认值为 `15`
 - Redis 不可用时，后端会自动退化为无缓存模式，不阻断主服务启动
 
 ## 后端 API

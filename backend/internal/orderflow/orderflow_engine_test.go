@@ -1,11 +1,13 @@
 package orderflow
 
 import (
+	"encoding/json"
 	"math"
 	"testing"
 	"time"
 
 	"alpha-pulse/backend/models"
+	binancepkg "alpha-pulse/backend/pkg/binance"
 )
 
 func TestAnalyzeBullishKlines(t *testing.T) {
@@ -96,6 +98,39 @@ func TestAnalyzeAggTradesDetectsMicrostructureSignals(t *testing.T) {
 	}
 	if !hasMicrostructureEvent(result.MicrostructureEvents, "large_trade_cluster", "bullish") {
 		t.Fatalf("expected bullish large trade cluster event, got %#v", result.MicrostructureEvents)
+	}
+	if !hasMicrostructureEvent(result.MicrostructureEvents, "continuous_absorption", "bullish") {
+		t.Fatalf("expected bullish continuous absorption event, got %#v", result.MicrostructureEvents)
+	}
+}
+
+func TestAnalyzeAggTradesDetectsFailedAuction(t *testing.T) {
+	engine := NewEngine()
+	trades := buildFailedAuctionAggTrades(engine.TradeMinimumRequired())
+
+	result, err := engine.AnalyzeAggTrades("BTCUSDT", trades)
+	if err != nil {
+		t.Fatalf("analyze agg trades failed: %v", err)
+	}
+
+	if !hasMicrostructureEvent(result.MicrostructureEvents, "failed_auction", "bearish") {
+		t.Fatalf("expected bearish failed auction event, got %#v", result.MicrostructureEvents)
+	}
+}
+
+func TestAnalyzeOrderBookMicrostructureDetectsMigration(t *testing.T) {
+	engine := NewEngine()
+	snapshots := buildMigrationOrderBookSnapshots(t)
+
+	events, err := engine.AnalyzeOrderBookMicrostructure("BTCUSDT", snapshots)
+	if err != nil {
+		t.Fatalf("analyze order book microstructure failed: %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatal("expected order book migration event")
+	}
+	if !hasMicrostructureEvent(events, "order_book_migration", "bullish") {
+		t.Fatalf("expected bullish order book migration event, got %#v", events)
 	}
 }
 
@@ -208,4 +243,96 @@ func buildAbsorptionIcebergAggTrades(limit int) []models.AggTrade {
 	}
 
 	return trades
+}
+
+func buildFailedAuctionAggTrades(limit int) []models.AggTrade {
+	trades := make([]models.AggTrade, 0, limit)
+	start := time.Date(2026, 3, 6, 2, 0, 0, 0, time.UTC)
+	basePrice := 64600.0
+	extensionPrices := []float64{64612, 64618, 64624, 64630, 64652, 64678, 64705, 64688, 64655, 64624, 64598, 64596}
+
+	prefixCount := maxInt(limit-len(extensionPrices), 24)
+	for i := 0; i < prefixCount; i++ {
+		price := basePrice + math.Sin(float64(i)/4.0)*8
+		quantity := 0.34 + math.Mod(float64(i), 4)*0.03
+		trades = append(trades, models.AggTrade{
+			Symbol:           "BTCUSDT",
+			AggTradeID:       int64(i + 2000),
+			Price:            price,
+			Quantity:         quantity,
+			QuoteQuantity:    price * quantity,
+			FirstTradeID:     int64(i*2 + 500),
+			LastTradeID:      int64(i*2 + 501),
+			TradeTime:        start.Add(time.Duration(i) * 1500 * time.Millisecond).UnixMilli(),
+			IsBuyerMaker:     i%3 == 0,
+			IsBestPriceMatch: true,
+			CreatedAt:        start.Add(time.Duration(i) * 1500 * time.Millisecond),
+		})
+	}
+
+	for i, price := range extensionPrices {
+		quantity := 0.24
+		isBuyerMaker := i >= 7
+		if i < 7 {
+			quantity = 1.05 + float64(i)*0.04
+		}
+		trades = append(trades, models.AggTrade{
+			Symbol:           "BTCUSDT",
+			AggTradeID:       int64(prefixCount + i + 3000),
+			Price:            price,
+			Quantity:         quantity,
+			QuoteQuantity:    price * quantity,
+			FirstTradeID:     int64((prefixCount+i)*2 + 800),
+			LastTradeID:      int64((prefixCount+i)*2 + 801),
+			TradeTime:        start.Add(time.Duration(prefixCount+i) * 1500 * time.Millisecond).UnixMilli(),
+			IsBuyerMaker:     isBuyerMaker,
+			IsBestPriceMatch: true,
+			CreatedAt:        start.Add(time.Duration(prefixCount+i) * 1500 * time.Millisecond),
+		})
+	}
+
+	return trades
+}
+
+func buildMigrationOrderBookSnapshots(t *testing.T) []models.OrderBookSnapshot {
+	t.Helper()
+
+	baseTime := time.Date(2026, 3, 6, 3, 0, 0, 0, time.UTC)
+	snapshots := make([]models.OrderBookSnapshot, 0, 6)
+	for i := 0; i < 6; i++ {
+		bids := []binancepkg.OrderBookLevel{
+			{Price: 64500 + float64(i)*7, Quantity: 1.4},
+			{Price: 64496 + float64(i)*7, Quantity: 2.2},
+			{Price: 64492 + float64(i)*7, Quantity: 7.1 + float64(i)*0.4},
+			{Price: 64488 + float64(i)*7, Quantity: 4.5},
+		}
+		asks := []binancepkg.OrderBookLevel{
+			{Price: 64520 + float64(i), Quantity: 1.0},
+			{Price: 64524 + float64(i), Quantity: 2.0},
+			{Price: 64528 + float64(i), Quantity: 6.1},
+			{Price: 64532 + float64(i), Quantity: 4.1},
+		}
+		bidsJSON, err := json.Marshal(bids)
+		if err != nil {
+			t.Fatalf("marshal bids failed: %v", err)
+		}
+		asksJSON, err := json.Marshal(asks)
+		if err != nil {
+			t.Fatalf("marshal asks failed: %v", err)
+		}
+
+		snapshots = append(snapshots, models.OrderBookSnapshot{
+			Symbol:       "BTCUSDT",
+			LastUpdateID: int64(8000 + i),
+			DepthLevel:   20,
+			BidsJSON:     string(bidsJSON),
+			AsksJSON:     string(asksJSON),
+			BestBidPrice: bids[0].Price,
+			BestAskPrice: asks[0].Price,
+			Spread:       asks[0].Price - bids[0].Price,
+			EventTime:    baseTime.Add(time.Duration(i) * 2 * time.Second).UnixMilli(),
+			CreatedAt:    baseTime.Add(time.Duration(i) * 2 * time.Second),
+		})
+	}
+	return snapshots
 }

@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"alpha-pulse/backend/internal/ai"
@@ -69,6 +69,8 @@ type SignalService struct {
 	microEventRepo  *repository.MicrostructureEventRepository
 	snapshotCache   MarketSnapshotCache
 	snapshotTTL     time.Duration
+	viewCache       MarketSnapshotCache
+	viewCacheTTL    time.Duration
 }
 
 // NewSignalService 创建 SignalService。
@@ -131,17 +133,61 @@ func (s *SignalService) GetMarketSnapshot(symbol, interval string, limit int) (M
 	symbol = normalizeSymbol(symbol)
 	interval = normalizeInterval(interval)
 	limit = clampInt(limit, 1, 120)
+	startedAt := time.Now()
 
 	if cached, ok, err := s.getCachedMarketSnapshot(symbol, interval, limit); err == nil && ok {
+		log.Printf(
+			"market-snapshot cache hit symbol=%s interval=%s limit=%d duration=%s",
+			symbol,
+			interval,
+			limit,
+			time.Since(startedAt),
+		)
 		return cached, nil
+	} else if err != nil {
+		log.Printf(
+			"market-snapshot cache read failed symbol=%s interval=%s limit=%d err=%v",
+			symbol,
+			interval,
+			limit,
+			err,
+		)
 	}
+	log.Printf("market-snapshot cache miss symbol=%s interval=%s limit=%d", symbol, interval, limit)
 
+	buildStartedAt := time.Now()
 	snapshot, err := s.buildMarketSnapshot(symbol, interval, limit, true)
 	if err != nil {
+		log.Printf(
+			"market-snapshot build failed symbol=%s interval=%s limit=%d duration=%s err=%v",
+			symbol,
+			interval,
+			limit,
+			time.Since(buildStartedAt),
+			err,
+		)
 		return MarketSnapshot{}, err
 	}
+	log.Printf(
+		"market-snapshot build complete symbol=%s interval=%s limit=%d duration=%s klines=%d micro_events=%d signals=%d",
+		symbol,
+		interval,
+		limit,
+		time.Since(buildStartedAt),
+		len(snapshot.Klines),
+		len(snapshot.MicrostructureEvents),
+		len(snapshot.SignalTimeline),
+	)
 
-	_ = s.setCachedMarketSnapshot(symbol, interval, limit, snapshot)
+	if err := s.setCachedMarketSnapshot(symbol, interval, limit, snapshot); err != nil {
+		log.Printf(
+			"market-snapshot cache write failed symbol=%s interval=%s limit=%d err=%v",
+			symbol,
+			interval,
+			limit,
+			err,
+		)
+	}
 	return snapshot, nil
 }
 
@@ -260,6 +306,14 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 	if err != nil {
 		return MarketSnapshot{}, err
 	}
+	if err := enrichOrderFlowMicrostructureWithOrderBook(
+		s.orderFlowEngine,
+		s.orderBookRepo,
+		symbol,
+		&orderFlowResult,
+	); err != nil {
+		return MarketSnapshot{}, err
+	}
 	signalResult := s.signalEngine.Generate(
 		symbol,
 		latestKline.ClosePrice,
@@ -321,6 +375,12 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 	}, nil
 }
 
+// SetViewCache 为 signal-timeline 等视图接口配置缓存。
+func (s *SignalService) SetViewCache(cache MarketSnapshotCache, ttl time.Duration) {
+	s.viewCache = cache
+	s.viewCacheTTL = ttl
+}
+
 func takeLastKlines(klines []models.Kline, limit int) []models.Kline {
 	if len(klines) <= limit {
 		return klines
@@ -336,17 +396,7 @@ func (s *SignalService) getCachedMarketSnapshot(symbol, interval string, limit i
 	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
 	defer cancel()
 
-	payload, err := s.snapshotCache.Get(ctx, marketSnapshotCacheKey(symbol, interval, limit))
-	if err != nil || len(payload) == 0 {
-		return MarketSnapshot{}, false, err
-	}
-
-	var snapshot MarketSnapshot
-	if err := json.Unmarshal(payload, &snapshot); err != nil {
-		_ = s.snapshotCache.Delete(ctx, marketSnapshotCacheKey(symbol, interval, limit))
-		return MarketSnapshot{}, false, err
-	}
-	return snapshot, true, nil
+	return getCachedJSON[MarketSnapshot](ctx, s.snapshotCache, marketSnapshotCacheKey(symbol, interval, limit))
 }
 
 func (s *SignalService) setCachedMarketSnapshot(symbol, interval string, limit int, snapshot MarketSnapshot) error {
@@ -354,18 +404,17 @@ func (s *SignalService) setCachedMarketSnapshot(symbol, interval string, limit i
 		return nil
 	}
 
-	payload, err := json.Marshal(snapshot)
-	if err != nil {
-		return err
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
 	defer cancel()
-	return s.snapshotCache.Set(ctx, marketSnapshotCacheKey(symbol, interval, limit), payload, s.snapshotTTL)
+	return setCachedJSON(ctx, s.snapshotCache, marketSnapshotCacheKey(symbol, interval, limit), snapshot, s.snapshotTTL)
 }
 
 func marketSnapshotCacheKey(symbol, interval string, limit int) string {
 	return fmt.Sprintf("alpha-pulse:market-snapshot:v3:%s:%s:%d", symbol, interval, limit)
+}
+
+func signalTimelineCacheKey(symbol, interval string, limit int) string {
+	return fmt.Sprintf("alpha-pulse:signal-timeline:v1:%s:%s:%d", symbol, interval, limit)
 }
 
 func maxInt(values ...int) int {

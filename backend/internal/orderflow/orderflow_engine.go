@@ -1,26 +1,30 @@
 package orderflow
 
 import (
+	"encoding/json"
 	"errors"
 	"math"
 	"sort"
 	"time"
 
 	"alpha-pulse/backend/models"
+	binancepkg "alpha-pulse/backend/pkg/binance"
 )
 
 const (
-	historyLimit         = 60
-	minimumRequired      = 20
-	tradeHistoryLimit    = 250
-	tradeMinimumRequired = 60
-	aggregationWindow    = 6
-	largeTradeThreshold  = 100000.0
-	maxLargeTradeEvents  = 8
-	maxMicroEvents       = 8
-	icebergBucketPct     = 0.00025
-	icebergPriceDriftPct = 0.0015
-	aggressionWindow     = 20
+	historyLimit          = 60
+	minimumRequired       = 20
+	tradeHistoryLimit     = 250
+	tradeMinimumRequired  = 60
+	aggregationWindow     = 6
+	largeTradeThreshold   = 100000.0
+	maxLargeTradeEvents   = 8
+	maxMicroEvents        = 8
+	icebergBucketPct      = 0.00025
+	icebergPriceDriftPct  = 0.0015
+	aggressionWindow      = 20
+	orderBookHistoryLimit = 6
+	orderBookWallWindow   = 3
 )
 
 // Engine 负责订单流分析。
@@ -51,6 +55,11 @@ func (e *Engine) TradeHistoryLimit() int {
 // TradeMinimumRequired 返回真实成交分析所需的最小样本数。
 func (e *Engine) TradeMinimumRequired() int {
 	return tradeMinimumRequired
+}
+
+// OrderBookHistoryLimit 返回识别盘口挂单迁移时所需的盘口快照数量。
+func (e *Engine) OrderBookHistoryLimit() int {
+	return orderBookHistoryLimit
 }
 
 // Analyze 基于历史 K 线估算主动买卖量、Delta 和 CVD。
@@ -182,6 +191,19 @@ func (e *Engine) AnalyzeAggTrades(symbol string, trades []models.AggTrade) (mode
 	}, nil
 }
 
+// AnalyzeOrderBookMicrostructure 基于盘口快照识别更高阶微结构事件。
+func (e *Engine) AnalyzeOrderBookMicrostructure(_ string, snapshots []models.OrderBookSnapshot) ([]models.OrderFlowMicrostructureEvent, error) {
+	if len(snapshots) < 3 {
+		return nil, nil
+	}
+
+	sortedSnapshots := sortOrderBookSnapshotsAscending(snapshots)
+	if event, ok := detectOrderBookMigration(sortedSnapshots); ok {
+		return []models.OrderFlowMicrostructureEvent{event}, nil
+	}
+	return nil, nil
+}
+
 func appendLargeTradeEvent(events []models.OrderFlowLargeTrade, trade models.AggTrade, side string) []models.OrderFlowLargeTrade {
 	event := models.OrderFlowLargeTrade{
 		Side:      side,
@@ -298,6 +320,12 @@ func buildMicrostructureEvents(
 	if event, ok := buildIcebergEvent(latestTrade, icebergBias, icebergStrength); ok {
 		events = append(events, event)
 	}
+	if event, ok := detectContinuousAbsorption(trades); ok {
+		events = append(events, event)
+	}
+	if event, ok := detectFailedAuction(trades); ok {
+		events = append(events, event)
+	}
 
 	events = append(events, detectAggressionBursts(trades)...)
 
@@ -399,6 +427,121 @@ func buildIcebergEvent(
 	default:
 		return models.OrderFlowMicrostructureEvent{}, false
 	}
+}
+
+func detectContinuousAbsorption(trades []models.AggTrade) (models.OrderFlowMicrostructureEvent, bool) {
+	if len(trades) < 36 {
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+
+	windowSize := maxInt(len(trades)/3, 12)
+	recent := trades[maxInt(len(trades)-windowSize*3, 0):]
+	if len(recent) < windowSize*2 {
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+
+	bullishWindows := 0
+	bearishWindows := 0
+	bullishStrength := 0.0
+	bearishStrength := 0.0
+	for start := 0; start < len(recent); start += windowSize {
+		end := minInt(start+windowSize, len(recent))
+		window := recent[start:end]
+		if len(window) < 8 {
+			continue
+		}
+
+		buyVolume, sellVolume := sumTradeVolumes(window)
+		bias, strength := detectAbsorption(window, buyVolume, sellVolume)
+		switch bias {
+		case "buy_absorption":
+			bullishWindows++
+			bullishStrength += strength
+		case "sell_absorption":
+			bearishWindows++
+			bearishStrength += strength
+		}
+	}
+
+	latestTrade := trades[len(trades)-1]
+	switch {
+	case bullishWindows >= 2 && bearishWindows == 0:
+		avgStrength := bullishStrength / float64(bullishWindows)
+		return models.OrderFlowMicrostructureEvent{
+			Type:      "continuous_absorption",
+			Bias:      "bullish",
+			Score:     6,
+			Strength:  roundFloat(clamp(avgStrength+float64(bullishWindows-2)*0.12, 0, 1), 6),
+			Price:     roundFloat(latestTrade.Price, 8),
+			TradeTime: latestTrade.TradeTime,
+			Detail:    "最近多个成交窗口连续出现买方吸收，卖压反复被承接",
+		}, true
+	case bearishWindows >= 2 && bullishWindows == 0:
+		avgStrength := bearishStrength / float64(bearishWindows)
+		return models.OrderFlowMicrostructureEvent{
+			Type:      "continuous_absorption",
+			Bias:      "bearish",
+			Score:     -6,
+			Strength:  roundFloat(clamp(avgStrength+float64(bearishWindows-2)*0.12, 0, 1), 6),
+			Price:     roundFloat(latestTrade.Price, 8),
+			TradeTime: latestTrade.TradeTime,
+			Detail:    "最近多个成交窗口连续出现卖方吸收，买盘多次被压制",
+		}, true
+	default:
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+}
+
+func detectFailedAuction(trades []models.AggTrade) (models.OrderFlowMicrostructureEvent, bool) {
+	if len(trades) < 24 {
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+
+	recent := trades[maxInt(len(trades)-24, 0):]
+	split := len(recent) * 2 / 3
+	if split < 8 || split >= len(recent) {
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+
+	reference := recent[:split]
+	probe := recent[split:]
+	priorHigh, priorLow := priceBounds(reference)
+	probeHigh, probeLow := priceBounds(probe)
+	endPrice := recent[len(recent)-1].Price
+	latestTrade := recent[len(recent)-1]
+	probeBuyNotional, probeSellNotional := sumTradeNotionalBySide(probe)
+
+	upsideBreak := priorHigh > 0 && probeHigh > priorHigh*1.00035
+	upsideRejected := upsideBreak && endPrice <= priorHigh*1.00005 && endPrice < probeHigh*0.99955
+	if upsideRejected && probeBuyNotional > probeSellNotional*1.08 {
+		rejectionStrength := clamp((probeHigh-endPrice)/math.Max(priorHigh, 1)*1200, 0, 1)
+		return models.OrderFlowMicrostructureEvent{
+			Type:      "failed_auction",
+			Bias:      "bearish",
+			Score:     -5,
+			Strength:  roundFloat(rejectionStrength, 6),
+			Price:     roundFloat(probeHigh, 8),
+			TradeTime: latestTrade.TradeTime,
+			Detail:    "上方拍卖突破失败，价格重新回到前高下方",
+		}, true
+	}
+
+	downsideBreak := priorLow > 0 && probeLow < priorLow*0.99965
+	downsideRejected := downsideBreak && endPrice >= priorLow*0.99995 && endPrice > probeLow*1.00045
+	if downsideRejected && probeSellNotional > probeBuyNotional*1.08 {
+		rejectionStrength := clamp((endPrice-probeLow)/math.Max(priorLow, 1)*1200, 0, 1)
+		return models.OrderFlowMicrostructureEvent{
+			Type:      "failed_auction",
+			Bias:      "bullish",
+			Score:     5,
+			Strength:  roundFloat(rejectionStrength, 6),
+			Price:     roundFloat(probeLow, 8),
+			TradeTime: latestTrade.TradeTime,
+			Detail:    "下方拍卖突破失败，价格重新回到前低上方",
+		}, true
+	}
+
+	return models.OrderFlowMicrostructureEvent{}, false
 }
 
 func detectAggressionBursts(trades []models.AggTrade) []models.OrderFlowMicrostructureEvent {
@@ -598,6 +741,52 @@ func calculateNotionalDeltaRatio(trades []models.AggTrade) float64 {
 	return (buyNotional - sellNotional) / total
 }
 
+func sumTradeVolumes(trades []models.AggTrade) (float64, float64) {
+	buyVolume := 0.0
+	sellVolume := 0.0
+	for _, trade := range trades {
+		quantity := math.Max(trade.Quantity, 0)
+		if trade.IsBuyerMaker {
+			sellVolume += quantity
+		} else {
+			buyVolume += quantity
+		}
+	}
+	return buyVolume, sellVolume
+}
+
+func sumTradeNotionalBySide(trades []models.AggTrade) (float64, float64) {
+	buyNotional := 0.0
+	sellNotional := 0.0
+	for _, trade := range trades {
+		notional := effectiveTradeNotional(trade)
+		if trade.IsBuyerMaker {
+			sellNotional += notional
+		} else {
+			buyNotional += notional
+		}
+	}
+	return buyNotional, sellNotional
+}
+
+func priceBounds(trades []models.AggTrade) (float64, float64) {
+	if len(trades) == 0 {
+		return 0, 0
+	}
+
+	high := trades[0].Price
+	low := trades[0].Price
+	for _, trade := range trades[1:] {
+		if trade.Price > high {
+			high = trade.Price
+		}
+		if trade.Price < low {
+			low = trade.Price
+		}
+	}
+	return high, low
+}
+
 func effectiveTradeNotional(trade models.AggTrade) float64 {
 	if trade.QuoteQuantity > 0 {
 		return trade.QuoteQuantity
@@ -663,6 +852,140 @@ func sortAggTradesAscending(trades []models.AggTrade) []models.AggTrade {
 		return sorted[i].TradeTime < sorted[j].TradeTime
 	})
 	return sorted
+}
+
+func sortOrderBookSnapshotsAscending(snapshots []models.OrderBookSnapshot) []models.OrderBookSnapshot {
+	sorted := make([]models.OrderBookSnapshot, len(snapshots))
+	copy(sorted, snapshots)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].EventTime == sorted[j].EventTime {
+			return sorted[i].LastUpdateID < sorted[j].LastUpdateID
+		}
+		return sorted[i].EventTime < sorted[j].EventTime
+	})
+	return sorted
+}
+
+func detectOrderBookMigration(snapshots []models.OrderBookSnapshot) (models.OrderFlowMicrostructureEvent, bool) {
+	if len(snapshots) < 3 {
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+
+	type wallState struct {
+		bestBid     float64
+		bestAsk     float64
+		bidWall     float64
+		askWall     float64
+		bidNotional float64
+		askNotional float64
+		eventTime   int64
+	}
+
+	states := make([]wallState, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		bids, asks, err := parseOrderBookSnapshot(snapshot)
+		if err != nil || len(bids) == 0 || len(asks) == 0 {
+			continue
+		}
+
+		bidWallPrice, bidWallNotional := strongestDepthWall(bids, orderBookWallWindow)
+		askWallPrice, askWallNotional := strongestDepthWall(asks, orderBookWallWindow)
+		if bidWallPrice <= 0 || askWallPrice <= 0 {
+			continue
+		}
+
+		states = append(states, wallState{
+			bestBid:     snapshot.BestBidPrice,
+			bestAsk:     snapshot.BestAskPrice,
+			bidWall:     bidWallPrice,
+			askWall:     askWallPrice,
+			bidNotional: bidWallNotional,
+			askNotional: askWallNotional,
+			eventTime:   snapshot.EventTime,
+		})
+	}
+	if len(states) < 3 {
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+
+	first := states[0]
+	latest := states[len(states)-1]
+	avgBidNotional := 0.0
+	avgAskNotional := 0.0
+	for _, state := range states {
+		avgBidNotional += state.bidNotional
+		avgAskNotional += state.askNotional
+	}
+	avgBidNotional /= float64(len(states))
+	avgAskNotional /= float64(len(states))
+
+	bidShiftPct := (latest.bidWall - first.bidWall) / math.Max(first.bidWall, 1)
+	askShiftPct := (latest.askWall - first.askWall) / math.Max(first.askWall, 1)
+	bestBidShiftPct := (latest.bestBid - first.bestBid) / math.Max(first.bestBid, 1)
+	bestAskShiftPct := (latest.bestAsk - first.bestAsk) / math.Max(first.bestAsk, 1)
+
+	switch {
+	case bidShiftPct >= 0.00045 &&
+		bestBidShiftPct >= 0.00025 &&
+		latest.bidNotional >= avgBidNotional*0.9 &&
+		askShiftPct >= -0.00015:
+		return models.OrderFlowMicrostructureEvent{
+			Type:      "order_book_migration",
+			Bias:      "bullish",
+			Score:     4,
+			Strength:  roundFloat(clamp(bidShiftPct*1200+latest.bidNotional/math.Max(avgBidNotional, 1)-1, 0, 1), 6),
+			Price:     roundFloat(latest.bidWall, 8),
+			TradeTime: latest.eventTime,
+			Detail:    "买方挂单墙持续上移，盘口承接价格带被主动抬高",
+		}, true
+	case askShiftPct <= -0.00045 &&
+		bestAskShiftPct <= -0.00025 &&
+		latest.askNotional >= avgAskNotional*0.9 &&
+		bidShiftPct <= 0.00015:
+		return models.OrderFlowMicrostructureEvent{
+			Type:      "order_book_migration",
+			Bias:      "bearish",
+			Score:     -4,
+			Strength:  roundFloat(clamp(math.Abs(askShiftPct)*1200+latest.askNotional/math.Max(avgAskNotional, 1)-1, 0, 1), 6),
+			Price:     roundFloat(latest.askWall, 8),
+			TradeTime: latest.eventTime,
+			Detail:    "卖方挂单墙持续下移，上方压单主动向现价靠拢",
+		}, true
+	default:
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+}
+
+func parseOrderBookSnapshot(snapshot models.OrderBookSnapshot) ([]binancepkg.OrderBookLevel, []binancepkg.OrderBookLevel, error) {
+	var bids []binancepkg.OrderBookLevel
+	if err := json.Unmarshal([]byte(snapshot.BidsJSON), &bids); err != nil {
+		return nil, nil, err
+	}
+
+	var asks []binancepkg.OrderBookLevel
+	if err := json.Unmarshal([]byte(snapshot.AsksJSON), &asks); err != nil {
+		return nil, nil, err
+	}
+
+	return bids, asks, nil
+}
+
+func strongestDepthWall(levels []binancepkg.OrderBookLevel, window int) (float64, float64) {
+	if len(levels) == 0 {
+		return 0, 0
+	}
+
+	limit := minInt(window, len(levels))
+	bestPrice := 0.0
+	bestNotional := 0.0
+	for index := 0; index < limit; index++ {
+		notional := levels[index].Price * levels[index].Quantity
+		if notional > bestNotional {
+			bestPrice = levels[index].Price
+			bestNotional = notional
+		}
+	}
+	return bestPrice, bestNotional
 }
 
 func clamp(value, minValue, maxValue float64) float64 {
