@@ -55,16 +55,17 @@ type LiquiditySeriesPoint struct {
 
 // LiquidityMapResult 定义流动性图谱专用接口返回。
 type LiquidityMapResult struct {
-	Symbol             string                    `json:"symbol"`
-	Interval           string                    `json:"interval"`
-	BuyLiquidity       float64                   `json:"buy_liquidity"`
-	SellLiquidity      float64                   `json:"sell_liquidity"`
-	SweepType          string                    `json:"sweep_type"`
-	OrderBookImbalance float64                   `json:"order_book_imbalance"`
-	DataSource         string                    `json:"data_source"`
-	EqualHigh          float64                   `json:"equal_high"`
-	EqualLow           float64                   `json:"equal_low"`
-	StopClusters       []models.LiquidityCluster `json:"stop_clusters"`
+	Symbol             string                      `json:"symbol"`
+	Interval           string                      `json:"interval"`
+	BuyLiquidity       float64                     `json:"buy_liquidity"`
+	SellLiquidity      float64                     `json:"sell_liquidity"`
+	SweepType          string                      `json:"sweep_type"`
+	OrderBookImbalance float64                     `json:"order_book_imbalance"`
+	DataSource         string                      `json:"data_source"`
+	EqualHigh          float64                     `json:"equal_high"`
+	EqualLow           float64                     `json:"equal_low"`
+	StopClusters       []models.LiquidityCluster   `json:"stop_clusters"`
+	WallLevels         []models.LiquidityWallLevel `json:"wall_levels"`
 }
 
 // LiquiditySeriesResult 定义流动性时间序列接口返回。

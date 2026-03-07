@@ -434,6 +434,7 @@ Binance SDK
 - `equal_high`
 - `equal_low`
 - `stop_clusters[]`
+- `wall_levels[]`
 
 要求：
 
@@ -661,6 +662,7 @@ Signal Engine 当前为多因子连续评分模型。
 - `equal_high`
 - `equal_low`
 - `data_source`
+- `wall_levels[]`
 
 ### 9.2.6 `signals`
 

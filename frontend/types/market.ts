@@ -155,6 +155,18 @@ export interface LiquidityCluster {
   strength: number;
 }
 
+export interface LiquidityWallLevel {
+  label: string;
+  kind: string;
+  side: string;
+  layer: string;
+  price: number;
+  quantity: number;
+  notional: number;
+  distance_bps: number;
+  strength: number;
+}
+
 export interface Liquidity {
   id: number;
   symbol: string;
@@ -166,6 +178,7 @@ export interface Liquidity {
   equal_high: number;
   equal_low: number;
   stop_clusters: LiquidityCluster[];
+  wall_levels: LiquidityWallLevel[];
   created_at: string;
 }
 
@@ -186,4 +199,18 @@ export interface LiquiditySeriesResult {
   symbol: string;
   interval: string;
   points: LiquiditySeriesPoint[];
+}
+
+export interface LiquidityMapResult {
+  symbol: string;
+  interval: string;
+  buy_liquidity: number;
+  sell_liquidity: number;
+  sweep_type: string;
+  order_book_imbalance: number;
+  data_source: string;
+  equal_high: number;
+  equal_low: number;
+  stop_clusters: LiquidityCluster[];
+  wall_levels: LiquidityWallLevel[];
 }

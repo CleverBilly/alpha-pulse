@@ -83,6 +83,7 @@ describe("AIAnalysisPanel", () => {
         equal_high: 66320,
         equal_low: 64810,
         stop_clusters: [],
+        wall_levels: [],
         created_at: "2026-03-07T00:00:00Z",
       },
       orderFlow: {

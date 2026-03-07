@@ -345,6 +345,7 @@ Base URL：
 - `equal_high`
 - `equal_low`
 - `stop_clusters[]`
+- `wall_levels[]`
 - `created_at`
 
 ### 3.11 `GET /api/liquidity-map`
@@ -368,6 +369,19 @@ Base URL：
 - `equal_high`
 - `equal_low`
 - `stop_clusters[]`
+- `wall_levels[]`
+
+`wall_levels[]` 字段：
+
+- `label`
+- `kind`
+- `side`
+- `layer`
+- `price`
+- `quantity`
+- `notional`
+- `distance_bps`
+- `strength`
 
 ### 3.12 `GET /api/liquidity-series`
 

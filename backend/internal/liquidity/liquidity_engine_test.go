@@ -72,6 +72,27 @@ func TestAnalyzeWithOrderBookUsesDepthWalls(t *testing.T) {
 	if !containsClusterKind(result.StopClusters, "buy_stop_cluster") {
 		t.Fatal("expected buy_stop_cluster to be present")
 	}
+	if len(result.WallLevels) != 6 {
+		t.Fatalf("expected six detailed wall levels, got=%d", len(result.WallLevels))
+	}
+	if !containsWallLevel(result.WallLevels, "ask", "near") {
+		t.Fatal("expected near ask wall to be present")
+	}
+	if !containsWallLevel(result.WallLevels, "ask", "mid") {
+		t.Fatal("expected mid ask wall to be present")
+	}
+	if !containsWallLevel(result.WallLevels, "ask", "far") {
+		t.Fatal("expected far ask wall to be present")
+	}
+	if !containsWallLevel(result.WallLevels, "bid", "near") {
+		t.Fatal("expected near bid wall to be present")
+	}
+	if !containsWallLevel(result.WallLevels, "bid", "mid") {
+		t.Fatal("expected mid bid wall to be present")
+	}
+	if !containsWallLevel(result.WallLevels, "bid", "far") {
+		t.Fatal("expected far bid wall to be present")
+	}
 }
 
 func buildLiquiditySweepKlines(limit int) []models.Kline {
@@ -170,6 +191,15 @@ func buildOrderBookSnapshot(t *testing.T) models.OrderBookSnapshot {
 func containsClusterKind(clusters []models.LiquidityCluster, kind string) bool {
 	for _, cluster := range clusters {
 		if cluster.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func containsWallLevel(walls []models.LiquidityWallLevel, side, layer string) bool {
+	for _, wall := range walls {
+		if wall.Side == side && wall.Layer == layer && wall.Price > 0 && wall.Notional > 0 {
 			return true
 		}
 	}

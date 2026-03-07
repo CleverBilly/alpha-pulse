@@ -346,9 +346,14 @@ func (s *MarketService) GetLiquidity(symbol, interval string) (models.Liquidity,
 // GetLiquidityMap 获取流动性图谱专用视图。
 func (s *MarketService) GetLiquidityMap(symbol, interval string) (LiquidityMapResult, error) {
 	symbol = normalizeSymbol(symbol)
+	interval = normalizeInterval(interval)
 	result, err := s.GetLiquidity(symbol, interval)
 	if err != nil {
 		return LiquidityMapResult{}, err
+	}
+	wallLevels := result.WallLevels
+	if wallLevels == nil {
+		wallLevels = []models.LiquidityWallLevel{}
 	}
 
 	return LiquidityMapResult{
@@ -362,6 +367,7 @@ func (s *MarketService) GetLiquidityMap(symbol, interval string) (LiquidityMapRe
 		EqualHigh:          result.EqualHigh,
 		EqualLow:           result.EqualLow,
 		StopClusters:       result.StopClusters,
+		WallLevels:         wallLevels,
 	}, nil
 }
 

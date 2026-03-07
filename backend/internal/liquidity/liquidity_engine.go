@@ -18,6 +18,8 @@ const (
 	equalLevelLookback  = 36
 	orderBookDepthLimit = 20
 	orderBookCluster    = 4
+	wallMapLayers       = 3
+	wallMapWindow       = 2
 	imbalanceLevels     = 8
 	sweepTolerance      = 0.001
 	depthSweepTolerance = 0.0008
@@ -85,6 +87,7 @@ func (e *Engine) Analyze(symbol string, klines []models.Kline) (models.Liquidity
 		EqualHigh:          roundFloat(equalHigh, 8),
 		EqualLow:           roundFloat(equalLow, 8),
 		StopClusters:       stopClusters,
+		WallLevels:         []models.LiquidityWallLevel{},
 		CreatedAt:          createdAt,
 	}, nil
 }
@@ -150,6 +153,7 @@ func (e *Engine) AnalyzeWithOrderBook(symbol string, klines []models.Kline, snap
 		normalizeWallStrength(askClusterNotional),
 		normalizeWallStrength(bidClusterNotional),
 	)
+	wallLevels := buildWallLevels(bids, asks)
 
 	return models.Liquidity{
 		Symbol:             symbol,
@@ -161,6 +165,7 @@ func (e *Engine) AnalyzeWithOrderBook(symbol string, klines []models.Kline, snap
 		EqualHigh:          roundFloat(equalHigh, 8),
 		EqualLow:           roundFloat(equalLow, 8),
 		StopClusters:       stopClusters,
+		WallLevels:         wallLevels,
 		CreatedAt:          createdAt,
 	}, nil
 }
@@ -386,6 +391,155 @@ func strongestLiquidityCluster(levels []binancepkg.OrderBookLevel, window int) (
 	}
 
 	return bestPrice, bestNotional
+}
+
+func buildWallLevels(bids, asks []binancepkg.OrderBookLevel) []models.LiquidityWallLevel {
+	walls := make([]models.LiquidityWallLevel, 0, wallMapLayers*2)
+	walls = append(walls, extractWallLevels(asks, "ask")...)
+	walls = append(walls, extractWallLevels(bids, "bid")...)
+	if len(walls) == 0 {
+		return []models.LiquidityWallLevel{}
+	}
+	return walls
+}
+
+func extractWallLevels(levels []binancepkg.OrderBookLevel, side string) []models.LiquidityWallLevel {
+	if len(levels) == 0 {
+		return nil
+	}
+
+	layerRanges := partitionWallRanges(len(levels))
+	bestReferencePrice := levels[0].Price
+	walls := make([]models.LiquidityWallLevel, 0, len(layerRanges))
+	for _, layerRange := range layerRanges {
+		wall, ok := strongestWallLevel(levels[layerRange.start:layerRange.end], bestReferencePrice, side, layerRange.layer)
+		if !ok {
+			continue
+		}
+		walls = append(walls, wall)
+	}
+	return walls
+}
+
+type wallRange struct {
+	layer string
+	start int
+	end   int
+}
+
+func partitionWallRanges(totalLevels int) []wallRange {
+	if totalLevels <= 0 {
+		return nil
+	}
+
+	layerCount := minInt(wallMapLayers, totalLevels)
+	ranges := make([]wallRange, 0, layerCount)
+	for index := 0; index < layerCount; index++ {
+		start := index * totalLevels / layerCount
+		end := (index + 1) * totalLevels / layerCount
+		if index == layerCount-1 {
+			end = totalLevels
+		}
+		if start >= end {
+			continue
+		}
+		ranges = append(ranges, wallRange{
+			layer: wallLayerName(layerCount, index),
+			start: start,
+			end:   end,
+		})
+	}
+	return ranges
+}
+
+func strongestWallLevel(
+	levels []binancepkg.OrderBookLevel,
+	referencePrice float64,
+	side, layer string,
+) (models.LiquidityWallLevel, bool) {
+	if len(levels) == 0 || referencePrice <= 0 {
+		return models.LiquidityWallLevel{}, false
+	}
+
+	window := minInt(wallMapWindow, len(levels))
+	bestNotional := 0.0
+	bestQuantity := 0.0
+	bestPrice := 0.0
+
+	for start := 0; start < len(levels); start++ {
+		end := minInt(start+window, len(levels))
+		totalQuantity := 0.0
+		totalNotional := 0.0
+		for _, level := range levels[start:end] {
+			if level.Price <= 0 || level.Quantity <= 0 {
+				continue
+			}
+			totalQuantity += level.Quantity
+			totalNotional += level.Price * level.Quantity
+		}
+		if totalQuantity <= 0 || totalNotional <= bestNotional {
+			continue
+		}
+		bestNotional = totalNotional
+		bestQuantity = totalQuantity
+		bestPrice = totalNotional / totalQuantity
+	}
+
+	if bestNotional <= 0 || bestQuantity <= 0 || bestPrice <= 0 {
+		return models.LiquidityWallLevel{}, false
+	}
+
+	kind := "buy_liquidity_wall"
+	if side == "ask" {
+		kind = "sell_liquidity_wall"
+	}
+
+	return models.LiquidityWallLevel{
+		Label:       wallLabel(side, layer),
+		Kind:        kind,
+		Side:        side,
+		Layer:       layer,
+		Price:       roundFloat(bestPrice, 8),
+		Quantity:    roundFloat(bestQuantity, 4),
+		Notional:    roundFloat(bestNotional, 2),
+		DistanceBps: roundFloat(math.Abs(bestPrice-referencePrice)/referencePrice*10000, 2),
+		Strength:    roundFloat(normalizeWallStrength(bestNotional), 2),
+	}, true
+}
+
+func wallLayerName(layerCount, index int) string {
+	if layerCount <= 1 {
+		return "near"
+	}
+	if layerCount == 2 {
+		if index == 0 {
+			return "near"
+		}
+		return "far"
+	}
+	switch index {
+	case 0:
+		return "near"
+	case 1:
+		return "mid"
+	default:
+		return "far"
+	}
+}
+
+func wallLabel(side, layer string) string {
+	sideLabel := "Bid"
+	if side == "ask" {
+		sideLabel = "Ask"
+	}
+	switch layer {
+	case "near":
+		return "Near " + sideLabel + " Wall"
+	case "mid":
+		return "Mid " + sideLabel + " Wall"
+	default:
+		return "Far " + sideLabel + " Wall"
+	}
 }
 
 func calculateOrderBookImbalance(bids, asks []binancepkg.OrderBookLevel, levels int) float64 {

@@ -231,6 +231,48 @@ func TestMarketSnapshotEndpointMaintainsJSONContract(t *testing.T) {
 		"microstructure_events",
 	)
 
+	liquidity, ok := data["liquidity"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected liquidity to be object, got=%T", data["liquidity"])
+	}
+	assertJSONKeys(
+		t,
+		liquidity,
+		"buy_liquidity",
+		"sell_liquidity",
+		"sweep_type",
+		"order_book_imbalance",
+		"data_source",
+		"equal_high",
+		"equal_low",
+		"stop_clusters",
+		"wall_levels",
+	)
+
+	wallLevels, ok := liquidity["wall_levels"].([]any)
+	if !ok {
+		t.Fatalf("expected non-empty liquidity.wall_levels array, got=%T", liquidity["wall_levels"])
+	}
+	if len(wallLevels) > 0 {
+		firstWall, ok := wallLevels[0].(map[string]any)
+		if !ok {
+			t.Fatalf("expected first wall level to be object, got=%T", wallLevels[0])
+		}
+		assertJSONKeys(
+			t,
+			firstWall,
+			"label",
+			"kind",
+			"side",
+			"layer",
+			"price",
+			"quantity",
+			"notional",
+			"distance_bps",
+			"strength",
+		)
+	}
+
 	microEvents, ok := data["microstructure_events"].([]any)
 	if !ok || len(microEvents) == 0 {
 		t.Fatalf("expected non-empty microstructure_events array, got=%T", data["microstructure_events"])
@@ -442,6 +484,12 @@ func TestLiquidityMapEndpointReturnsLiquidityClusters(t *testing.T) {
 	}
 	if len(result.StopClusters) == 0 {
 		t.Fatal("liquidity stop clusters should not be empty")
+	}
+	if result.WallLevels == nil {
+		t.Fatal("expected wall levels field to be initialized")
+	}
+	if len(result.WallLevels) > 0 && (result.WallLevels[0].Side == "" || result.WallLevels[0].Layer == "") {
+		t.Fatalf("expected wall level side/layer to be populated: %+v", result.WallLevels[0])
 	}
 }
 

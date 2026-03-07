@@ -295,6 +295,7 @@
 - `equal_high`
 - `equal_low`
 - `stop_clusters[]`
+- `wall_levels[]`
 
 说明：
 
@@ -342,6 +343,7 @@
 - `large_trades[]`
 - `structure.events[]`
 - `liquidity.stop_clusters[]`
+- `liquidity.wall_levels[]`
 
 这不是缺陷，而是当前阶段的取舍。
 

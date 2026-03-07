@@ -10,6 +10,19 @@ type LiquidityCluster struct {
 	Strength float64 `json:"strength"`
 }
 
+// LiquidityWallLevel 描述订单簿中的细粒度挂单墙分层。
+type LiquidityWallLevel struct {
+	Label       string  `json:"label"`
+	Kind        string  `json:"kind"`
+	Side        string  `json:"side"`
+	Layer       string  `json:"layer"`
+	Price       float64 `json:"price"`
+	Quantity    float64 `json:"quantity"`
+	Notional    float64 `json:"notional"`
+	DistanceBps float64 `json:"distance_bps"`
+	Strength    float64 `json:"strength"`
+}
+
 // Liquidity 对应 liquidity 表，保存流动性区域分析结果。
 type Liquidity struct {
 	ID                 uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -29,6 +42,9 @@ type Liquidity struct {
 
 	// StopClusters 不落库，用于返回止损簇和流动性聚类结果。
 	StopClusters []LiquidityCluster `gorm:"-" json:"stop_clusters,omitempty"`
+
+	// WallLevels 不落库，用于返回更细粒度的订单簿挂单墙分层。
+	WallLevels []LiquidityWallLevel `gorm:"-" json:"wall_levels"`
 }
 
 // TableName 指定数据表名。

@@ -3,6 +3,7 @@ import {
   IndicatorSeriesResult,
   Kline,
   Liquidity,
+  LiquidityMapResult,
   MarketInterval,
   OrderFlow,
   PriceTicker,
@@ -77,7 +78,7 @@ export const marketApi = {
     return request<Liquidity>(`/liquidity?symbol=${symbol}&interval=${interval}`);
   },
   getLiquidityMap(symbol: string, interval: MarketInterval = "1m") {
-    return request<Liquidity>(`/liquidity-map?symbol=${symbol}&interval=${interval}`);
+    return request<LiquidityMapResult>(`/liquidity-map?symbol=${symbol}&interval=${interval}`);
   },
   getLiquiditySeries(symbol: string, interval: MarketInterval = "1m", limit = 48, refresh = false) {
     return request<LiquiditySeriesResult>(
