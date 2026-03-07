@@ -1,0 +1,37 @@
+package models
+
+import "time"
+
+// LiquidityCluster 描述单个流动性聚类或止损簇。
+type LiquidityCluster struct {
+	Label    string  `json:"label"`
+	Kind     string  `json:"kind"`
+	Price    float64 `json:"price"`
+	Strength float64 `json:"strength"`
+}
+
+// Liquidity 对应 liquidity 表，保存流动性区域分析结果。
+type Liquidity struct {
+	ID                 uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	Symbol             string    `gorm:"size:20;index;not null" json:"symbol"`
+	BuyLiquidity       float64   `gorm:"column:buy_liquidity;type:decimal(18,8);not null" json:"buy_liquidity"`
+	SellLiquidity      float64   `gorm:"column:sell_liquidity;type:decimal(18,8);not null" json:"sell_liquidity"`
+	SweepType          string    `gorm:"column:sweep_type;size:20;not null" json:"sweep_type"`
+	OrderBookImbalance float64   `gorm:"column:order_book_imbalance;type:decimal(12,6);not null;default:0" json:"order_book_imbalance"`
+	DataSource         string    `gorm:"column:data_source;size:20;not null;default:'kline'" json:"data_source"`
+	CreatedAt          time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
+
+	// EqualHigh 不落库，用于返回最近识别到的等高流动性位。
+	EqualHigh float64 `gorm:"-" json:"equal_high,omitempty"`
+
+	// EqualLow 不落库，用于返回最近识别到的等低流动性位。
+	EqualLow float64 `gorm:"-" json:"equal_low,omitempty"`
+
+	// StopClusters 不落库，用于返回止损簇和流动性聚类结果。
+	StopClusters []LiquidityCluster `gorm:"-" json:"stop_clusters,omitempty"`
+}
+
+// TableName 指定数据表名。
+func (Liquidity) TableName() string {
+	return "liquidity"
+}

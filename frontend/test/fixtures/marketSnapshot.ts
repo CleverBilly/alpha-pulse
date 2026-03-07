@@ -1,0 +1,438 @@
+import type { MarketInterval } from "../../types/market";
+import type { MarketSnapshot } from "../../types/snapshot";
+
+export function buildMockMarketSnapshot(
+  symbol = "BTCUSDT",
+  interval: MarketInterval = "1h",
+  limit = 48,
+): MarketSnapshot {
+  const total = clamp(limit, 24, 48);
+  const intervalMs = resolveIntervalMs(interval);
+  const baseTime = Date.UTC(2026, 2, 7, 0, 0, 0, 0);
+  const basePrice = symbol === "ETHUSDT" ? 3220 : 65200;
+
+  const klines = Array.from({ length: total }, (_, index) => {
+    const trend = index * (symbol === "ETHUSDT" ? 2.8 : 18);
+    const wave = Math.sin(index / 5) * (symbol === "ETHUSDT" ? 14 : 95);
+    const open = basePrice + trend + wave;
+    const close = open + (index % 5 < 3 ? 16 : -9);
+    const high = Math.max(open, close) + 22;
+    const low = Math.min(open, close) - 18;
+    return {
+      id: index + 1,
+      symbol,
+      interval_type: interval,
+      open_price: round(open),
+      high_price: round(high),
+      low_price: round(low),
+      close_price: round(close),
+      volume: round(42 + index * 1.8, 4),
+      open_time: baseTime + index * intervalMs,
+      created_at: new Date(baseTime + index * intervalMs).toISOString(),
+    };
+  });
+
+  const indicatorSeries = klines.map((kline, index) => ({
+    open_time: kline.open_time,
+    rsi: round(54 + Math.sin(index / 4) * 8),
+    macd: round(82 + index * 1.4),
+    macd_signal: round(68 + index * 1.1),
+    macd_histogram: round(14 + Math.sin(index / 3) * 3),
+    ema20: round(kline.close_price - 28),
+    ema50: round(kline.close_price - 92),
+    atr: round(360 + Math.cos(index / 7) * 18),
+    bollinger_upper: round(kline.close_price + 110),
+    bollinger_middle: round(kline.close_price - 8),
+    bollinger_lower: round(kline.close_price - 126),
+    vwap: round(kline.close_price - 42),
+  }));
+
+  const structureSeries = klines.map((kline, index) => ({
+    open_time: kline.open_time,
+    trend: "uptrend",
+    support: round(kline.close_price - 180),
+    resistance: round(kline.close_price + 210),
+    bos: index === total - 6,
+    choch: false,
+    event_labels: index === total - 6 ? ["BOS"] : index === total - 10 ? ["HH"] : [],
+  }));
+
+  const liquiditySeries = klines.map((kline, index) => ({
+    open_time: kline.open_time,
+    buy_liquidity: round(kline.close_price - 145),
+    sell_liquidity: round(kline.close_price + 165),
+    sweep_type: index === total - 3 ? "sell_sweep" : "",
+    order_book_imbalance: round(0.08 + Math.sin(index / 6) * 0.05, 3),
+    data_source: "orderbook",
+    equal_high: round(kline.close_price + 132),
+    equal_low: round(kline.close_price - 132),
+    buy_cluster_strength: round(2.4 + Math.sin(index / 8), 2),
+    sell_cluster_strength: round(1.6 + Math.cos(index / 8), 2),
+  }));
+
+  const latestKline = klines[klines.length - 1];
+  const microstructureEvents = [
+    {
+      id: 11,
+      orderflow_id: 1,
+      symbol,
+      interval_type: interval,
+      open_time: klines[total - 12].open_time,
+      type: "iceberg",
+      bias: "bullish",
+      score: 4,
+      strength: 0.58,
+      price: round(klines[total - 12].close_price - 6),
+      trade_time: klines[total - 12].open_time + intervalMs / 3,
+      detail: "同价带重复出现隐藏买单承接",
+      created_at: new Date(klines[total - 12].open_time).toISOString(),
+    },
+    {
+      id: 12,
+      orderflow_id: 1,
+      symbol,
+      interval_type: interval,
+      open_time: klines[total - 8].open_time,
+      type: "aggression_burst",
+      bias: "bullish",
+      score: 3,
+      strength: 0.31,
+      price: round(klines[total - 8].close_price - 2),
+      trade_time: klines[total - 8].open_time + intervalMs / 2,
+      detail: "最近成交窗口出现主动买盘冲击",
+      created_at: new Date(klines[total - 8].open_time).toISOString(),
+    },
+    {
+      id: 13,
+      orderflow_id: 1,
+      symbol,
+      interval_type: interval,
+      open_time: klines[total - 6].open_time,
+      type: "initiative_shift",
+      bias: "bullish",
+      score: 4,
+      strength: 0.29,
+      price: round(klines[total - 6].close_price),
+      trade_time: klines[total - 6].open_time + intervalMs / 2,
+      detail: "买方主动性较前半段明显增强",
+      created_at: new Date(klines[total - 6].open_time).toISOString(),
+    },
+    {
+      id: 14,
+      orderflow_id: 1,
+      symbol,
+      interval_type: interval,
+      open_time: klines[total - 4].open_time,
+      type: "large_trade_cluster",
+      bias: "bullish",
+      score: 4,
+      strength: 0.74,
+      price: round(klines[total - 4].close_price - 8),
+      trade_time: klines[total - 4].open_time + intervalMs / 2,
+      detail: "连续卖方大单被市场吸收，承接强度提升",
+      created_at: new Date(klines[total - 4].open_time).toISOString(),
+    },
+    {
+      id: 15,
+      orderflow_id: 1,
+      symbol,
+      interval_type: interval,
+      open_time: latestKline.open_time,
+      type: "absorption",
+      bias: "bullish",
+      score: 5,
+      strength: 0.66,
+      price: round(latestKline.close_price - 12),
+      trade_time: latestKline.open_time + intervalMs / 4,
+      detail: "卖压被持续吸收，价格未继续下破",
+      created_at: new Date(latestKline.open_time).toISOString(),
+    },
+  ];
+
+  return {
+    price: {
+      symbol,
+      price: latestKline.close_price,
+      time: latestKline.open_time + intervalMs / 2,
+    },
+    klines,
+    indicator: {
+      id: 1,
+      symbol,
+      rsi: 61.4,
+      macd: 126,
+      macd_signal: 96,
+      macd_histogram: 30,
+      ema20: round(latestKline.close_price - 24),
+      ema50: round(latestKline.close_price - 88),
+      atr: 410,
+      bollinger_upper: round(latestKline.close_price + 120),
+      bollinger_middle: round(latestKline.close_price - 10),
+      bollinger_lower: round(latestKline.close_price - 138),
+      vwap: round(latestKline.close_price - 36),
+      created_at: new Date(latestKline.open_time).toISOString(),
+    },
+    indicator_series: indicatorSeries,
+    orderflow: {
+      id: 1,
+      symbol,
+      interval_type: interval,
+      open_time: latestKline.open_time,
+      buy_volume: 1280,
+      sell_volume: 910,
+      delta: 370,
+      cvd: 1680,
+      buy_large_trade_count: 6,
+      sell_large_trade_count: 2,
+      buy_large_trade_notional: 890000,
+      sell_large_trade_notional: 240000,
+      large_trade_delta: 650000,
+      absorption_bias: "buy_absorption",
+      absorption_strength: 0.66,
+      iceberg_bias: "buy_iceberg",
+      iceberg_strength: 0.52,
+      data_source: "agg_trade",
+      large_trades: [
+        {
+          side: "buy",
+          price: round(latestKline.close_price - 10),
+          quantity: 2.6,
+          notional: 170500,
+          trade_time: latestKline.open_time - intervalMs / 8,
+        },
+        {
+          side: "buy",
+          price: round(latestKline.close_price - 4),
+          quantity: 2.3,
+          notional: 151800,
+          trade_time: latestKline.open_time - intervalMs / 10,
+        },
+      ],
+      microstructure_events: [
+        {
+          type: "absorption",
+          bias: "bullish",
+          score: 5,
+          strength: 0.66,
+          price: round(latestKline.close_price - 12),
+          trade_time: latestKline.open_time + intervalMs / 4,
+          detail: "卖压被持续吸收，价格未继续下破",
+        },
+        {
+          type: "large_trade_cluster",
+          bias: "bullish",
+          score: 4,
+          strength: 0.74,
+          price: round(klines[total - 4].close_price - 8),
+          trade_time: klines[total - 4].open_time + intervalMs / 2,
+          detail: "连续卖方大单被市场吸收，承接强度提升",
+        },
+        {
+          type: "initiative_shift",
+          bias: "bullish",
+          score: 4,
+          strength: 0.29,
+          price: round(klines[total - 2].close_price),
+          trade_time: klines[total - 2].open_time + intervalMs / 2,
+          detail: "买方主动性较前半段明显增强",
+        },
+      ],
+      created_at: new Date(latestKline.open_time).toISOString(),
+    },
+    microstructure_events: microstructureEvents,
+    structure: {
+      id: 1,
+      symbol,
+      trend: "uptrend",
+      support: round(latestKline.close_price - 180),
+      resistance: round(latestKline.close_price + 210),
+      bos: true,
+      choch: false,
+      events: [
+        {
+          label: "HH",
+          kind: "swing_high",
+          price: round(klines[total - 10].high_price),
+          open_time: klines[total - 10].open_time,
+        },
+        {
+          label: "HL",
+          kind: "swing_low",
+          price: round(klines[total - 8].low_price),
+          open_time: klines[total - 8].open_time,
+        },
+        {
+          label: "BOS",
+          kind: "breakout",
+          price: round(klines[total - 6].high_price),
+          open_time: klines[total - 6].open_time,
+        },
+      ],
+      created_at: new Date(latestKline.open_time).toISOString(),
+    },
+    structure_series: structureSeries,
+    liquidity: {
+      id: 1,
+      symbol,
+      buy_liquidity: round(latestKline.close_price - 145),
+      sell_liquidity: round(latestKline.close_price + 165),
+      sweep_type: "sell_sweep",
+      order_book_imbalance: 0.17,
+      data_source: "orderbook",
+      equal_high: round(latestKline.close_price + 132),
+      equal_low: round(latestKline.close_price - 132),
+      stop_clusters: [
+        {
+          label: "Buy Stop Cluster",
+          kind: "buy_stop_cluster",
+          price: round(latestKline.close_price - 150),
+          strength: 3.8,
+        },
+        {
+          label: "Sell Stop Cluster",
+          kind: "sell_stop_cluster",
+          price: round(latestKline.close_price + 170),
+          strength: 3.2,
+        },
+      ],
+      created_at: new Date(latestKline.open_time).toISOString(),
+    },
+    liquidity_series: liquiditySeries,
+    signal: {
+      id: 1,
+      symbol,
+      interval_type: interval,
+      open_time: latestKline.open_time,
+      signal: "BUY",
+      score: 58,
+      confidence: 74,
+      entry_price: round(latestKline.close_price - 6),
+      stop_loss: round(latestKline.close_price - 120),
+      target_price: round(latestKline.close_price + 220),
+      risk_reward: 2.2,
+      trend_bias: "bullish",
+      explain: "当前多头信号由趋势、订单流与微结构事件序列共振驱动。",
+      factors: [
+        {
+          key: "trend",
+          name: "Trend",
+          score: 18,
+          bias: "bullish",
+          reason: "EMA20 高于 EMA50，价格位于 VWAP 上方",
+          section: "indicator",
+        },
+        {
+          key: "momentum",
+          name: "Momentum",
+          score: 11,
+          bias: "bullish",
+          reason: "RSI 与 MACD 保持同步强势",
+          section: "indicator",
+        },
+        {
+          key: "orderflow",
+          name: "Order Flow",
+          score: 9,
+          bias: "bullish",
+          reason: "Delta 为正，大单净流入持续扩张",
+          section: "flow",
+        },
+        {
+          key: "structure",
+          name: "Structure",
+          score: 8,
+          bias: "bullish",
+          reason: "结构保持 HH / HL，且出现 BOS",
+          section: "structure",
+        },
+        {
+          key: "liquidity",
+          name: "Liquidity",
+          score: 5,
+          bias: "bullish",
+          reason: "sell-side sweep 后，盘口买盘更厚",
+          section: "liquidity",
+        },
+        {
+          key: "microstructure",
+          name: "Microstructure",
+          score: 7,
+          bias: "bullish",
+          reason: "最近微结构事件连续偏多，买方主动性增强",
+          section: "microstructure",
+        },
+        {
+          key: "volatility",
+          name: "Volatility",
+          score: 0,
+          bias: "neutral",
+          reason: "波动率处于可接受区间",
+          section: "risk",
+        },
+      ],
+      created_at: new Date(latestKline.open_time).toISOString(),
+    },
+    signal_timeline: [
+      {
+        id: 3,
+        symbol,
+        interval_type: interval,
+        open_time: klines[total - 12].open_time,
+        signal: "SELL",
+        score: -42,
+        confidence: 61,
+        entry_price: round(klines[total - 12].close_price),
+        stop_loss: round(klines[total - 12].close_price + 118),
+        target_price: round(klines[total - 12].close_price - 210),
+      },
+      {
+        id: 4,
+        symbol,
+        interval_type: interval,
+        open_time: klines[total - 6].open_time,
+        signal: "BUY",
+        score: 47,
+        confidence: 68,
+        entry_price: round(klines[total - 6].close_price),
+        stop_loss: round(klines[total - 6].close_price - 112),
+        target_price: round(klines[total - 6].close_price + 205),
+      },
+      {
+        id: 5,
+        symbol,
+        interval_type: interval,
+        open_time: latestKline.open_time,
+        signal: "BUY",
+        score: 58,
+        confidence: 74,
+        entry_price: round(latestKline.close_price - 6),
+        stop_loss: round(latestKline.close_price - 120),
+        target_price: round(latestKline.close_price + 220),
+      },
+    ],
+  };
+}
+
+function resolveIntervalMs(interval: MarketInterval) {
+  switch (interval) {
+    case "5m":
+      return 5 * 60 * 1000;
+    case "15m":
+      return 15 * 60 * 1000;
+    case "1h":
+      return 60 * 60 * 1000;
+    case "4h":
+      return 4 * 60 * 60 * 1000;
+    default:
+      return 60 * 1000;
+  }
+}
+
+function round(value: number, digits = 2) {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}

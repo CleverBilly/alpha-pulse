@@ -1,0 +1,36 @@
+import { buildMockMarketSnapshot } from "./marketSnapshot";
+
+export function buildMockMarketStoreState(overrides: Record<string, unknown> = {}) {
+  const snapshot = buildMockMarketSnapshot();
+  const latestKline = snapshot.klines[snapshot.klines.length - 1] ?? null;
+
+  return {
+    symbol: snapshot.price.symbol,
+    interval: snapshot.signal.interval_type,
+    price: snapshot.price,
+    kline: latestKline,
+    klines: snapshot.klines,
+    indicator: snapshot.indicator,
+    indicatorSeries: snapshot.indicator_series,
+    orderFlow: snapshot.orderflow,
+    microstructureEvents: snapshot.microstructure_events,
+    structure: snapshot.structure,
+    structureSeries: snapshot.structure_series,
+    liquidity: snapshot.liquidity,
+    liquiditySeries: snapshot.liquidity_series,
+    signal: snapshot.signal,
+    signalTimeline: snapshot.signal_timeline,
+    loading: false,
+    error: null,
+    setSymbol: () => undefined,
+    setIntervalType: () => undefined,
+    refreshPrice: async () => undefined,
+    refreshKline: async () => undefined,
+    refreshIndicators: async () => undefined,
+    refreshOrderFlow: async () => undefined,
+    refreshStructure: async () => undefined,
+    refreshLiquidity: async () => undefined,
+    refreshDashboard: async () => undefined,
+    ...overrides,
+  };
+}

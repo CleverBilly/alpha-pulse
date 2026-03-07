@@ -1,0 +1,434 @@
+package signal
+
+import (
+	"strings"
+	"testing"
+
+	"alpha-pulse/backend/models"
+)
+
+func TestGenerateReturnsBuySignalForBullishConfluence(t *testing.T) {
+	engine := NewEngine()
+
+	result := engine.Generate(
+		"BTCUSDT",
+		65000,
+		models.Indicator{
+			RSI:             62,
+			MACD:            180,
+			MACDSignal:      120,
+			MACDHistogram:   60,
+			EMA20:           64850,
+			EMA50:           64200,
+			ATR:             420,
+			BollingerUpper:  65800,
+			BollingerMiddle: 64920,
+			BollingerLower:  64040,
+			VWAP:            64680,
+		},
+		models.OrderFlow{
+			BuyVolume:              1400,
+			SellVolume:             900,
+			Delta:                  500,
+			CVD:                    2200,
+			BuyLargeTradeCount:     7,
+			SellLargeTradeCount:    2,
+			BuyLargeTradeNotional:  880000,
+			SellLargeTradeNotional: 250000,
+			LargeTradeDelta:        630000,
+			AbsorptionBias:         "buy_absorption",
+			AbsorptionStrength:     0.62,
+			IcebergBias:            "buy_iceberg",
+			IcebergStrength:        0.48,
+			DataSource:             "agg_trade",
+			MicrostructureEvents:   bullishMicrostructureEvents(),
+		},
+		models.Structure{
+			Trend:      "uptrend",
+			Support:    64600,
+			Resistance: 66500,
+			BOS:        true,
+			Choch:      false,
+		},
+		models.Liquidity{
+			BuyLiquidity:       64650,
+			SellLiquidity:      66100,
+			SweepType:          "sell_sweep",
+			OrderBookImbalance: 0.18,
+			DataSource:         "orderbook",
+			EqualLow:           64820,
+			StopClusters: []models.LiquidityCluster{
+				{Kind: "buy_stop_cluster", Strength: 3.8},
+			},
+		},
+	)
+
+	if result.Action != "BUY" {
+		t.Fatalf("expected BUY, got %s", result.Action)
+	}
+	if result.Score < buyThreshold {
+		t.Fatalf("expected buy score >= %d, got %d", buyThreshold, result.Score)
+	}
+	if result.Confidence < 60 {
+		t.Fatalf("expected confidence >= 60, got %d", result.Confidence)
+	}
+	if len(result.Factors) != 7 {
+		t.Fatalf("expected 7 factors, got %d", len(result.Factors))
+	}
+	if result.RiskReward <= 1 {
+		t.Fatalf("expected risk reward > 1, got %f", result.RiskReward)
+	}
+}
+
+func TestGenerateOrderFlowFactorIncludesMicrostructureReason(t *testing.T) {
+	engine := NewEngine()
+
+	result := engine.Generate(
+		"BTCUSDT",
+		64800,
+		models.Indicator{
+			RSI:             56,
+			MACD:            48,
+			MACDSignal:      32,
+			MACDHistogram:   16,
+			EMA20:           64650,
+			EMA50:           64280,
+			ATR:             280,
+			BollingerUpper:  65240,
+			BollingerMiddle: 64720,
+			BollingerLower:  64210,
+			VWAP:            64590,
+		},
+		models.OrderFlow{
+			BuyVolume:              920,
+			SellVolume:             980,
+			Delta:                  -60,
+			CVD:                    120,
+			BuyLargeTradeNotional:  420000,
+			SellLargeTradeNotional: 380000,
+			LargeTradeDelta:        40000,
+			AbsorptionBias:         "buy_absorption",
+			AbsorptionStrength:     0.71,
+			IcebergBias:            "buy_iceberg",
+			IcebergStrength:        0.66,
+			DataSource:             "agg_trade",
+			MicrostructureEvents: []models.OrderFlowMicrostructureEvent{
+				{
+					Type:      "absorption",
+					Bias:      "bullish",
+					Score:     5,
+					Strength:  0.71,
+					Price:     64795,
+					TradeTime: 1741300000000,
+					Detail:    "卖压被持续吸收，价格未继续下破",
+				},
+				{
+					Type:      "initiative_shift",
+					Bias:      "bullish",
+					Score:     4,
+					Strength:  0.32,
+					Price:     64800,
+					TradeTime: 1741300060000,
+					Detail:    "买方主动性较前半段明显增强",
+				},
+			},
+		},
+		models.Structure{
+			Trend:      "uptrend",
+			Support:    64580,
+			Resistance: 65350,
+			BOS:        true,
+		},
+		models.Liquidity{
+			BuyLiquidity:       64620,
+			SellLiquidity:      65210,
+			SweepType:          "sell_sweep",
+			OrderBookImbalance: 0.16,
+			DataSource:         "orderbook",
+			EqualLow:           64790,
+			StopClusters: []models.LiquidityCluster{
+				{Kind: "buy_stop_cluster", Strength: 3.6},
+			},
+		},
+	)
+
+	orderFlowFactor := findFactor(result.Factors, "orderflow")
+	if orderFlowFactor == nil {
+		t.Fatal("expected to find orderflow factor")
+	}
+	if orderFlowFactor.Score <= 0 {
+		t.Fatalf("expected positive orderflow factor score, got %d", orderFlowFactor.Score)
+	}
+	if !containsText(orderFlowFactor.Reason, "吸收") {
+		t.Fatalf("expected orderflow reason to mention absorption, got %s", orderFlowFactor.Reason)
+	}
+
+	microstructureFactor := findFactor(result.Factors, "microstructure")
+	if microstructureFactor == nil {
+		t.Fatal("expected to find microstructure factor")
+	}
+	if microstructureFactor.Score <= 0 {
+		t.Fatalf("expected positive microstructure factor score, got %d", microstructureFactor.Score)
+	}
+	if !containsText(microstructureFactor.Reason, "主动性") && !containsText(microstructureFactor.Reason, "sweep") {
+		t.Fatalf("expected microstructure reason to mention event sequence or sweep, got %s", microstructureFactor.Reason)
+	}
+}
+
+func TestGenerateReturnsSellSignalForBearishConfluence(t *testing.T) {
+	engine := NewEngine()
+
+	result := engine.Generate(
+		"ETHUSDT",
+		3200,
+		models.Indicator{
+			RSI:             38,
+			MACD:            -24,
+			MACDSignal:      -12,
+			MACDHistogram:   -12,
+			EMA20:           3190,
+			EMA50:           3275,
+			ATR:             48,
+			BollingerUpper:  3330,
+			BollingerMiddle: 3230,
+			BollingerLower:  3130,
+			VWAP:            3245,
+		},
+		models.OrderFlow{
+			BuyVolume:              420,
+			SellVolume:             860,
+			Delta:                  -440,
+			CVD:                    -1800,
+			BuyLargeTradeCount:     1,
+			SellLargeTradeCount:    6,
+			BuyLargeTradeNotional:  120000,
+			SellLargeTradeNotional: 640000,
+			LargeTradeDelta:        -520000,
+			AbsorptionBias:         "sell_absorption",
+			AbsorptionStrength:     0.59,
+			IcebergBias:            "sell_iceberg",
+			IcebergStrength:        0.52,
+			DataSource:             "agg_trade",
+			MicrostructureEvents:   bearishMicrostructureEvents(),
+		},
+		models.Structure{
+			Trend:      "downtrend",
+			Support:    3060,
+			Resistance: 3210,
+			BOS:        true,
+			Choch:      false,
+		},
+		models.Liquidity{
+			BuyLiquidity:       3095,
+			SellLiquidity:      3215,
+			SweepType:          "buy_sweep",
+			OrderBookImbalance: -0.17,
+			DataSource:         "orderbook",
+			EqualHigh:          3205,
+			StopClusters: []models.LiquidityCluster{
+				{Kind: "sell_stop_cluster", Strength: 3.5},
+			},
+		},
+	)
+
+	if result.Action != "SELL" {
+		t.Fatalf("expected SELL, got %s", result.Action)
+	}
+	if result.Score > sellThreshold {
+		t.Fatalf("expected sell score <= %d, got %d", sellThreshold, result.Score)
+	}
+	if result.TrendBias != "bearish" {
+		t.Fatalf("expected bearish trend bias, got %s", result.TrendBias)
+	}
+}
+
+func TestGenerateMicrostructureFactorTurnsBearishOnAlignedPressure(t *testing.T) {
+	engine := NewEngine()
+
+	result := engine.Generate(
+		"ETHUSDT",
+		3210,
+		models.Indicator{
+			RSI:             44,
+			MACD:            -18,
+			MACDSignal:      -12,
+			MACDHistogram:   -6,
+			EMA20:           3208,
+			EMA50:           3240,
+			ATR:             42,
+			BollingerUpper:  3290,
+			BollingerMiddle: 3218,
+			BollingerLower:  3148,
+			VWAP:            3232,
+		},
+		models.OrderFlow{
+			BuyVolume:              720,
+			SellVolume:             1010,
+			Delta:                  -290,
+			CVD:                    -640,
+			BuyLargeTradeCount:     2,
+			SellLargeTradeCount:    8,
+			BuyLargeTradeNotional:  160000,
+			SellLargeTradeNotional: 780000,
+			LargeTradeDelta:        -620000,
+			AbsorptionBias:         "sell_absorption",
+			AbsorptionStrength:     0.66,
+			IcebergBias:            "sell_iceberg",
+			IcebergStrength:        0.71,
+			DataSource:             "agg_trade",
+			MicrostructureEvents:   bearishMicrostructureEvents(),
+		},
+		models.Structure{
+			Trend:      "downtrend",
+			Support:    3130,
+			Resistance: 3225,
+			BOS:        true,
+		},
+		models.Liquidity{
+			BuyLiquidity:       3145,
+			SellLiquidity:      3220,
+			SweepType:          "buy_sweep",
+			OrderBookImbalance: -0.19,
+			DataSource:         "orderbook",
+			EqualHigh:          3215,
+			StopClusters: []models.LiquidityCluster{
+				{Kind: "sell_stop_cluster", Strength: 4.2},
+			},
+		},
+	)
+
+	microstructureFactor := findFactor(result.Factors, "microstructure")
+	if microstructureFactor == nil {
+		t.Fatal("expected to find microstructure factor")
+	}
+	if microstructureFactor.Score >= 0 {
+		t.Fatalf("expected negative microstructure factor score, got %d", microstructureFactor.Score)
+	}
+}
+
+func bullishMicrostructureEvents() []models.OrderFlowMicrostructureEvent {
+	return []models.OrderFlowMicrostructureEvent{
+		{
+			Type:      "absorption",
+			Bias:      "bullish",
+			Score:     5,
+			Strength:  0.62,
+			Price:     64920,
+			TradeTime: 1741300000000,
+			Detail:    "卖压被持续吸收，价格未继续下破",
+		},
+		{
+			Type:      "large_trade_cluster",
+			Bias:      "bullish",
+			Score:     4,
+			Strength:  0.72,
+			Price:     64950,
+			TradeTime: 1741300060000,
+			Detail:    "连续卖方大单被市场吸收，承接强度提升",
+		},
+		{
+			Type:      "initiative_shift",
+			Bias:      "bullish",
+			Score:     4,
+			Strength:  0.28,
+			Price:     65000,
+			TradeTime: 1741300120000,
+			Detail:    "买方主动性较前半段明显增强",
+		},
+	}
+}
+
+func bearishMicrostructureEvents() []models.OrderFlowMicrostructureEvent {
+	return []models.OrderFlowMicrostructureEvent{
+		{
+			Type:      "absorption",
+			Bias:      "bearish",
+			Score:     -5,
+			Strength:  0.64,
+			Price:     3212,
+			TradeTime: 1741300000000,
+			Detail:    "买盘被持续吸收，价格未继续上破",
+		},
+		{
+			Type:      "large_trade_cluster",
+			Bias:      "bearish",
+			Score:     -4,
+			Strength:  0.77,
+			Price:     3210,
+			TradeTime: 1741300060000,
+			Detail:    "连续买方大单被市场吸收，上方抛压增强",
+		},
+		{
+			Type:      "initiative_shift",
+			Bias:      "bearish",
+			Score:     -4,
+			Strength:  0.31,
+			Price:     3208,
+			TradeTime: 1741300120000,
+			Detail:    "卖方主动性较前半段明显增强",
+		},
+	}
+}
+
+func TestGenerateReturnsNeutralWhenSignalsConflict(t *testing.T) {
+	engine := NewEngine()
+
+	result := engine.Generate(
+		"BTCUSDT",
+		64000,
+		models.Indicator{
+			RSI:             51,
+			MACD:            12,
+			MACDSignal:      10,
+			MACDHistogram:   2,
+			EMA20:           63980,
+			EMA50:           63920,
+			ATR:             35,
+			BollingerUpper:  64450,
+			BollingerMiddle: 64020,
+			BollingerLower:  63590,
+			VWAP:            64010,
+		},
+		models.OrderFlow{
+			BuyVolume:  900,
+			SellVolume: 980,
+			Delta:      -80,
+			CVD:        -120,
+		},
+		models.Structure{
+			Trend:      "range",
+			Support:    63600,
+			Resistance: 64400,
+			BOS:        false,
+			Choch:      true,
+		},
+		models.Liquidity{
+			BuyLiquidity:  63850,
+			SellLiquidity: 64250,
+			SweepType:     "",
+		},
+	)
+
+	if result.Action != "NEUTRAL" {
+		t.Fatalf("expected NEUTRAL, got %s", result.Action)
+	}
+	if result.Score <= sellThreshold || result.Score >= buyThreshold {
+		t.Fatalf("expected score in neutral range, got %d", result.Score)
+	}
+	if result.Confidence > 60 {
+		t.Fatalf("expected neutral confidence <= 60, got %d", result.Confidence)
+	}
+}
+
+func findFactor(factors []models.SignalFactor, key string) *models.SignalFactor {
+	for index := range factors {
+		if factors[index].Key == key {
+			return &factors[index]
+		}
+	}
+	return nil
+}
+
+func containsText(source, target string) bool {
+	return strings.Contains(source, target)
+}

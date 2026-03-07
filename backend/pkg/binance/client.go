@@ -1,0 +1,409 @@
+package binance
+
+import (
+	"context"
+	"errors"
+	"math"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	binancesdk "github.com/adshao/go-binance/v2"
+)
+
+// KlineData 表示从 Binance 获取的一根原始 K 线。
+type KlineData struct {
+	OpenTime int64
+	Open     float64
+	High     float64
+	Low      float64
+	Close    float64
+	Volume   float64
+}
+
+// AggTradeData 表示从 Binance 获取的一条聚合成交。
+type AggTradeData struct {
+	AggTradeID       int64
+	Price            float64
+	Quantity         float64
+	QuoteQuantity    float64
+	FirstTradeID     int64
+	LastTradeID      int64
+	TradeTime        int64
+	IsBuyerMaker     bool
+	IsBestPriceMatch bool
+}
+
+// OrderBookLevel 表示盘口中的单个价位。
+type OrderBookLevel struct {
+	Price    float64 `json:"price"`
+	Quantity float64 `json:"quantity"`
+}
+
+// DepthSnapshotData 表示 Binance 返回的一份盘口快照。
+type DepthSnapshotData struct {
+	LastUpdateID int64
+	Bids         []OrderBookLevel
+	Asks         []OrderBookLevel
+}
+
+// Client 封装 Binance SDK 调用，并保留离线回退能力。
+type Client struct {
+	sdkClient *binancesdk.Client
+	timeout   time.Duration
+}
+
+// NewClient 创建 Binance 客户端。
+func NewClient(apiKey, secretKey string, timeout time.Duration) *Client {
+	sdkClient := binancesdk.NewClient(apiKey, secretKey)
+	sdkClient.HTTPClient = &http.Client{Timeout: timeout}
+
+	return &Client{
+		sdkClient: sdkClient,
+		timeout:   timeout,
+	}
+}
+
+// SetHTTPClient 允许测试场景替换底层 HTTPClient。
+func (c *Client) SetHTTPClient(httpClient *http.Client) {
+	if httpClient == nil {
+		return
+	}
+	c.sdkClient.HTTPClient = httpClient
+}
+
+// GetTickerPrice 获取实时价格，失败时返回本地模拟价格保证系统可运行。
+func (c *Client) GetTickerPrice(symbol string) (float64, error) {
+	symbol = strings.ToUpper(symbol)
+	ctx, cancel := c.newContext()
+	defer cancel()
+
+	prices, err := c.sdkClient.NewListPricesService().
+		Symbol(symbol).
+		Do(ctx)
+	if err != nil || len(prices) == 0 {
+		return c.mockPrice(symbol), nil
+	}
+
+	price, err := strconv.ParseFloat(prices[0].Price, 64)
+	if err != nil {
+		return c.mockPrice(symbol), nil
+	}
+
+	return price, nil
+}
+
+// GetLatestKline 获取最新一根 K 线，失败时返回模拟数据。
+func (c *Client) GetLatestKline(symbol, interval string) (open, high, low, close, volume float64, openTime int64, err error) {
+	klines, err := c.GetKlines(symbol, interval, 1)
+	if err != nil {
+		return 0, 0, 0, 0, 0, 0, err
+	}
+
+	latest := klines[len(klines)-1]
+	return latest.Open, latest.High, latest.Low, latest.Close, latest.Volume, latest.OpenTime, nil
+}
+
+// GetKlines 获取最近 limit 根 K 线，失败时返回可运行的模拟数据。
+func (c *Client) GetKlines(symbol, interval string, limit int) ([]KlineData, error) {
+	if limit <= 0 {
+		limit = 1
+	}
+
+	symbol = strings.ToUpper(symbol)
+	ctx, cancel := c.newContext()
+	defer cancel()
+
+	payload, err := c.sdkClient.NewKlinesService().
+		Symbol(symbol).
+		Interval(interval).
+		Limit(limit).
+		Do(ctx)
+	if err != nil {
+		return c.mockKlines(symbol, interval, limit), nil
+	}
+
+	klines := make([]KlineData, 0, len(payload))
+	for _, row := range payload {
+		open, openErr := strconv.ParseFloat(row.Open, 64)
+		high, highErr := strconv.ParseFloat(row.High, 64)
+		low, lowErr := strconv.ParseFloat(row.Low, 64)
+		closePrice, closeErr := strconv.ParseFloat(row.Close, 64)
+		volume, volumeErr := strconv.ParseFloat(row.Volume, 64)
+		if openErr != nil || highErr != nil || lowErr != nil || closeErr != nil || volumeErr != nil {
+			continue
+		}
+
+		klines = append(klines, KlineData{
+			OpenTime: row.OpenTime,
+			Open:     open,
+			High:     high,
+			Low:      low,
+			Close:    closePrice,
+			Volume:   volume,
+		})
+	}
+
+	if len(klines) == 0 {
+		return c.mockKlines(symbol, interval, limit), nil
+	}
+
+	return klines, nil
+}
+
+// GetAggTrades 获取最近 limit 条聚合成交，用于订单流真实分析。
+func (c *Client) GetAggTrades(symbol string, limit int) ([]AggTradeData, error) {
+	if limit <= 0 {
+		limit = 1
+	}
+
+	symbol = strings.ToUpper(symbol)
+	ctx, cancel := c.newContext()
+	defer cancel()
+
+	payload, err := c.sdkClient.NewAggTradesService().
+		Symbol(symbol).
+		Limit(limit).
+		Do(ctx)
+	if err != nil {
+		return c.mockAggTrades(symbol, limit), nil
+	}
+
+	trades := make([]AggTradeData, 0, len(payload))
+	for _, row := range payload {
+		price, priceErr := strconv.ParseFloat(row.Price, 64)
+		quantity, quantityErr := strconv.ParseFloat(row.Quantity, 64)
+		if priceErr != nil || quantityErr != nil {
+			continue
+		}
+
+		trades = append(trades, AggTradeData{
+			AggTradeID:       row.AggTradeID,
+			Price:            price,
+			Quantity:         quantity,
+			QuoteQuantity:    price * quantity,
+			FirstTradeID:     row.FirstTradeID,
+			LastTradeID:      row.LastTradeID,
+			TradeTime:        row.Timestamp,
+			IsBuyerMaker:     row.IsBuyerMaker,
+			IsBestPriceMatch: row.IsBestPriceMatch,
+		})
+	}
+
+	if len(trades) == 0 {
+		return c.mockAggTrades(symbol, limit), nil
+	}
+
+	return trades, nil
+}
+
+// GetDepthSnapshot 获取当前盘口快照，用于后续盘口分析与回放。
+func (c *Client) GetDepthSnapshot(symbol string, limit int) (DepthSnapshotData, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	symbol = strings.ToUpper(symbol)
+	ctx, cancel := c.newContext()
+	defer cancel()
+
+	payload, err := c.sdkClient.NewDepthService().
+		Symbol(symbol).
+		Limit(limit).
+		Do(ctx)
+	if err != nil {
+		return DepthSnapshotData{}, err
+	}
+
+	snapshot := DepthSnapshotData{
+		LastUpdateID: payload.LastUpdateID,
+		Bids:         make([]OrderBookLevel, 0, len(payload.Bids)),
+		Asks:         make([]OrderBookLevel, 0, len(payload.Asks)),
+	}
+
+	for _, level := range payload.Bids {
+		price, quantity, parseErr := parseOrderBookLevel(level.Price, level.Quantity)
+		if parseErr != nil {
+			continue
+		}
+		snapshot.Bids = append(snapshot.Bids, OrderBookLevel{
+			Price:    price,
+			Quantity: quantity,
+		})
+	}
+
+	for _, level := range payload.Asks {
+		price, quantity, parseErr := parseOrderBookLevel(level.Price, level.Quantity)
+		if parseErr != nil {
+			continue
+		}
+		snapshot.Asks = append(snapshot.Asks, OrderBookLevel{
+			Price:    price,
+			Quantity: quantity,
+		})
+	}
+
+	if len(snapshot.Bids) == 0 || len(snapshot.Asks) == 0 {
+		return DepthSnapshotData{}, errors.New("binance depth snapshot is empty")
+	}
+
+	return snapshot, nil
+}
+
+func (c *Client) newContext() (context.Context, context.CancelFunc) {
+	if c.timeout <= 0 {
+		return context.Background(), func() {}
+	}
+	return context.WithTimeout(context.Background(), c.timeout)
+}
+
+// NewFailingHTTPClient 返回一个始终失败的 HTTPClient，便于测试验证 fallback。
+func NewFailingHTTPClient(err error) *http.Client {
+	if err == nil {
+		err = errors.New("forced binance sdk transport failure")
+	}
+
+	return &http.Client{
+		Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+			return nil, err
+		}),
+	}
+}
+
+func (c *Client) mockPrice(symbol string) float64 {
+	base := 3000.0
+	if strings.HasPrefix(symbol, "BTC") {
+		base = 65000
+	}
+
+	wave := math.Sin(float64(time.Now().UnixNano())/1e12) * base * 0.01
+	return base + wave
+}
+
+func (c *Client) mockKlines(symbol, interval string, limit int) []KlineData {
+	if limit <= 0 {
+		limit = 1
+	}
+
+	basePrice := c.mockPrice(symbol)
+	step := intervalDuration(interval)
+	if step <= 0 {
+		step = time.Minute
+	}
+
+	start := time.Now().Add(-time.Duration(limit) * step).UnixMilli()
+	klines := make([]KlineData, 0, limit)
+	for i := 0; i < limit; i++ {
+		wave := math.Sin(float64(i) / 4.5)
+		trend := float64(i) * basePrice * 0.0004
+		price := basePrice + trend + (wave * basePrice * 0.002)
+		open := price * (0.998 + math.Sin(float64(i))*0.0005)
+		closePrice := price * (1.001 + math.Cos(float64(i))*0.0004)
+		high := math.Max(open, closePrice) * 1.0015
+		low := math.Min(open, closePrice) * 0.9985
+		volume := basePrice*0.08 + float64(i)*basePrice*0.0005
+
+		klines = append(klines, KlineData{
+			OpenTime: start + int64(i)*step.Milliseconds(),
+			Open:     open,
+			High:     high,
+			Low:      low,
+			Close:    closePrice,
+			Volume:   volume,
+		})
+	}
+
+	return klines
+}
+
+func (c *Client) mockAggTrades(symbol string, limit int) []AggTradeData {
+	if limit <= 0 {
+		limit = 1
+	}
+
+	basePrice := c.mockPrice(symbol)
+	start := time.Now().Add(-time.Duration(limit) * 2 * time.Second)
+	trades := make([]AggTradeData, 0, limit)
+
+	for i := 0; i < limit; i++ {
+		price := basePrice + math.Sin(float64(i)/8.0)*math.Max(basePrice*0.00035, 8)
+		quantity := 0.45 + math.Mod(float64(i), 5)*0.05
+		isBuyerMaker := true
+
+		// 构造同价带重复的大额卖单，模拟买方吸收和买方冰山单。
+		if i%9 == 0 || i%9 == 3 || i%9 == 6 {
+			price = basePrice + math.Max(basePrice*0.00006, 4)
+			quantity = math.Max(largeTradeMockQuantity(basePrice), 0.6) + math.Mod(float64(i), 3)*0.08
+		}
+
+		// 插入小额主动买单，制造主动性切换和局部买盘 burst。
+		if i%10 == 1 || i%10 == 8 {
+			isBuyerMaker = false
+			quantity = math.Max(largeTradeMockQuantity(basePrice)*0.08, 0.22)
+			price = basePrice + math.Max(basePrice*0.00012, 10)
+		}
+
+		tradeTime := start.Add(time.Duration(i) * 1500 * time.Millisecond).UnixMilli()
+		trades = append(trades, AggTradeData{
+			AggTradeID:       int64(i + 1),
+			Price:            price,
+			Quantity:         quantity,
+			QuoteQuantity:    price * quantity,
+			FirstTradeID:     int64(i*2 + 1),
+			LastTradeID:      int64(i*2 + 2),
+			TradeTime:        tradeTime,
+			IsBuyerMaker:     isBuyerMaker,
+			IsBestPriceMatch: true,
+		})
+	}
+
+	return trades
+}
+
+func largeTradeMockQuantity(price float64) float64 {
+	if price <= 0 {
+		return 2
+	}
+
+	return math.Max(largeTradeThresholdMock()/price, 2)
+}
+
+func largeTradeThresholdMock() float64 {
+	return 120000
+}
+
+func intervalDuration(interval string) time.Duration {
+	switch interval {
+	case "1m":
+		return time.Minute
+	case "5m":
+		return 5 * time.Minute
+	case "15m":
+		return 15 * time.Minute
+	case "1h":
+		return time.Hour
+	case "4h":
+		return 4 * time.Hour
+	default:
+		return time.Minute
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func parseOrderBookLevel(priceValue, quantityValue string) (float64, float64, error) {
+	price, priceErr := strconv.ParseFloat(priceValue, 64)
+	quantity, quantityErr := strconv.ParseFloat(quantityValue, 64)
+	if priceErr != nil {
+		return 0, 0, priceErr
+	}
+	if quantityErr != nil {
+		return 0, 0, quantityErr
+	}
+	return price, quantity, nil
+}

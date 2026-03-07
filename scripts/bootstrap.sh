@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+cd "$ROOT_DIR/backend"
+go mod tidy
+
+cd "$ROOT_DIR/frontend"
+npm install
+
+echo "bootstrap completed"

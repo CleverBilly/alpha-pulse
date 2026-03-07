@@ -1,0 +1,12 @@
+# frontend
+frontend/node_modules
+frontend/.next
+frontend/test-results
+frontend/playwright-report
+
+# env files
+backend/.env
+frontend/.env.local
+
+# logs
+*.log
