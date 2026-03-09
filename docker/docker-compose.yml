@@ -32,6 +32,8 @@ services:
     container_name: alpha-pulse-backend
     restart: unless-stopped
     environment:
+      APP_MODE: dev
+      GIN_MODE: debug
       APP_PORT: 8080
       MYSQL_DSN: root:root@tcp(mysql:3306)/alpha_pulse?charset=utf8mb4&parseTime=True&loc=Local
       REDIS_ADDR: redis:6379
@@ -39,6 +41,13 @@ services:
       REDIS_DB: 0
       MARKET_SNAPSHOT_CACHE_TTL: 5
       ANALYSIS_VIEW_CACHE_TTL: 15
+      MARKET_SYMBOLS: BTCUSDT,ETHUSDT
+      AUTO_MIGRATE: true
+      ENABLE_REDIS_CACHE: true
+      ENABLE_STREAM_COLLECTOR: true
+      ENABLE_SCHEDULER: true
+      ALLOW_MOCK_BINANCE_DATA: true
+      SCHEDULER_INTERVAL_SECONDS: 60
       BINANCE_API_KEY: ${BINANCE_API_KEY:-}
       BINANCE_SECRET_KEY: ${BINANCE_SECRET_KEY:-}
     depends_on:

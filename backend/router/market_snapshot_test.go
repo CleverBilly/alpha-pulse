@@ -231,6 +231,35 @@ func TestMarketSnapshotEndpointMaintainsJSONContract(t *testing.T) {
 		"microstructure_events",
 	)
 
+	structurePayload, ok := data["structure"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected structure to be object, got=%T", data["structure"])
+	}
+	assertJSONKeys(
+		t,
+		structurePayload,
+		"trend",
+		"primary_tier",
+		"support",
+		"resistance",
+		"internal_support",
+		"internal_resistance",
+		"external_support",
+		"external_resistance",
+		"bos",
+		"choch",
+		"events",
+	)
+	structureEvents, ok := structurePayload["events"].([]any)
+	if !ok || len(structureEvents) == 0 {
+		t.Fatalf("expected non-empty structure.events array, got=%T", structurePayload["events"])
+	}
+	firstStructureEvent, ok := structureEvents[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected first structure event to be object, got=%T", structureEvents[0])
+	}
+	assertJSONKeys(t, firstStructureEvent, "label", "kind", "tier", "price", "open_time")
+
 	liquidity, ok := data["liquidity"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected liquidity to be object, got=%T", data["liquidity"])
@@ -247,6 +276,8 @@ func TestMarketSnapshotEndpointMaintainsJSONContract(t *testing.T) {
 		"equal_low",
 		"stop_clusters",
 		"wall_levels",
+		"wall_strength_bands",
+		"wall_evolution",
 	)
 
 	wallLevels, ok := liquidity["wall_levels"].([]any)
@@ -270,6 +301,58 @@ func TestMarketSnapshotEndpointMaintainsJSONContract(t *testing.T) {
 			"notional",
 			"distance_bps",
 			"strength",
+		)
+	}
+
+	wallStrengthBands, ok := liquidity["wall_strength_bands"].([]any)
+	if !ok {
+		t.Fatalf("expected liquidity.wall_strength_bands array, got=%T", liquidity["wall_strength_bands"])
+	}
+	if len(wallStrengthBands) > 0 {
+		firstBand, ok := wallStrengthBands[0].(map[string]any)
+		if !ok {
+			t.Fatalf("expected first wall strength band to be object, got=%T", wallStrengthBands[0])
+		}
+		assertJSONKeys(
+			t,
+			firstBand,
+			"side",
+			"band",
+			"lower_distance_bps",
+			"upper_distance_bps",
+			"level_count",
+			"total_notional",
+			"dominant_price",
+			"dominant_notional",
+			"strength",
+		)
+	}
+
+	wallEvolution, ok := liquidity["wall_evolution"].([]any)
+	if !ok {
+		t.Fatalf("expected liquidity.wall_evolution array, got=%T", liquidity["wall_evolution"])
+	}
+	if len(wallEvolution) > 0 {
+		firstEvolution, ok := wallEvolution[0].(map[string]any)
+		if !ok {
+			t.Fatalf("expected first wall evolution point to be object, got=%T", wallEvolution[0])
+		}
+		assertJSONKeys(
+			t,
+			firstEvolution,
+			"interval",
+			"buy_liquidity",
+			"sell_liquidity",
+			"buy_distance_bps",
+			"sell_distance_bps",
+			"buy_cluster_strength",
+			"sell_cluster_strength",
+			"buy_strength_delta",
+			"sell_strength_delta",
+			"order_book_imbalance",
+			"sweep_type",
+			"data_source",
+			"dominant_side",
 		)
 	}
 
@@ -368,8 +451,20 @@ func TestMarketStructureEventsEndpointReturnsEventStream(t *testing.T) {
 	if result.Trend == "" {
 		t.Fatal("structure trend should not be empty")
 	}
+	if result.PrimaryTier == "" {
+		t.Fatal("structure primary tier should not be empty")
+	}
+	if result.InternalSupport <= 0 || result.InternalResistance <= 0 {
+		t.Fatalf("expected internal hierarchy levels to be populated: %+v", result)
+	}
+	if result.ExternalSupport <= 0 || result.ExternalResistance <= 0 {
+		t.Fatalf("expected external hierarchy levels to be populated: %+v", result)
+	}
 	if len(result.Events) == 0 {
 		t.Fatal("structure events should not be empty")
+	}
+	if result.Events[0].Tier == "" {
+		t.Fatalf("expected structure event tier to be populated: %+v", result.Events[0])
 	}
 }
 
@@ -408,6 +503,16 @@ func TestMarketStructureSeriesEndpointReturnsSeriesPoints(t *testing.T) {
 	assertAscendingSeriesOpenTime(t, result.Points)
 	if result.Points[len(result.Points)-1].Trend == "" {
 		t.Fatal("latest structure trend should not be empty")
+	}
+	latest := result.Points[len(result.Points)-1]
+	if latest.PrimaryTier == "" {
+		t.Fatal("latest structure series primary tier should not be empty")
+	}
+	if latest.InternalSupport <= 0 || latest.InternalResistance <= 0 {
+		t.Fatalf("expected latest structure series internal levels to be populated: %+v", latest)
+	}
+	if latest.ExternalSupport <= 0 || latest.ExternalResistance <= 0 {
+		t.Fatalf("expected latest structure series external levels to be populated: %+v", latest)
 	}
 }
 
@@ -490,6 +595,21 @@ func TestLiquidityMapEndpointReturnsLiquidityClusters(t *testing.T) {
 	}
 	if len(result.WallLevels) > 0 && (result.WallLevels[0].Side == "" || result.WallLevels[0].Layer == "") {
 		t.Fatalf("expected wall level side/layer to be populated: %+v", result.WallLevels[0])
+	}
+	if result.WallStrengthBands == nil {
+		t.Fatal("expected wall strength bands field to be initialized")
+	}
+	if len(result.WallStrengthBands) > 0 && (result.WallStrengthBands[0].Side == "" || result.WallStrengthBands[0].Band == "") {
+		t.Fatalf("expected wall strength band side/band to be populated: %+v", result.WallStrengthBands[0])
+	}
+	if result.WallEvolution == nil {
+		t.Fatal("expected wall evolution field to be initialized")
+	}
+	if len(result.WallEvolution) == 0 {
+		t.Fatal("expected wall evolution points to be present")
+	}
+	if result.WallEvolution[0].Interval == "" || result.WallEvolution[0].DominantSide == "" {
+		t.Fatalf("expected wall evolution interval and dominant side to be populated: %+v", result.WallEvolution[0])
 	}
 }
 

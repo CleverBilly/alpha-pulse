@@ -334,6 +334,31 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 	logServiceDuration("signal_service", "market_snapshot.liquidity_series", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.Int("points", len(liquiditySeries)))
 
 	stageStartedAt = time.Now()
+	enrichLiquidityDepthContext(
+		s.collector,
+		s.liquidityEngine,
+		s.klineRepo,
+		s.orderBookRepo,
+		symbol,
+		interval,
+		latestKline.ClosePrice,
+		&liquidityResult,
+		liquiditySeries,
+	)
+	logServiceDuration(
+		"signal_service",
+		"market_snapshot.wall_evolution",
+		symbol,
+		interval,
+		chartLimit,
+		stageStartedAt,
+		"ok",
+		"",
+		observability.Int("bands", len(liquidityResult.WallStrengthBands)),
+		observability.Int("intervals", len(liquidityResult.WallEvolution)),
+	)
+
+	stageStartedAt = time.Now()
 	if err := enrichOrderFlowMicrostructureWithOrderBook(
 		s.orderFlowEngine,
 		s.orderBookRepo,

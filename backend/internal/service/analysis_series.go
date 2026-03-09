@@ -86,13 +86,19 @@ func buildStructureSeries(
 		}
 
 		points = append(points, StructureSeriesPoint{
-			OpenTime:    sortedKlines[index].OpenTime,
-			Trend:       result.Trend,
-			Support:     result.Support,
-			Resistance:  result.Resistance,
-			BOS:         result.BOS,
-			Choch:       result.Choch,
-			EventLabels: eventLabelsAtTime(result.Events, sortedKlines[index].OpenTime),
+			OpenTime:           sortedKlines[index].OpenTime,
+			Trend:              result.Trend,
+			PrimaryTier:        result.PrimaryTier,
+			Support:            result.Support,
+			Resistance:         result.Resistance,
+			InternalSupport:    result.InternalSupport,
+			InternalResistance: result.InternalResistance,
+			ExternalSupport:    result.ExternalSupport,
+			ExternalResistance: result.ExternalResistance,
+			BOS:                result.BOS,
+			Choch:              result.Choch,
+			EventLabels:        eventLabelsAtTime(result.Events, sortedKlines[index].OpenTime),
+			EventTags:          eventTagsAtTime(result.Events, sortedKlines[index].OpenTime),
 		})
 	}
 
@@ -198,6 +204,21 @@ func eventLabelsAtTime(events []models.StructureEvent, openTime int64) []string 
 		}
 	}
 	return labels
+}
+
+func eventTagsAtTime(events []models.StructureEvent, openTime int64) []string {
+	tags := make([]string, 0, 2)
+	for _, event := range events {
+		if event.OpenTime != openTime {
+			continue
+		}
+		if event.Tier != "" {
+			tags = append(tags, event.Tier+":"+event.Label)
+			continue
+		}
+		tags = append(tags, event.Label)
+	}
+	return tags
 }
 
 func sortServiceKlinesAscending(klines []models.Kline) []models.Kline {

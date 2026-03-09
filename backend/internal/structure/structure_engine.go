@@ -4,18 +4,20 @@ import (
 	"errors"
 	"math"
 	"sort"
+	"strconv"
 	"time"
 
 	"alpha-pulse/backend/models"
 )
 
 const (
-	historyLimit      = 80
-	minimumRequired   = 30
-	referenceWindow   = 18
-	swingWindow       = 2
-	breakoutTolerance = 0.0015
-	pivotTolerance    = 0.0008
+	historyLimit        = 80
+	minimumRequired     = 30
+	referenceWindow     = 18
+	internalSwingWindow = 2
+	externalSwingWindow = 4
+	breakoutTolerance   = 0.0015
+	pivotTolerance      = 0.0008
 )
 
 // Engine 负责市场结构分析。
@@ -25,8 +27,17 @@ type Engine struct {
 
 type swingPoint struct {
 	kind     string
+	tier     string
 	price    float64
 	openTime int64
+}
+
+type hierarchyState struct {
+	tier       string
+	events     []models.StructureEvent
+	support    float64
+	resistance float64
+	trend      string
 }
 
 // NewEngine 创建市场结构引擎。
@@ -56,8 +67,19 @@ func (e *Engine) Analyze(symbol string, klines []models.Kline) (models.Structure
 	supportFallback := averageBottomNLows(reference, 3)
 	resistanceFallback := averageTopNHighs(reference, 3)
 
-	swingPoints := detectSwingPoints(sortedKlines[:len(sortedKlines)-1], swingWindow)
-	events, support, resistance, trend := buildStructureEvents(swingPoints)
+	internalHierarchy := buildStructureHierarchy(
+		detectSwingPoints(sortedKlines[:len(sortedKlines)-1], internalSwingWindow, "internal"),
+		16,
+	)
+	externalHierarchy := buildStructureHierarchy(
+		detectSwingPoints(sortedKlines[:len(sortedKlines)-1], externalSwingWindow, "external"),
+		10,
+	)
+	primary := selectPrimaryHierarchy(internalHierarchy, externalHierarchy)
+	support := primary.support
+	resistance := primary.resistance
+	trend := primary.trend
+
 	if support <= 0 {
 		support = supportFallback
 	}
@@ -65,8 +87,14 @@ func (e *Engine) Analyze(symbol string, klines []models.Kline) (models.Structure
 		resistance = resistanceFallback
 	}
 	if trend == "" {
-		trend = classifyTrendFallback(reference, latest)
+		if internalHierarchy.trend != "" {
+			trend = internalHierarchy.trend
+		} else {
+			trend = classifyTrendFallback(reference, latest)
+		}
 	}
+
+	events := mergeHierarchyEvents(internalHierarchy.events, externalHierarchy.events)
 
 	latestClose := latest.ClosePrice
 	bullishBreak := resistance > 0 && latestClose > resistance*(1+breakoutTolerance)
@@ -79,6 +107,7 @@ func (e *Engine) Analyze(symbol string, klines []models.Kline) (models.Structure
 		events = append(events, models.StructureEvent{
 			Label:    "BOS",
 			Kind:     breakoutKind(bullishBreak, bearishBreak),
+			Tier:     resolvePrimaryTier(primary.tier),
 			Price:    roundFloat(latestClose, 8),
 			OpenTime: latest.OpenTime,
 		})
@@ -87,6 +116,7 @@ func (e *Engine) Analyze(symbol string, klines []models.Kline) (models.Structure
 		events = append(events, models.StructureEvent{
 			Label:    "CHOCH",
 			Kind:     breakoutKind(bullishBreak, bearishBreak),
+			Tier:     resolvePrimaryTier(primary.tier),
 			Price:    roundFloat(latestClose, 8),
 			OpenTime: latest.OpenTime,
 		})
@@ -98,18 +128,23 @@ func (e *Engine) Analyze(symbol string, klines []models.Kline) (models.Structure
 	}
 
 	return models.Structure{
-		Symbol:     symbol,
-		Trend:      trend,
-		Support:    roundFloat(support, 8),
-		Resistance: roundFloat(resistance, 8),
-		BOS:        bos,
-		Choch:      choch,
-		CreatedAt:  createdAt,
-		Events:     events,
+		Symbol:             symbol,
+		Trend:              trend,
+		Support:            roundFloat(support, 8),
+		Resistance:         roundFloat(resistance, 8),
+		BOS:                bos,
+		Choch:              choch,
+		CreatedAt:          createdAt,
+		PrimaryTier:        resolvePrimaryTier(primary.tier),
+		InternalSupport:    roundFloat(internalHierarchy.support, 8),
+		InternalResistance: roundFloat(internalHierarchy.resistance, 8),
+		ExternalSupport:    roundFloat(externalHierarchy.support, 8),
+		ExternalResistance: roundFloat(externalHierarchy.resistance, 8),
+		Events:             tailEvents(events, 16),
 	}, nil
 }
 
-func buildStructureEvents(points []swingPoint) ([]models.StructureEvent, float64, float64, string) {
+func buildStructureHierarchy(points []swingPoint, limit int) hierarchyState {
 	events := make([]models.StructureEvent, 0, len(points)+2)
 
 	lastHigh := 0.0
@@ -130,6 +165,7 @@ func buildStructureEvents(points []swingPoint) ([]models.StructureEvent, float64
 				events = append(events, models.StructureEvent{
 					Label:    label,
 					Kind:     point.kind,
+					Tier:     point.tier,
 					Price:    roundFloat(point.price, 8),
 					OpenTime: point.openTime,
 				})
@@ -143,6 +179,7 @@ func buildStructureEvents(points []swingPoint) ([]models.StructureEvent, float64
 				events = append(events, models.StructureEvent{
 					Label:    label,
 					Kind:     point.kind,
+					Tier:     point.tier,
 					Price:    roundFloat(point.price, 8),
 					OpenTime: point.openTime,
 				})
@@ -150,11 +187,20 @@ func buildStructureEvents(points []swingPoint) ([]models.StructureEvent, float64
 		}
 	}
 
-	trend := deriveTrendFromLabels(lastHighLabel, lastLowLabel)
-	return tailEvents(events, 12), lastLow, lastHigh, trend
+	tier := ""
+	if len(points) > 0 {
+		tier = points[0].tier
+	}
+	return hierarchyState{
+		tier:       tier,
+		events:     tailEvents(events, limit),
+		support:    lastLow,
+		resistance: lastHigh,
+		trend:      deriveTrendFromLabels(lastHighLabel, lastLowLabel),
+	}
 }
 
-func detectSwingPoints(klines []models.Kline, window int) []swingPoint {
+func detectSwingPoints(klines []models.Kline, window int, tier string) []swingPoint {
 	if len(klines) < window*2+1 {
 		return nil
 	}
@@ -184,6 +230,7 @@ func detectSwingPoints(klines []models.Kline, window int) []swingPoint {
 		if isHigh {
 			points = append(points, swingPoint{
 				kind:     "swing_high",
+				tier:     tier,
 				price:    current.HighPrice,
 				openTime: current.OpenTime,
 			})
@@ -191,6 +238,7 @@ func detectSwingPoints(klines []models.Kline, window int) []swingPoint {
 		if isLow {
 			points = append(points, swingPoint{
 				kind:     "swing_low",
+				tier:     tier,
 				price:    current.LowPrice,
 				openTime: current.OpenTime,
 			})
@@ -205,6 +253,74 @@ func detectSwingPoints(klines []models.Kline, window int) []swingPoint {
 	})
 
 	return points
+}
+
+func selectPrimaryHierarchy(internal, external hierarchyState) hierarchyState {
+	switch {
+	case external.support > 0 && external.resistance > 0 && external.trend != "":
+		return external
+	case internal.support > 0 && internal.resistance > 0 && internal.trend != "":
+		return internal
+	case external.support > 0 && external.resistance > 0:
+		external.trend = internal.trend
+		return external
+	case internal.support > 0 && internal.resistance > 0:
+		return internal
+	default:
+		return hierarchyState{}
+	}
+}
+
+func resolvePrimaryTier(tier string) string {
+	if tier == "" {
+		return "internal"
+	}
+	return tier
+}
+
+func mergeHierarchyEvents(eventSets ...[]models.StructureEvent) []models.StructureEvent {
+	total := 0
+	for _, events := range eventSets {
+		total += len(events)
+	}
+	if total == 0 {
+		return nil
+	}
+
+	merged := make([]models.StructureEvent, 0, total)
+	seen := make(map[string]struct{}, total)
+	for _, events := range eventSets {
+		for _, event := range events {
+			key := event.Tier + "|" + event.Label + "|" + event.Kind + "|" + strconv.FormatInt(event.OpenTime, 10)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			merged = append(merged, event)
+		}
+	}
+
+	sort.Slice(merged, func(i, j int) bool {
+		if merged[i].OpenTime == merged[j].OpenTime {
+			if merged[i].Tier == merged[j].Tier {
+				if merged[i].Kind == merged[j].Kind {
+					return merged[i].Label < merged[j].Label
+				}
+				return merged[i].Kind < merged[j].Kind
+			}
+			return hierarchyPriority(merged[i].Tier) < hierarchyPriority(merged[j].Tier)
+		}
+		return merged[i].OpenTime < merged[j].OpenTime
+	})
+
+	return merged
+}
+
+func hierarchyPriority(tier string) int {
+	if tier == "external" {
+		return 0
+	}
+	return 1
 }
 
 func classifyHigh(price, previous float64, hasPrevious bool) string {

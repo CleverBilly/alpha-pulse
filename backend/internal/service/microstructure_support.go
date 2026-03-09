@@ -118,6 +118,9 @@ func mergeMicrostructureEvents(
 	for _, event := range extra {
 		appendUnique(event)
 	}
+	for _, event := range orderflow.DeriveCompositeMicrostructureEvents(merged) {
+		appendUnique(event)
+	}
 
 	sort.Slice(merged, func(i, j int) bool {
 		if merged[i].TradeTime == merged[j].TradeTime {
@@ -129,10 +132,10 @@ func mergeMicrostructureEvents(
 		return merged[i].TradeTime < merged[j].TradeTime
 	})
 
-	if len(merged) <= 18 {
+	if len(merged) <= 20 {
 		return merged
 	}
-	return merged[len(merged)-18:]
+	return merged[len(merged)-20:]
 }
 
 func formatInt64(value int64) string {

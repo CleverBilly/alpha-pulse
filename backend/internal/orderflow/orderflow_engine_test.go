@@ -163,6 +163,78 @@ func TestAnalyzeOrderBookMicrostructureDetectsMigration(t *testing.T) {
 	}
 }
 
+func TestDeriveCompositeMicrostructureEventsDetectsAuctionTrapReversal(t *testing.T) {
+	events := DeriveCompositeMicrostructureEvents([]models.OrderFlowMicrostructureEvent{
+		{
+			Type:      "failed_auction_high_reject",
+			Bias:      "bearish",
+			Score:     -6,
+			Strength:  0.72,
+			Price:     64820,
+			TradeTime: 1741300200000,
+			Detail:    "上方失败拍卖形成强回落分型",
+		},
+		{
+			Type:      "absorption",
+			Bias:      "bearish",
+			Score:     -5,
+			Strength:  0.66,
+			Price:     64780,
+			TradeTime: 1741300260000,
+			Detail:    "买盘被持续吸收",
+		},
+		{
+			Type:      "large_trade_cluster",
+			Bias:      "bearish",
+			Score:     -4,
+			Strength:  0.61,
+			Price:     64740,
+			TradeTime: 1741300320000,
+			Detail:    "连续买方大单被市场吸收",
+		},
+	})
+
+	if !hasMicrostructureEvent(events, "auction_trap_reversal", "bearish") {
+		t.Fatalf("expected bearish auction trap reversal, got %#v", events)
+	}
+}
+
+func TestDeriveCompositeMicrostructureEventsDetectsLiquidityLadderBreakout(t *testing.T) {
+	events := DeriveCompositeMicrostructureEvents([]models.OrderFlowMicrostructureEvent{
+		{
+			Type:      "order_book_migration_layered",
+			Bias:      "bullish",
+			Score:     5,
+			Strength:  0.68,
+			Price:     64310,
+			TradeTime: 1741300200000,
+			Detail:    "买方挂单墙连续多层上移",
+		},
+		{
+			Type:      "initiative_shift",
+			Bias:      "bullish",
+			Score:     4,
+			Strength:  0.52,
+			Price:     64340,
+			TradeTime: 1741300260000,
+			Detail:    "买方主动性明显增强",
+		},
+		{
+			Type:      "aggression_burst",
+			Bias:      "bullish",
+			Score:     3,
+			Strength:  0.49,
+			Price:     64385,
+			TradeTime: 1741300320000,
+			Detail:    "主动买盘冲击放大",
+		},
+	})
+
+	if !hasMicrostructureEvent(events, "liquidity_ladder_breakout", "bullish") {
+		t.Fatalf("expected bullish liquidity ladder breakout, got %#v", events)
+	}
+}
+
 func hasMicrostructureEvent(
 	events []models.OrderFlowMicrostructureEvent,
 	eventType, bias string,

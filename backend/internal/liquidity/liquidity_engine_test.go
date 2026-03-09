@@ -93,6 +93,15 @@ func TestAnalyzeWithOrderBookUsesDepthWalls(t *testing.T) {
 	if !containsWallLevel(result.WallLevels, "bid", "far") {
 		t.Fatal("expected far bid wall to be present")
 	}
+	if len(result.WallStrengthBands) < 4 {
+		t.Fatalf("expected detailed wall strength bands, got=%d", len(result.WallStrengthBands))
+	}
+	if !containsWallStrengthBand(result.WallStrengthBands, "ask", "0-10bps") {
+		t.Fatal("expected near ask wall band to be present")
+	}
+	if !containsWallStrengthBand(result.WallStrengthBands, "bid", "10-20bps") {
+		t.Fatal("expected bid wall band to be present")
+	}
 }
 
 func buildLiquiditySweepKlines(limit int) []models.Kline {
@@ -200,6 +209,15 @@ func containsClusterKind(clusters []models.LiquidityCluster, kind string) bool {
 func containsWallLevel(walls []models.LiquidityWallLevel, side, layer string) bool {
 	for _, wall := range walls {
 		if wall.Side == side && wall.Layer == layer && wall.Price > 0 && wall.Notional > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func containsWallStrengthBand(bands []models.LiquidityWallStrengthBand, side, bandLabel string) bool {
+	for _, band := range bands {
+		if band.Side == side && band.Band == bandLabel && band.TotalNotional > 0 && band.Strength > 0 {
 			return true
 		}
 	}

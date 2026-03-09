@@ -108,13 +108,12 @@
 ## 4.1 P2 分析能力增强
 
 - [-] 增加更高阶微结构模式
-  - 已完成：连续吸收、失败拍卖、被动挂单迁移、失败拍卖扩展型、被动挂单迁移分层、组合事件评分
+  - 已完成：连续吸收、失败拍卖、被动挂单迁移、失败拍卖扩展型、被动挂单迁移分层、组合事件评分、失败拍卖陷阱反转、流动性阶梯突破
   - 待完成：更多组合模式库与更细粒度事件表达
-- [-] 继续增强 Liquidity Engine
-  - 已完成：更细粒度 liquidity wall map
-  - 待完成：更细粒度 liquidity wall strength map 与跨周期 wall 演化
-- [ ] 继续增强 Structure Engine
-  - 候选：更多级别的 swing hierarchy
+- [x] 继续增强 Liquidity Engine
+  - 已完成：更细粒度 liquidity wall map、wall strength map 与跨周期 wall 演化
+- [x] 继续增强 Structure Engine
+  - 已完成：internal / external swing hierarchy、hierarchy-aware 结构事件与层级支撑阻力
 
 ## 4.2 P2 数据与平台能力
 
@@ -122,7 +121,8 @@
   - 适用于未来大单历史回放与聚类分析
 - [ ] 引入 `signal_runs` 或 `feature_snapshots`
   - 适用于未来离线审计、训练或回测前置
-- [ ] 区分 `dev / test / prod` 运行模式
+- [x] 区分 `dev / test / prod` 运行模式
+  - 已完成：mode 默认值、Gin mode、自动迁移、Redis、stream collector、scheduler、Binance mock fallback 分离
 
 ## 4.3 P2 Futures 方向
 
@@ -154,11 +154,9 @@
 
 建议按以下顺序推进：
 
-1. 继续扩展高阶微结构模式库
-2. 继续增强 Liquidity Engine
-3. 继续增强 Structure Engine
-4. 区分 `dev / test / prod` 运行模式
-5. 如有明确业务目标，再开启 Futures 子线
+1. 继续扩展更高阶微结构模式库
+2. 新增 `large_trade_events` 或 `feature_snapshots`
+3. 如有明确业务目标，再开启 Futures 子线
 
 ## 7. 对后续 AI 工具的执行规则
 

@@ -23,6 +23,36 @@ type LiquidityWallLevel struct {
 	Strength    float64 `json:"strength"`
 }
 
+// LiquidityWallStrengthBand 描述细粒度挂单墙热度分带。
+type LiquidityWallStrengthBand struct {
+	Side             string  `json:"side"`
+	Band             string  `json:"band"`
+	LowerDistanceBps float64 `json:"lower_distance_bps"`
+	UpperDistanceBps float64 `json:"upper_distance_bps"`
+	LevelCount       int     `json:"level_count"`
+	TotalNotional    float64 `json:"total_notional"`
+	DominantPrice    float64 `json:"dominant_price"`
+	DominantNotional float64 `json:"dominant_notional"`
+	Strength         float64 `json:"strength"`
+}
+
+// LiquidityWallEvolution 描述跨周期 wall 演化概览。
+type LiquidityWallEvolution struct {
+	Interval            string  `json:"interval"`
+	BuyLiquidity        float64 `json:"buy_liquidity"`
+	SellLiquidity       float64 `json:"sell_liquidity"`
+	BuyDistanceBps      float64 `json:"buy_distance_bps"`
+	SellDistanceBps     float64 `json:"sell_distance_bps"`
+	BuyClusterStrength  float64 `json:"buy_cluster_strength"`
+	SellClusterStrength float64 `json:"sell_cluster_strength"`
+	BuyStrengthDelta    float64 `json:"buy_strength_delta"`
+	SellStrengthDelta   float64 `json:"sell_strength_delta"`
+	OrderBookImbalance  float64 `json:"order_book_imbalance"`
+	SweepType           string  `json:"sweep_type"`
+	DataSource          string  `json:"data_source"`
+	DominantSide        string  `json:"dominant_side"`
+}
+
 // Liquidity 对应 liquidity 表，保存流动性区域分析结果。
 type Liquidity struct {
 	ID                 uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -45,6 +75,12 @@ type Liquidity struct {
 
 	// WallLevels 不落库，用于返回更细粒度的订单簿挂单墙分层。
 	WallLevels []LiquidityWallLevel `gorm:"-" json:"wall_levels"`
+
+	// WallStrengthBands 不落库，用于返回更细粒度的挂单墙热度分带。
+	WallStrengthBands []LiquidityWallStrengthBand `gorm:"-" json:"wall_strength_bands"`
+
+	// WallEvolution 不落库，用于返回跨周期 wall 演化概览。
+	WallEvolution []LiquidityWallEvolution `gorm:"-" json:"wall_evolution"`
 }
 
 // TableName 指定数据表名。

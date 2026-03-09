@@ -51,8 +51,9 @@ type DepthSnapshotData struct {
 
 // Client 封装 Binance SDK 调用，并保留离线回退能力。
 type Client struct {
-	sdkClient *binancesdk.Client
-	timeout   time.Duration
+	sdkClient         *binancesdk.Client
+	timeout           time.Duration
+	allowMockFallback bool
 }
 
 // NewClient 创建 Binance 客户端。
@@ -61,8 +62,9 @@ func NewClient(apiKey, secretKey string, timeout time.Duration) *Client {
 	sdkClient.HTTPClient = &http.Client{Timeout: timeout}
 
 	return &Client{
-		sdkClient: sdkClient,
-		timeout:   timeout,
+		sdkClient:         sdkClient,
+		timeout:           timeout,
+		allowMockFallback: true,
 	}
 }
 
@@ -72,6 +74,11 @@ func (c *Client) SetHTTPClient(httpClient *http.Client) {
 		return
 	}
 	c.sdkClient.HTTPClient = httpClient
+}
+
+// SetMockFallbackEnabled 控制公开行情接口失败时是否回退为本地 mock 数据。
+func (c *Client) SetMockFallbackEnabled(enabled bool) {
+	c.allowMockFallback = enabled
 }
 
 // GetTickerPrice 获取实时价格，失败时返回本地模拟价格保证系统可运行。
@@ -85,6 +92,11 @@ func (c *Client) GetTickerPrice(symbol string) (float64, error) {
 		Symbol(symbol).
 		Do(ctx)
 	if err != nil || len(prices) == 0 {
+		if !c.allowMockFallback {
+			failure := errors.New(reasonFromError(err, "empty_payload"))
+			c.logRequest("price", startedAt, "error", failure.Error(), symbol, "", 1, "sdk")
+			return 0, failure
+		}
 		price := c.mockPrice(symbol)
 		c.logRequest("price", startedAt, "fallback", reasonFromError(err, "empty_payload"), symbol, "", 1, "mock")
 		return price, nil
@@ -92,6 +104,10 @@ func (c *Client) GetTickerPrice(symbol string) (float64, error) {
 
 	price, err := strconv.ParseFloat(prices[0].Price, 64)
 	if err != nil {
+		if !c.allowMockFallback {
+			c.logRequest("price", startedAt, "error", err.Error(), symbol, "", 1, "sdk")
+			return 0, err
+		}
 		mocked := c.mockPrice(symbol)
 		c.logRequest("price", startedAt, "fallback", err.Error(), symbol, "", 1, "mock")
 		return mocked, nil
@@ -129,6 +145,10 @@ func (c *Client) GetKlines(symbol, interval string, limit int) ([]KlineData, err
 		Limit(limit).
 		Do(ctx)
 	if err != nil {
+		if !c.allowMockFallback {
+			c.logRequest("klines", startedAt, "error", err.Error(), symbol, interval, limit, "sdk")
+			return nil, err
+		}
 		klines := c.mockKlines(symbol, interval, limit)
 		c.logRequest("klines", startedAt, "fallback", err.Error(), symbol, interval, limit, "mock")
 		return klines, nil
@@ -156,6 +176,11 @@ func (c *Client) GetKlines(symbol, interval string, limit int) ([]KlineData, err
 	}
 
 	if len(klines) == 0 {
+		if !c.allowMockFallback {
+			err := errors.New("empty_payload")
+			c.logRequest("klines", startedAt, "error", err.Error(), symbol, interval, limit, "sdk")
+			return nil, err
+		}
 		mocked := c.mockKlines(symbol, interval, limit)
 		c.logRequest("klines", startedAt, "fallback", "empty_payload", symbol, interval, limit, "mock")
 		return mocked, nil
@@ -181,6 +206,10 @@ func (c *Client) GetAggTrades(symbol string, limit int) ([]AggTradeData, error) 
 		Limit(limit).
 		Do(ctx)
 	if err != nil {
+		if !c.allowMockFallback {
+			c.logRequest("agg_trades", startedAt, "error", err.Error(), symbol, "", limit, "sdk")
+			return nil, err
+		}
 		mocked := c.mockAggTrades(symbol, limit)
 		c.logRequest("agg_trades", startedAt, "fallback", err.Error(), symbol, "", limit, "mock")
 		return mocked, nil
@@ -208,6 +237,11 @@ func (c *Client) GetAggTrades(symbol string, limit int) ([]AggTradeData, error) 
 	}
 
 	if len(trades) == 0 {
+		if !c.allowMockFallback {
+			err := errors.New("empty_payload")
+			c.logRequest("agg_trades", startedAt, "error", err.Error(), symbol, "", limit, "sdk")
+			return nil, err
+		}
 		mocked := c.mockAggTrades(symbol, limit)
 		c.logRequest("agg_trades", startedAt, "fallback", "empty_payload", symbol, "", limit, "mock")
 		return mocked, nil

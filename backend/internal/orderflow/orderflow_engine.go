@@ -821,13 +821,207 @@ func detectMicrostructureConfluence(events []models.OrderFlowMicrostructureEvent
 	}
 }
 
+// DeriveCompositeMicrostructureEvents 基于已合并的微结构事件流识别跨来源组合模式。
+func DeriveCompositeMicrostructureEvents(
+	events []models.OrderFlowMicrostructureEvent,
+) []models.OrderFlowMicrostructureEvent {
+	if len(events) < 2 {
+		return nil
+	}
+
+	sorted := make([]models.OrderFlowMicrostructureEvent, len(events))
+	copy(sorted, events)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].TradeTime == sorted[j].TradeTime {
+			if sorted[i].Score == sorted[j].Score {
+				return sorted[i].Type < sorted[j].Type
+			}
+			return sorted[i].Score < sorted[j].Score
+		}
+		return sorted[i].TradeTime < sorted[j].TradeTime
+	})
+
+	recent := sorted
+	if len(recent) > 8 {
+		recent = recent[len(recent)-8:]
+	}
+
+	derived := make([]models.OrderFlowMicrostructureEvent, 0, 2)
+	if event, ok := detectAuctionTrapReversal(recent); ok {
+		derived = append(derived, event)
+	}
+	if event, ok := detectLiquidityLadderBreakout(recent); ok {
+		derived = append(derived, event)
+	}
+	return derived
+}
+
+func detectAuctionTrapReversal(events []models.OrderFlowMicrostructureEvent) (models.OrderFlowMicrostructureEvent, bool) {
+	bullishEvent, bullishOK := buildCompositeCandidate(
+		events,
+		"bullish",
+		auctionTrapBaseTypes,
+		auctionTrapConfirmTypes,
+		"auction_trap_reversal",
+		6,
+		9.5,
+		15,
+		"失败拍卖后出现同向承接确认",
+	)
+	bearishEvent, bearishOK := buildCompositeCandidate(
+		events,
+		"bearish",
+		auctionTrapBaseTypes,
+		auctionTrapConfirmTypes,
+		"auction_trap_reversal",
+		-6,
+		9.5,
+		15,
+		"失败拍卖后出现同向抛压确认",
+	)
+	return selectStrongerCompositeCandidate(bullishEvent, bullishOK, bearishEvent, bearishOK)
+}
+
+func detectLiquidityLadderBreakout(events []models.OrderFlowMicrostructureEvent) (models.OrderFlowMicrostructureEvent, bool) {
+	bullishEvent, bullishOK := buildCompositeCandidate(
+		events,
+		"bullish",
+		migrationBaseTypes,
+		executionDriveTypes,
+		"liquidity_ladder_breakout",
+		6,
+		10.5,
+		16,
+		"挂单墙迁移与主动买盘同向推进",
+	)
+	bearishEvent, bearishOK := buildCompositeCandidate(
+		events,
+		"bearish",
+		migrationBaseTypes,
+		executionDriveTypes,
+		"liquidity_ladder_breakout",
+		-6,
+		10.5,
+		16,
+		"挂单墙迁移与主动卖盘同向推进",
+	)
+	return selectStrongerCompositeCandidate(bullishEvent, bullishOK, bearishEvent, bearishOK)
+}
+
+func buildCompositeCandidate(
+	events []models.OrderFlowMicrostructureEvent,
+	bias string,
+	baseTypes, confirmTypes map[string]struct{},
+	eventType string,
+	score int,
+	minScore, normalizeBy float64,
+	prefix string,
+) (models.OrderFlowMicrostructureEvent, bool) {
+	baseMatches, baseScore := collectCompositeMatches(events, bias, baseTypes)
+	confirmMatches, confirmScore := collectCompositeMatches(events, bias, confirmTypes)
+	if len(baseMatches) == 0 || len(confirmMatches) == 0 {
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+
+	totalScore := baseScore + confirmScore
+	if totalScore < minScore {
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+
+	combinedTypes := append([]string{}, baseMatches...)
+	for _, match := range confirmMatches {
+		if !containsString(combinedTypes, match) {
+			combinedTypes = append(combinedTypes, match)
+		}
+	}
+
+	latest := latestCompositeEvent(events, bias, combinedTypes)
+	return models.OrderFlowMicrostructureEvent{
+		Type:      eventType,
+		Bias:      bias,
+		Score:     score,
+		Strength:  roundFloat(clamp(totalScore/normalizeBy, 0, 1), 6),
+		Price:     roundFloat(latest.Price, 8),
+		TradeTime: latest.TradeTime,
+		Detail:    prefix + "：" + strings.Join(combinedTypes, " + "),
+	}, true
+}
+
+func collectCompositeMatches(
+	events []models.OrderFlowMicrostructureEvent,
+	bias string,
+	allowedTypes map[string]struct{},
+) ([]string, float64) {
+	matches := make([]string, 0, len(events))
+	seen := make(map[string]struct{}, len(events))
+	totalScore := 0.0
+	for _, event := range events {
+		if event.Bias != bias {
+			continue
+		}
+		if _, ok := allowedTypes[event.Type]; !ok {
+			continue
+		}
+		if _, exists := seen[event.Type]; exists {
+			continue
+		}
+		seen[event.Type] = struct{}{}
+		matches = append(matches, event.Type)
+		totalScore += math.Abs(float64(event.Score)) * (1 + event.Strength*0.4)
+	}
+	return matches, totalScore
+}
+
+func latestCompositeEvent(
+	events []models.OrderFlowMicrostructureEvent,
+	bias string,
+	types []string,
+) models.OrderFlowMicrostructureEvent {
+	latest := events[len(events)-1]
+	for _, event := range events {
+		if event.Bias != bias || !containsString(types, event.Type) {
+			continue
+		}
+		if event.TradeTime >= latest.TradeTime {
+			latest = event
+		}
+	}
+	return latest
+}
+
+func selectStrongerCompositeCandidate(
+	left models.OrderFlowMicrostructureEvent,
+	leftOK bool,
+	right models.OrderFlowMicrostructureEvent,
+	rightOK bool,
+) (models.OrderFlowMicrostructureEvent, bool) {
+	switch {
+	case leftOK && !rightOK:
+		return left, true
+	case !leftOK && rightOK:
+		return right, true
+	case !leftOK && !rightOK:
+		return models.OrderFlowMicrostructureEvent{}, false
+	case left.Strength > right.Strength:
+		return left, true
+	case right.Strength > left.Strength:
+		return right, true
+	case left.TradeTime >= right.TradeTime:
+		return left, true
+	default:
+		return right, true
+	}
+}
+
 func isHighOrderMicrostructureEvent(eventType string) bool {
 	switch eventType {
 	case "continuous_absorption",
+		"auction_trap_reversal",
 		"failed_auction",
 		"failed_auction_high_reject",
 		"failed_auction_low_reclaim",
 		"initiative_shift",
+		"liquidity_ladder_breakout",
 		"large_trade_cluster",
 		"order_book_migration",
 		"order_book_migration_layered",
@@ -836,6 +1030,40 @@ func isHighOrderMicrostructureEvent(eventType string) bool {
 	default:
 		return false
 	}
+}
+
+var auctionTrapBaseTypes = map[string]struct{}{
+	"failed_auction":             {},
+	"failed_auction_high_reject": {},
+	"failed_auction_low_reclaim": {},
+}
+
+var auctionTrapConfirmTypes = map[string]struct{}{
+	"absorption":            {},
+	"continuous_absorption": {},
+	"iceberg":               {},
+	"large_trade_cluster":   {},
+}
+
+var migrationBaseTypes = map[string]struct{}{
+	"order_book_migration":             {},
+	"order_book_migration_layered":     {},
+	"order_book_migration_accelerated": {},
+}
+
+var executionDriveTypes = map[string]struct{}{
+	"aggression_burst":    {},
+	"initiative_shift":    {},
+	"large_trade_cluster": {},
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func calculateNotionalDeltaRatio(trades []models.AggTrade) float64 {

@@ -637,6 +637,18 @@ func scoreMicrostructureSequence(events []models.OrderFlowMicrostructureEvent) (
 				reasons = append(reasons, "高阶微结构事件出现同向共振")
 			}
 		}
+		if event.Type == "auction_trap_reversal" {
+			rawScore += float64(signInt(event.Score)) * 1.5
+			if len(reasons) < 3 {
+				reasons = append(reasons, "失败拍卖后的反转确认出现")
+			}
+		}
+		if event.Type == "liquidity_ladder_breakout" {
+			rawScore += float64(signInt(event.Score)) * 1.5
+			if len(reasons) < 3 {
+				reasons = append(reasons, "挂单墙迁移与主动成交同向推进")
+			}
+		}
 	}
 
 	switch {

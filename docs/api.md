@@ -247,6 +247,8 @@ Base URL：
 - `order_book_migration`
 - `order_book_migration_layered`
 - `order_book_migration_accelerated`
+- `auction_trap_reversal`
+- `liquidity_ladder_breakout`
 - `microstructure_confluence`
 
 ### 3.7 `GET /api/structure`
@@ -263,8 +265,13 @@ Base URL：
 - `id`
 - `symbol`
 - `trend`
+- `primary_tier`
 - `support`
 - `resistance`
+- `internal_support`
+- `internal_resistance`
+- `external_support`
+- `external_resistance`
 - `bos`
 - `choch`
 - `events[]`
@@ -274,6 +281,7 @@ Base URL：
 
 - `label`
 - `kind`
+- `tier`
 - `price`
 - `open_time`
 
@@ -291,8 +299,13 @@ Base URL：
 - `symbol`
 - `interval`
 - `trend`
+- `primary_tier`
 - `support`
 - `resistance`
+- `internal_support`
+- `internal_resistance`
+- `external_support`
+- `external_resistance`
 - `bos`
 - `choch`
 - `events[]`
@@ -318,11 +331,17 @@ Base URL：
 
 - `open_time`
 - `trend`
+- `primary_tier`
 - `support`
 - `resistance`
+- `internal_support`
+- `internal_resistance`
+- `external_support`
+- `external_resistance`
 - `bos`
 - `choch`
 - `event_labels[]`
+- `event_tags[]`
 
 ### 3.10 `GET /api/liquidity`
 
@@ -346,6 +365,8 @@ Base URL：
 - `equal_low`
 - `stop_clusters[]`
 - `wall_levels[]`
+- `wall_strength_bands[]`
+- `wall_evolution[]`
 - `created_at`
 
 ### 3.11 `GET /api/liquidity-map`
@@ -370,6 +391,8 @@ Base URL：
 - `equal_low`
 - `stop_clusters[]`
 - `wall_levels[]`
+- `wall_strength_bands[]`
+- `wall_evolution[]`
 
 `wall_levels[]` 字段：
 
@@ -382,6 +405,34 @@ Base URL：
 - `notional`
 - `distance_bps`
 - `strength`
+
+`wall_strength_bands[]` 字段：
+
+- `side`
+- `band`
+- `lower_distance_bps`
+- `upper_distance_bps`
+- `level_count`
+- `total_notional`
+- `dominant_price`
+- `dominant_notional`
+- `strength`
+
+`wall_evolution[]` 字段：
+
+- `interval`
+- `buy_liquidity`
+- `sell_liquidity`
+- `buy_distance_bps`
+- `sell_distance_bps`
+- `buy_cluster_strength`
+- `sell_cluster_strength`
+- `buy_strength_delta`
+- `sell_strength_delta`
+- `order_book_imbalance`
+- `sweep_type`
+- `data_source`
+- `dominant_side`
 
 ### 3.12 `GET /api/liquidity-series`
 

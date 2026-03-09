@@ -34,6 +34,11 @@ const SECONDARY_MICROSTRUCTURE_LAYERS = [
     label: "Order Book Migration",
     types: ["order_book_migration", "order_book_migration_layered", "order_book_migration_accelerated"],
   },
+  {
+    key: "composite_patterns",
+    label: "Composite Patterns",
+    types: ["auction_trap_reversal", "liquidity_ladder_breakout"],
+  },
   { key: "microstructure_confluence", label: "Microstructure Confluence", types: ["microstructure_confluence"] },
 ] as const;
 
@@ -44,6 +49,7 @@ const DEFAULT_SECONDARY_LAYER_STATE: Record<SecondaryLayerKey, boolean> = {
   large_trade_cluster: false,
   failed_auction: false,
   order_book_migration: false,
+  composite_patterns: false,
   microstructure_confluence: false,
 };
 
@@ -231,6 +237,17 @@ export default function KlineChart() {
                   opacity="0.8"
                 />
               ))}
+              {chart.series.internalSupportTrack.map((points, index) => (
+                <polyline
+                  key={`internal-support-track-${index}`}
+                  points={points}
+                  fill="none"
+                  stroke="#0f766e"
+                  strokeWidth="1.2"
+                  strokeDasharray="4 4"
+                  opacity="0.45"
+                />
+              ))}
               {chart.series.resistanceTrack.map((points, index) => (
                 <polyline
                   key={`resistance-track-${index}`}
@@ -239,6 +256,17 @@ export default function KlineChart() {
                   stroke="#be123c"
                   strokeWidth="1.8"
                   opacity="0.8"
+                />
+              ))}
+              {chart.series.internalResistanceTrack.map((points, index) => (
+                <polyline
+                  key={`internal-resistance-track-${index}`}
+                  points={points}
+                  fill="none"
+                  stroke="#fb7185"
+                  strokeWidth="1.2"
+                  strokeDasharray="4 4"
+                  opacity="0.45"
                 />
               ))}
               {chart.series.buyLiquidityTrack.map((points, index) => (
@@ -367,20 +395,29 @@ export default function KlineChart() {
 
               {chart.structureMarkers.map((marker) => (
                 <g key={`${marker.label}-${marker.openTime}-${marker.x}`}>
-                  <circle cx={marker.x} cy={marker.y} r={4.4} fill={marker.color} stroke="#ffffff" strokeWidth="1.4" />
+                  <circle
+                    cx={marker.x}
+                    cy={marker.y}
+                    r={marker.tier === "internal" ? 3.8 : 4.6}
+                    fill={marker.color}
+                    stroke="#ffffff"
+                    strokeWidth={marker.tier === "internal" ? 1.2 : 1.4}
+                    opacity={marker.tier === "internal" ? 0.82 : 1}
+                  />
                   <rect
-                    x={marker.x - 18}
+                    x={marker.x - marker.label.length * 3.6 - 7}
                     y={marker.labelY - 9}
-                    width={36}
+                    width={marker.label.length * 7.2 + 14}
                     height={16}
                     rx={8}
                     fill={marker.labelBackground}
+                    opacity={marker.tier === "internal" ? 0.88 : 1}
                   />
                   <text
                     x={marker.x}
                     y={marker.labelY + 3}
                     textAnchor="middle"
-                    fontSize="9.5"
+                    fontSize={marker.tier === "internal" ? "8.8" : "9.5"}
                     fill={marker.labelColor}
                     fontWeight="600"
                   >
@@ -523,6 +560,8 @@ export default function KlineChart() {
             <Legend label="BB Lower" value={indicator?.bollinger_lower} color="bg-cyan-400" />
             <Legend label="Support" value={structure?.support} color="bg-emerald-700" />
             <Legend label="Resistance" value={structure?.resistance} color="bg-rose-700" />
+            <Legend label="Int Support" value={structure?.internal_support} color="bg-teal-500" />
+            <Legend label="Int Resistance" value={structure?.internal_resistance} color="bg-pink-400" />
             <Legend label="Buy Liquidity" value={liquidity?.buy_liquidity} color="bg-teal-600" />
             <Legend label="Sell Liquidity" value={liquidity?.sell_liquidity} color="bg-orange-500" />
             <Legend label="Equal High" value={liquidity?.equal_high} color="bg-amber-700" />
@@ -548,7 +587,10 @@ export default function KlineChart() {
               {indicator ? <Metric label="EMA20" value={indicator.ema20} /> : null}
               {indicator ? <Metric label="EMA50" value={indicator.ema50} /> : null}
               {structure ? <Metric label="Trend" value={structure.trend} /> : null}
+              {structure ? <Metric label="Struct Tier" value={structure.primary_tier || "internal"} /> : null}
               {structure ? <Metric label="Events" value={String(structure.events.length)} /> : null}
+              {structure?.internal_support ? <Metric label="Int Support" value={structure.internal_support} /> : null}
+              {structure?.internal_resistance ? <Metric label="Int Resist" value={structure.internal_resistance} /> : null}
               <Metric label="Micro Events" value={String(chart.microstructureMarkers.length)} />
               {liquidity ? <Metric label="Sweep" value={liquidity.sweep_type || "none"} /> : null}
               {liquidity ? <Metric label="OB Imb." value={liquidity.order_book_imbalance} digits={3} /> : null}
@@ -698,6 +740,18 @@ function buildChartModel(
     (point) => point.open_time,
     (point) => point.support,
   );
+  const internalSupportTrack = buildAlignedSeriesValues(
+    klines,
+    structureSeries,
+    (point) => point.open_time,
+    (point) => point.internal_support ?? null,
+  );
+  const internalResistanceTrack = buildAlignedSeriesValues(
+    klines,
+    structureSeries,
+    (point) => point.open_time,
+    (point) => point.internal_resistance ?? null,
+  );
   const resistanceTrack = buildAlignedSeriesValues(
     klines,
     structureSeries,
@@ -739,6 +793,8 @@ function buildChartModel(
     ...collectDefinedValues(vwap),
     ...collectDefinedValues(supportTrack),
     ...collectDefinedValues(resistanceTrack),
+    ...collectDefinedValues(internalSupportTrack),
+    ...collectDefinedValues(internalResistanceTrack),
     ...collectDefinedValues(buyLiquidityTrack),
     ...collectDefinedValues(sellLiquidityTrack),
     ...collectDefinedValues(equalHighTrack),
@@ -808,6 +864,8 @@ function buildChartModel(
     series: {
       supportTrack: buildLineSegments(supportTrack, xForIndex, priceToY),
       resistanceTrack: buildLineSegments(resistanceTrack, xForIndex, priceToY),
+      internalSupportTrack: buildLineSegments(internalSupportTrack, xForIndex, priceToY),
+      internalResistanceTrack: buildLineSegments(internalResistanceTrack, xForIndex, priceToY),
       buyLiquidityTrack: buildLineSegments(buyLiquidityTrack, xForIndex, priceToY),
       sellLiquidityTrack: buildLineSegments(sellLiquidityTrack, xForIndex, priceToY),
       equalHighTrack: buildLineSegments(equalHighTrack, xForIndex, priceToY),
@@ -892,28 +950,30 @@ function buildStructureMarkers(
     indexByOpenTime.set(kline.open_time, index);
   });
 
-  return events
-    .map((event) => {
-      const index = indexByOpenTime.get(event.open_time);
-      if (typeof index !== "number") {
-        return null;
-      }
+  const markers: StructureMarker[] = [];
+  for (const event of events) {
+    const index = indexByOpenTime.get(event.open_time);
+    if (typeof index !== "number") {
+      continue;
+    }
 
-      const tone = resolveStructureMarkerTone(event.label, event.kind);
-      const y = priceToY(event.price);
+    const tone = resolveStructureMarkerTone(event.label, event.kind, event.tier);
+    const y = priceToY(event.price);
 
-      return {
-        label: event.label,
-        openTime: event.open_time,
-        x: xForIndex(index),
-        y,
-        labelY: y + (event.kind === "swing_low" ? 22 : -16),
-        color: tone.color,
-        labelColor: tone.labelColor,
-        labelBackground: tone.labelBackground,
-      };
-    })
-    .filter((marker): marker is StructureMarker => marker !== null);
+    markers.push({
+      label: resolveStructureMarkerLabel(event.label, event.tier),
+      openTime: event.open_time,
+      tier: event.tier,
+      x: xForIndex(index),
+      y,
+      labelY: y + resolveStructureMarkerOffset(event.kind, event.tier),
+      color: tone.color,
+      labelColor: tone.labelColor,
+      labelBackground: tone.labelBackground,
+    });
+  }
+
+  return markers;
 }
 
 function buildZoneLines(
@@ -937,6 +997,22 @@ function buildZoneLines(
     value: structure?.resistance,
     color: "#be123c",
     dasharray: "0",
+    labelBackground: "#ffe4e6",
+    labelColor: "#9f1239",
+  });
+  addZoneLine(lines, {
+    label: "Int Support",
+    value: structure?.internal_support,
+    color: "#0f766e",
+    dasharray: "4 4",
+    labelBackground: "#ccfbf1",
+    labelColor: "#115e59",
+  });
+  addZoneLine(lines, {
+    label: "Int Resistance",
+    value: structure?.internal_resistance,
+    color: "#fb7185",
+    dasharray: "4 4",
     labelBackground: "#ffe4e6",
     labelColor: "#9f1239",
   });
@@ -1119,6 +1195,8 @@ function collectZoneValues(structure: Structure | null, liquidity: Liquidity | n
   const candidates = [
     structure?.support,
     structure?.resistance,
+    structure?.internal_support,
+    structure?.internal_resistance,
     liquidity?.buy_liquidity,
     liquidity?.sell_liquidity,
     liquidity?.equal_high,
@@ -1150,7 +1228,7 @@ function buildAlignedSeriesValues<T>(
   klines: Kline[],
   points: T[],
   getOpenTime: (point: T) => number,
-  getValue: (point: T) => number,
+  getValue: (point: T) => number | null | undefined,
 ): Array<number | null> {
   const pointMap = new Map<number, T>();
   points.forEach((point) => {
@@ -1206,6 +1284,8 @@ function emptySeries() {
   return {
     supportTrack: [] as string[],
     resistanceTrack: [] as string[],
+    internalSupportTrack: [] as string[],
+    internalResistanceTrack: [] as string[],
     buyLiquidityTrack: [] as string[],
     sellLiquidityTrack: [] as string[],
     equalHighTrack: [] as string[],
@@ -1219,7 +1299,23 @@ function emptySeries() {
   };
 }
 
-function resolveStructureMarkerTone(label: string, kind: string) {
+function resolveStructureMarkerTone(label: string, kind: string, tier?: string) {
+  if (tier === "external") {
+    if (label === "BOS") {
+      return {
+        color: "#d97706",
+        labelColor: "#78350f",
+        labelBackground: "#fde68a",
+      };
+    }
+    if (label === "CHOCH") {
+      return {
+        color: "#1f2937",
+        labelColor: "#111827",
+        labelBackground: "#cbd5e1",
+      };
+    }
+  }
   if (label === "HH" || label === "HL") {
     return {
       color: "#059669",
@@ -1262,6 +1358,20 @@ function resolveStructureMarkerTone(label: string, kind: string) {
   };
 }
 
+function resolveStructureMarkerLabel(label: string, tier?: string) {
+  if (tier === "internal") {
+    return `i${label}`;
+  }
+  return label;
+}
+
+function resolveStructureMarkerOffset(kind: string, tier?: string) {
+  if (kind === "swing_low") {
+    return tier === "internal" ? 18 : 24;
+  }
+  return tier === "internal" ? -12 : -18;
+}
+
 function resolveSignalMarkerTone(action: string) {
   if (action === "BUY") {
     return {
@@ -1301,6 +1411,10 @@ function resolveMicrostructureMarkerLabel(type: string) {
       return "OBL";
     case "order_book_migration_accelerated":
       return "OBA";
+    case "auction_trap_reversal":
+      return "TRP";
+    case "liquidity_ladder_breakout":
+      return "LLB";
     case "microstructure_confluence":
       return "MCF";
     default:
@@ -1384,6 +1498,20 @@ function resolveMicrostructureMarkerTone(type: string, bias: string) {
           color: "#075985",
           labelColor: "#0369a1",
           labelBackground: "#e0f2fe",
+        };
+  }
+
+  if (type === "auction_trap_reversal" || type === "liquidity_ladder_breakout") {
+    return bias === "bearish"
+      ? {
+          color: "#7c2d12",
+          labelColor: "#9a3412",
+          labelBackground: "#ffedd5",
+        }
+      : {
+          color: "#155e75",
+          labelColor: "#0f766e",
+          labelBackground: "#ccfbf1",
         };
   }
 
@@ -1503,6 +1631,7 @@ interface TimeLabel {
 interface StructureMarker {
   label: string;
   openTime: number;
+  tier?: string;
   x: number;
   y: number;
   labelY: number;

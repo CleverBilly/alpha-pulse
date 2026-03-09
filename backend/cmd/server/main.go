@@ -25,11 +25,13 @@ import (
 	"alpha-pulse/backend/pkg/database"
 	"alpha-pulse/backend/repository"
 	"alpha-pulse/backend/router"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
 	// 加载配置。
 	cfg := config.Load()
+	gin.SetMode(cfg.GinMode)
 
 	// 初始化 MySQL。
 	db, err := database.NewMySQL(cfg.MySQLDSN)
@@ -38,13 +40,17 @@ func main() {
 	}
 
 	// 自动迁移数据表。
-	if err := models.AutoMigrate(db); err != nil {
-		log.Fatalf("auto migrate failed: %v", err)
+	if cfg.EnableAutoMigrate {
+		if err := models.AutoMigrate(db); err != nil {
+			log.Fatalf("auto migrate failed: %v", err)
+		}
+	} else {
+		log.Printf("auto migrate skipped: mode=%s", cfg.AppMode)
 	}
 
 	// 初始化 Redis 缓存；如果 Redis 不可用，则退化为无缓存模式。
 	var sharedCache service.MarketSnapshotCache
-	if cfg.SnapshotCacheTTL > 0 || cfg.AnalysisCacheTTL > 0 {
+	if cfg.EnableRedisCache && (cfg.SnapshotCacheTTL > 0 || cfg.AnalysisCacheTTL > 0) {
 		redisClient, redisErr := database.NewRedis(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
 		if redisErr != nil {
 			log.Printf("redis unavailable, view cache disabled: %v", redisErr)
@@ -52,6 +58,8 @@ func main() {
 			defer redisClient.Close()
 			sharedCache = service.NewRedisMarketSnapshotCache(redisClient)
 		}
+	} else {
+		log.Printf("redis cache skipped: mode=%s enabled=%t snapshot_ttl=%d analysis_ttl=%d", cfg.AppMode, cfg.EnableRedisCache, cfg.SnapshotCacheTTL, cfg.AnalysisCacheTTL)
 	}
 
 	// 初始化基础组件。
@@ -60,6 +68,7 @@ func main() {
 		cfg.BinanceSecretKey,
 		8*time.Second,
 	)
+	binanceClient.SetMockFallbackEnabled(cfg.AllowMockBinanceData)
 	binanceCollector := collector.NewBinanceCollector(binanceClient)
 	indicatorEngine := indicator.NewEngine()
 	orderFlowEngine := orderflow.NewEngine()
@@ -119,22 +128,47 @@ func main() {
 		Signal: signalHandler,
 	})
 
+	log.Printf(
+		"alpha-pulse runtime mode=%s gin_mode=%s symbols=%v auto_migrate=%t redis_cache=%t stream_collector=%t scheduler=%t mock_binance=%t",
+		cfg.AppMode,
+		cfg.GinMode,
+		cfg.MarketSymbols,
+		cfg.EnableAutoMigrate,
+		cfg.EnableRedisCache,
+		cfg.EnableStreamCollector,
+		cfg.EnableScheduler,
+		cfg.AllowMockBinanceData,
+	)
+
 	// 启动定时任务。
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	streamCollector := collector.NewBinanceStreamCollector(
-		[]string{"BTCUSDT", "ETHUSDT"},
-		aggTradeRepo,
-		orderBookRepo,
-		func(symbol string) {
-			if cacheInvalidator != nil {
-				cacheInvalidator.InvalidateSymbol(symbol)
-			}
-		},
-	)
-	streamCollector.Start(ctx)
-	jobs := scheduler.NewJobs(marketService, signalService)
-	go jobs.Start(ctx)
+	if cfg.EnableStreamCollector {
+		streamCollector := collector.NewBinanceStreamCollector(
+			cfg.MarketSymbols,
+			aggTradeRepo,
+			orderBookRepo,
+			func(symbol string) {
+				if cacheInvalidator != nil {
+					cacheInvalidator.InvalidateSymbol(symbol)
+				}
+			},
+		)
+		streamCollector.Start(ctx)
+	} else {
+		log.Printf("stream collector skipped: mode=%s", cfg.AppMode)
+	}
+	if cfg.EnableScheduler {
+		jobs := scheduler.NewJobs(
+			marketService,
+			signalService,
+			cfg.MarketSymbols,
+			time.Duration(cfg.SchedulerIntervalSeconds)*time.Second,
+		)
+		go jobs.Start(ctx)
+	} else {
+		log.Printf("scheduler skipped: mode=%s", cfg.AppMode)
+	}
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.AppPort,

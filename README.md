@@ -29,6 +29,42 @@ docker compose up --build
 ./scripts/dev.sh
 ```
 
+## 运行模式
+
+后端当前支持三种运行模式，通过 `APP_MODE` 控制：
+
+- `dev`
+  - 默认模式
+  - 默认开启自动迁移、Redis 缓存、流式采集、调度任务
+  - 默认允许 Binance SDK 失败时回退到 mock 行情数据
+- `test`
+  - 默认关闭自动迁移、Redis 缓存、流式采集、调度任务
+  - 默认保留 mock 行情回退，方便隔离测试和本地演练
+- `prod`
+  - 默认关闭自动迁移
+  - 默认开启 Redis 缓存、流式采集、调度任务
+  - 默认关闭 mock 行情回退，Binance SDK 失败时直接返回错误
+
+常用配置：
+
+```bash
+APP_MODE=dev
+GIN_MODE=debug
+MARKET_SYMBOLS=BTCUSDT,ETHUSDT
+AUTO_MIGRATE=true
+ENABLE_REDIS_CACHE=true
+ENABLE_STREAM_COLLECTOR=true
+ENABLE_SCHEDULER=true
+ALLOW_MOCK_BINANCE_DATA=true
+SCHEDULER_INTERVAL_SECONDS=60
+```
+
+说明：
+
+- `GIN_MODE` 默认随 `APP_MODE` 推导：`dev -> debug`，`test -> test`，`prod -> release`
+- 所有 mode 默认值都可以被显式环境变量覆盖
+- 本地 `docker compose` 当前默认按 `dev` 模式启动
+
 ## Binance 配置
 
 后端已接入 `github.com/adshao/go-binance/v2`。
@@ -76,6 +112,7 @@ ANALYSIS_VIEW_CACHE_TTL=15
 - `ANALYSIS_VIEW_CACHE_TTL` 单位为秒，控制 `signal-timeline / indicator-series / liquidity-series` 的缓存时长
 - 默认值为 `15`
 - Redis 不可用时，后端会自动退化为无缓存模式，不阻断主服务启动
+- `ENABLE_REDIS_CACHE=false` 时会显式跳过 Redis 初始化
 
 ## 后端 API
 

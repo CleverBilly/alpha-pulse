@@ -116,6 +116,7 @@ export interface MicrostructureEventsResult {
 export interface StructureEvent {
   label: string;
   kind: string;
+  tier?: string;
   price: number;
   open_time: number;
 }
@@ -126,6 +127,11 @@ export interface Structure {
   trend: string;
   support: number;
   resistance: number;
+  primary_tier?: string;
+  internal_support?: number;
+  internal_resistance?: number;
+  external_support?: number;
+  external_resistance?: number;
   bos: boolean;
   choch: boolean;
   events: StructureEvent[];
@@ -135,11 +141,17 @@ export interface Structure {
 export interface StructureSeriesPoint {
   open_time: number;
   trend: string;
+  primary_tier?: string;
   support: number;
   resistance: number;
+  internal_support?: number;
+  internal_resistance?: number;
+  external_support?: number;
+  external_resistance?: number;
   bos: boolean;
   choch: boolean;
   event_labels: string[];
+  event_tags?: string[];
 }
 
 export interface StructureSeriesResult {
@@ -167,6 +179,34 @@ export interface LiquidityWallLevel {
   strength: number;
 }
 
+export interface LiquidityWallStrengthBand {
+  side: string;
+  band: string;
+  lower_distance_bps: number;
+  upper_distance_bps: number;
+  level_count: number;
+  total_notional: number;
+  dominant_price: number;
+  dominant_notional: number;
+  strength: number;
+}
+
+export interface LiquidityWallEvolution {
+  interval: string;
+  buy_liquidity: number;
+  sell_liquidity: number;
+  buy_distance_bps: number;
+  sell_distance_bps: number;
+  buy_cluster_strength: number;
+  sell_cluster_strength: number;
+  buy_strength_delta: number;
+  sell_strength_delta: number;
+  order_book_imbalance: number;
+  sweep_type: string;
+  data_source: string;
+  dominant_side: string;
+}
+
 export interface Liquidity {
   id: number;
   symbol: string;
@@ -179,6 +219,8 @@ export interface Liquidity {
   equal_low: number;
   stop_clusters: LiquidityCluster[];
   wall_levels: LiquidityWallLevel[];
+  wall_strength_bands: LiquidityWallStrengthBand[];
+  wall_evolution: LiquidityWallEvolution[];
   created_at: string;
 }
 
@@ -213,4 +255,6 @@ export interface LiquidityMapResult {
   equal_low: number;
   stop_clusters: LiquidityCluster[];
   wall_levels: LiquidityWallLevel[];
+  wall_strength_bands: LiquidityWallStrengthBand[];
+  wall_evolution: LiquidityWallEvolution[];
 }

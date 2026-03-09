@@ -280,14 +280,19 @@ func (s *MarketService) GetStructureEvents(symbol, interval string) (StructureEv
 	}
 
 	return StructureEventsResult{
-		Symbol:     symbol,
-		Interval:   interval,
-		Trend:      result.Trend,
-		Support:    result.Support,
-		Resistance: result.Resistance,
-		BOS:        result.BOS,
-		Choch:      result.Choch,
-		Events:     result.Events,
+		Symbol:             symbol,
+		Interval:           interval,
+		Trend:              result.Trend,
+		PrimaryTier:        result.PrimaryTier,
+		Support:            result.Support,
+		Resistance:         result.Resistance,
+		InternalSupport:    result.InternalSupport,
+		InternalResistance: result.InternalResistance,
+		ExternalSupport:    result.ExternalSupport,
+		ExternalResistance: result.ExternalResistance,
+		BOS:                result.BOS,
+		Choch:              result.Choch,
+		Events:             result.Events,
 	}, nil
 }
 
@@ -336,6 +341,17 @@ func (s *MarketService) GetLiquidity(symbol, interval string) (models.Liquidity,
 	if err != nil {
 		return models.Liquidity{}, err
 	}
+	enrichLiquidityDepthContext(
+		s.collector,
+		s.liquidityEngine,
+		s.klineRepo,
+		s.orderBookRepo,
+		symbol,
+		interval,
+		0,
+		&result,
+		nil,
+	)
 	if err := s.db.Create(&result).Error; err != nil {
 		return models.Liquidity{}, err
 	}
@@ -355,6 +371,14 @@ func (s *MarketService) GetLiquidityMap(symbol, interval string) (LiquidityMapRe
 	if wallLevels == nil {
 		wallLevels = []models.LiquidityWallLevel{}
 	}
+	wallStrengthBands := result.WallStrengthBands
+	if wallStrengthBands == nil {
+		wallStrengthBands = []models.LiquidityWallStrengthBand{}
+	}
+	wallEvolution := result.WallEvolution
+	if wallEvolution == nil {
+		wallEvolution = []models.LiquidityWallEvolution{}
+	}
 
 	return LiquidityMapResult{
 		Symbol:             symbol,
@@ -368,6 +392,8 @@ func (s *MarketService) GetLiquidityMap(symbol, interval string) (LiquidityMapRe
 		EqualLow:           result.EqualLow,
 		StopClusters:       result.StopClusters,
 		WallLevels:         wallLevels,
+		WallStrengthBands:  wallStrengthBands,
+		WallEvolution:      wallEvolution,
 	}, nil
 }
 

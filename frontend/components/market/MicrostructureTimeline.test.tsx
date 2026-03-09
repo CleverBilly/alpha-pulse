@@ -37,11 +37,12 @@ describe("MicrostructureTimeline", () => {
 
     render(<MicrostructureTimeline />);
 
-    await user.click(screen.getAllByRole("button", { name: /Migration/i })[0]);
+    await user.click(screen.getAllByRole("button", { name: /Composite/i })[0]);
 
-    expect(screen.getByText(/买方挂单墙连续多层上移/)).toBeInTheDocument();
+    expect(screen.getByText(/失败拍卖后出现同向抛压确认/)).toBeInTheDocument();
+    expect(screen.getByText(/挂单墙迁移与主动买盘同向推进/)).toBeInTheDocument();
     expect(screen.queryByText(/卖压被持续吸收/)).not.toBeInTheDocument();
     expect(screen.queryByText("Initiative Shift")).not.toBeInTheDocument();
-    expect(screen.getByText("1 / 8 visible")).toBeInTheDocument();
+    expect(screen.getByText("2 / 8 visible")).toBeInTheDocument();
   });
 });

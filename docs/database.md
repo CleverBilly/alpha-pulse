@@ -237,6 +237,8 @@
 - `order_book_migration`
 - `order_book_migration_layered`
 - `order_book_migration_accelerated`
+- `auction_trap_reversal`
+- `liquidity_ladder_breakout`
 - `microstructure_confluence`
 
 唯一约束：
@@ -266,11 +268,16 @@
 
 不落库但会通过接口返回：
 
+- `primary_tier`
+- `internal_support`
+- `internal_resistance`
+- `external_support`
+- `external_resistance`
 - `events[]`
 
 说明：
 
-- `events[]` 包括 `HH / HL / LH / LL / BOS / CHOCH` 等结构事件
+- `events[]` 包括 `HH / HL / LH / LL / BOS / CHOCH` 等结构事件，并带 `tier`
 - 当前结构时间序列由后端滚动生成，不单独落表
 
 ## 4.8 `liquidity`
@@ -296,6 +303,8 @@
 - `equal_low`
 - `stop_clusters[]`
 - `wall_levels[]`
+- `wall_strength_bands[]`
+- `wall_evolution[]`
 
 说明：
 
@@ -344,6 +353,8 @@
 - `structure.events[]`
 - `liquidity.stop_clusters[]`
 - `liquidity.wall_levels[]`
+- `liquidity.wall_strength_bands[]`
+- `liquidity.wall_evolution[]`
 
 这不是缺陷，而是当前阶段的取舍。
 

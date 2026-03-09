@@ -22,8 +22,12 @@ describe("LiquidityPanel", () => {
     expect(screen.getByText("Wall Map")).toBeInTheDocument();
     expect(screen.getByText("Ask Wall Map")).toBeInTheDocument();
     expect(screen.getByText("Bid Wall Map")).toBeInTheDocument();
+    expect(screen.getByText("Ask Heat Bands")).toBeInTheDocument();
+    expect(screen.getByText("Cross-Interval Wall Evolution")).toBeInTheDocument();
     expect(screen.getByText("Near Ask Wall")).toBeInTheDocument();
     expect(screen.getByText("Mid Bid Wall")).toBeInTheDocument();
+    expect(screen.getAllByText("0-10bps")).toHaveLength(2);
+    expect(screen.getByText("Bid Dominant")).toBeInTheDocument();
     expect(screen.getByText(/stop clusters/i)).toBeInTheDocument();
   });
 

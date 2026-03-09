@@ -401,8 +401,13 @@ Binance SDK
 当前输出：
 
 - `trend`
+- `primary_tier`
 - `support`
 - `resistance`
+- `internal_support`
+- `internal_resistance`
+- `external_support`
+- `external_resistance`
 - `bos`
 - `choch`
 - `events[]`
@@ -419,6 +424,7 @@ Binance SDK
 要求：
 
 - 支持 swing point 识别
+- 支持 internal / external swing hierarchy
 - 支持结构时间序列
 - 前端图表必须可直接消费 `events[]`
 
@@ -435,6 +441,8 @@ Binance SDK
 - `equal_low`
 - `stop_clusters[]`
 - `wall_levels[]`
+- `wall_strength_bands[]`
+- `wall_evolution[]`
 
 要求：
 
@@ -663,6 +671,8 @@ Signal Engine 当前为多因子连续评分模型。
 - `equal_low`
 - `data_source`
 - `wall_levels[]`
+- `wall_strength_bands[]`
+- `wall_evolution[]`
 
 ### 9.2.6 `signals`
 

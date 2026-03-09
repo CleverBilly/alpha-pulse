@@ -52,8 +52,8 @@
 | Indicator Engine | 已完成 | 最新值与序列均已可用 |
 | Order Flow Engine | 已完成增强版 | 真实 `aggTrade` 优先，支持 large trades 与微结构事件 |
 | 微结构事件持久化 | 已完成 | `microstructure_events` 已落库并可查询 |
-| Structure Engine | 已完成增强版 | 支持 HH/HL/LH/LL/BOS/CHOCH 与序列接口 |
-| Liquidity Engine | 已完成增强版 | 支持盘口失衡、equal high/low、stop clusters、细粒度 wall map 与序列接口 |
+| Structure Engine | 已完成增强版 | 支持 internal / external swing hierarchy、HH/HL/LH/LL/BOS/CHOCH 与序列接口 |
+| Liquidity Engine | 已完成增强版 | 支持盘口失衡、equal high/low、stop clusters、细粒度 wall map、wall strength bands 与跨周期 wall 演化 |
 | Signal Engine | 已完成增强版 | 7 因子连续评分模型 |
 | AI Explain Engine | 已完成基础版 | 基于规则模板输出中文解释 |
 | 聚合快照接口 | 已完成 | 当前前端主接口 |
@@ -62,6 +62,7 @@
 | Signals 页面 | 已完成 | SignalCard + AI Analysis |
 | Market 页面 | 已完成基础版 | 市场概览、关键价位、信号带 |
 | Redis 缓存 | 已完成增强版 | 已覆盖 `market-snapshot / signal-timeline / indicator-series / liquidity-series`，并支持 symbol 级全周期失效与 `refresh=1` 绕过缓存 |
+| Runtime Modes | 已完成基础版 | 已区分 `dev / test / prod`，并接入 Gin mode、自动迁移、后台任务和 mock fallback 开关 |
 | 后端测试 | 已完成基础版 | 引擎测试、缓存测试、路由测试已具备 |
 | 前端组件测试 | 已完成基础版 | 关键组件已覆盖 |
 | 前端 E2E | 已完成基础版 | 主路径和异常态已覆盖 |
@@ -150,7 +151,9 @@
 - `SignalCard`
 - `OrderFlowPanel`
 - `LiquidityPanel`
-  - 支持 bid / ask 分层 wall map 展示
+  - 支持 bid / ask 分层 wall map、wall strength bands 与跨周期 wall 演化展示
+- `KlineChart`
+  - 支持 structure hierarchy：主层级与 internal support / resistance 同图表达
 - `AIAnalysisPanel`
 - `MarketOverviewBoard`
 - `MarketLevelsBoard`
@@ -215,8 +218,10 @@ E2E 已覆盖：
 - 微结构事件持久化与图表展示
 - 微结构时间线卡片、事件过滤与图表 tooltip
 - 多端点 Redis 缓存、symbol 级失效与显式刷新
-- Liquidity Engine 细粒度 wall map
-- 高阶微结构模式：连续吸收、失败拍卖扩展型、挂单迁移分层、组合事件评分
+- `dev / test / prod` 运行模式与启动期开关
+- Liquidity Engine 细粒度 wall map / wall strength bands / 跨周期 wall 演化
+- Structure Engine internal / external swing hierarchy
+- 高阶微结构模式：连续吸收、失败拍卖扩展型、挂单迁移分层、失败拍卖陷阱反转、流动性阶梯突破、组合事件评分
 - Collector / fallback / engine stage 统一耗时日志
 - 页面级统一快照驱动
 
@@ -239,6 +244,6 @@ E2E 已覆盖：
 当前最合理的下一阶段方向：
 
 1. 继续扩展更高阶微结构模式库
-2. 继续增强 Liquidity Engine 和 Structure Engine
-3. 区分 `dev / test / prod` 运行模式，并为日志接入 metrics/monitoring
+2. 按需继续扩展更高阶微结构模式库
+3. 为日志继续接入 metrics/monitoring，并考虑 `feature_snapshots`
 4. 如果要继续扩数据域，再单独开 Futures 方向，不要和当前 Spot 主链路混改

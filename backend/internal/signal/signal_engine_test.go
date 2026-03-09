@@ -320,6 +320,148 @@ func TestGenerateMicrostructureConfluenceAddsBonus(t *testing.T) {
 	}
 }
 
+func TestGenerateLiquidityLadderBreakoutAddsBonus(t *testing.T) {
+	engine := NewEngine()
+
+	base := engine.Generate(
+		"BTCUSDT",
+		64980,
+		models.Indicator{
+			RSI:             58,
+			MACD:            18,
+			MACDSignal:      12,
+			MACDHistogram:   6,
+			EMA20:           64820,
+			EMA50:           64420,
+			ATR:             360,
+			BollingerUpper:  65520,
+			BollingerMiddle: 64910,
+			BollingerLower:  64280,
+			VWAP:            64740,
+		},
+		models.OrderFlow{
+			BuyVolume:              1200,
+			SellVolume:             860,
+			Delta:                  340,
+			CVD:                    1720,
+			BuyLargeTradeNotional:  780000,
+			SellLargeTradeNotional: 240000,
+			LargeTradeDelta:        540000,
+			AbsorptionBias:         "buy_absorption",
+			AbsorptionStrength:     0.63,
+			IcebergBias:            "buy_iceberg",
+			IcebergStrength:        0.41,
+			DataSource:             "agg_trade",
+			MicrostructureEvents: []models.OrderFlowMicrostructureEvent{
+				{
+					Type:      "order_book_migration_layered",
+					Bias:      "bullish",
+					Score:     2,
+					Strength:  0.71,
+					Price:     64940,
+					TradeTime: 1741300000000,
+					Detail:    "买方挂单墙连续多层上移",
+				},
+				{
+					Type:      "initiative_shift",
+					Bias:      "bullish",
+					Score:     1,
+					Strength:  0.46,
+					Price:     64970,
+					TradeTime: 1741300060000,
+					Detail:    "买方主动性较前半段明显增强",
+				},
+			},
+		},
+		models.Structure{Trend: "uptrend", Support: 64720, Resistance: 65480, BOS: true},
+		models.Liquidity{
+			BuyLiquidity:       64780,
+			SellLiquidity:      65360,
+			OrderBookImbalance: 0.09,
+			DataSource:         "orderbook",
+		},
+	)
+	withComposite := engine.Generate(
+		"BTCUSDT",
+		64980,
+		models.Indicator{
+			RSI:             58,
+			MACD:            18,
+			MACDSignal:      12,
+			MACDHistogram:   6,
+			EMA20:           64820,
+			EMA50:           64420,
+			ATR:             360,
+			BollingerUpper:  65520,
+			BollingerMiddle: 64910,
+			BollingerLower:  64280,
+			VWAP:            64740,
+		},
+		models.OrderFlow{
+			BuyVolume:              1200,
+			SellVolume:             860,
+			Delta:                  340,
+			CVD:                    1720,
+			BuyLargeTradeNotional:  780000,
+			SellLargeTradeNotional: 240000,
+			LargeTradeDelta:        540000,
+			AbsorptionBias:         "buy_absorption",
+			AbsorptionStrength:     0.63,
+			IcebergBias:            "buy_iceberg",
+			IcebergStrength:        0.41,
+			DataSource:             "agg_trade",
+			MicrostructureEvents: []models.OrderFlowMicrostructureEvent{
+				{
+					Type:      "order_book_migration_layered",
+					Bias:      "bullish",
+					Score:     2,
+					Strength:  0.71,
+					Price:     64940,
+					TradeTime: 1741300000000,
+					Detail:    "买方挂单墙连续多层上移",
+				},
+				{
+					Type:      "initiative_shift",
+					Bias:      "bullish",
+					Score:     1,
+					Strength:  0.46,
+					Price:     64970,
+					TradeTime: 1741300060000,
+					Detail:    "买方主动性较前半段明显增强",
+				},
+				{
+					Type:      "liquidity_ladder_breakout",
+					Bias:      "bullish",
+					Score:     2,
+					Strength:  0.8,
+					Price:     64982,
+					TradeTime: 1741300120000,
+					Detail:    "挂单墙迁移与主动买盘同向推进：order_book_migration_layered + initiative_shift",
+				},
+			},
+		},
+		models.Structure{Trend: "uptrend", Support: 64720, Resistance: 65480, BOS: true},
+		models.Liquidity{
+			BuyLiquidity:       64780,
+			SellLiquidity:      65360,
+			OrderBookImbalance: 0.09,
+			DataSource:         "orderbook",
+		},
+	)
+
+	baseFactor := findFactor(base.Factors, "microstructure")
+	withCompositeFactor := findFactor(withComposite.Factors, "microstructure")
+	if baseFactor == nil || withCompositeFactor == nil {
+		t.Fatal("expected microstructure factors to exist")
+	}
+	if withCompositeFactor.Score <= baseFactor.Score {
+		t.Fatalf("expected liquidity ladder breakout factor to increase score: base=%d with=%d", baseFactor.Score, withCompositeFactor.Score)
+	}
+	if !containsText(withCompositeFactor.Reason, "挂单墙迁移") {
+		t.Fatalf("expected factor reason to mention 挂单墙迁移, got %s", withCompositeFactor.Reason)
+	}
+}
+
 func TestGenerateReturnsSellSignalForBearishConfluence(t *testing.T) {
 	engine := NewEngine()
 

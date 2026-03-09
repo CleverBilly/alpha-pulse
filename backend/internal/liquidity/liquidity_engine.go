@@ -24,6 +24,7 @@ const (
 	sweepTolerance      = 0.001
 	depthSweepTolerance = 0.0008
 	equalLevelTolerance = 0.0012
+	wallBandOverflowBps = 60.0
 )
 
 // Engine 负责流动性区域识别。
@@ -88,6 +89,8 @@ func (e *Engine) Analyze(symbol string, klines []models.Kline) (models.Liquidity
 		EqualLow:           roundFloat(equalLow, 8),
 		StopClusters:       stopClusters,
 		WallLevels:         []models.LiquidityWallLevel{},
+		WallStrengthBands:  []models.LiquidityWallStrengthBand{},
+		WallEvolution:      []models.LiquidityWallEvolution{},
 		CreatedAt:          createdAt,
 	}, nil
 }
@@ -154,6 +157,7 @@ func (e *Engine) AnalyzeWithOrderBook(symbol string, klines []models.Kline, snap
 		normalizeWallStrength(bidClusterNotional),
 	)
 	wallLevels := buildWallLevels(bids, asks)
+	wallStrengthBands := buildWallStrengthBands(bids, asks)
 
 	return models.Liquidity{
 		Symbol:             symbol,
@@ -166,6 +170,8 @@ func (e *Engine) AnalyzeWithOrderBook(symbol string, klines []models.Kline, snap
 		EqualLow:           roundFloat(equalLow, 8),
 		StopClusters:       stopClusters,
 		WallLevels:         wallLevels,
+		WallStrengthBands:  wallStrengthBands,
+		WallEvolution:      []models.LiquidityWallEvolution{},
 		CreatedAt:          createdAt,
 	}, nil
 }
@@ -401,6 +407,107 @@ func buildWallLevels(bids, asks []binancepkg.OrderBookLevel) []models.LiquidityW
 		return []models.LiquidityWallLevel{}
 	}
 	return walls
+}
+
+type wallBandSpec struct {
+	label string
+	lower float64
+	upper float64
+}
+
+var wallBandSpecs = []wallBandSpec{
+	{label: "0-10bps", lower: 0, upper: 10},
+	{label: "10-20bps", lower: 10, upper: 20},
+	{label: "20-35bps", lower: 20, upper: 35},
+	{label: "35-60bps", lower: 35, upper: wallBandOverflowBps},
+}
+
+func buildWallStrengthBands(bids, asks []binancepkg.OrderBookLevel) []models.LiquidityWallStrengthBand {
+	if len(bids) == 0 && len(asks) == 0 {
+		return []models.LiquidityWallStrengthBand{}
+	}
+
+	referencePrice := wallBandReferencePrice(bids, asks)
+	if referencePrice <= 0 {
+		return []models.LiquidityWallStrengthBand{}
+	}
+
+	bands := make([]models.LiquidityWallStrengthBand, 0, len(wallBandSpecs)*2)
+	bands = append(bands, aggregateWallStrengthBands(asks, "ask", referencePrice)...)
+	bands = append(bands, aggregateWallStrengthBands(bids, "bid", referencePrice)...)
+	return bands
+}
+
+func wallBandReferencePrice(bids, asks []binancepkg.OrderBookLevel) float64 {
+	bestBid := 0.0
+	bestAsk := 0.0
+	if len(bids) > 0 {
+		bestBid = bids[0].Price
+	}
+	if len(asks) > 0 {
+		bestAsk = asks[0].Price
+	}
+	switch {
+	case bestBid > 0 && bestAsk > 0:
+		return (bestBid + bestAsk) / 2
+	case bestBid > 0:
+		return bestBid
+	default:
+		return bestAsk
+	}
+}
+
+func aggregateWallStrengthBands(
+	levels []binancepkg.OrderBookLevel,
+	side string,
+	referencePrice float64,
+) []models.LiquidityWallStrengthBand {
+	if len(levels) == 0 || referencePrice <= 0 {
+		return nil
+	}
+
+	bands := make([]models.LiquidityWallStrengthBand, 0, len(wallBandSpecs))
+	for _, spec := range wallBandSpecs {
+		totalNotional := 0.0
+		levelCount := 0
+		dominantPrice := 0.0
+		dominantNotional := 0.0
+
+		for _, level := range levels {
+			if level.Price <= 0 || level.Quantity <= 0 {
+				continue
+			}
+			distanceBps := math.Abs(level.Price-referencePrice) / referencePrice * 10000
+			if distanceBps < spec.lower || distanceBps >= spec.upper {
+				continue
+			}
+			notional := level.Price * level.Quantity
+			totalNotional += notional
+			levelCount++
+			if notional > dominantNotional {
+				dominantNotional = notional
+				dominantPrice = level.Price
+			}
+		}
+
+		if levelCount == 0 || totalNotional <= 0 {
+			continue
+		}
+
+		bands = append(bands, models.LiquidityWallStrengthBand{
+			Side:             side,
+			Band:             spec.label,
+			LowerDistanceBps: roundFloat(spec.lower, 2),
+			UpperDistanceBps: roundFloat(spec.upper, 2),
+			LevelCount:       levelCount,
+			TotalNotional:    roundFloat(totalNotional, 2),
+			DominantPrice:    roundFloat(dominantPrice, 8),
+			DominantNotional: roundFloat(dominantNotional, 2),
+			Strength:         roundFloat(normalizeWallStrength(totalNotional), 2),
+		})
+	}
+
+	return bands
 }
 
 func extractWallLevels(levels []binancepkg.OrderBookLevel, side string) []models.LiquidityWallLevel {

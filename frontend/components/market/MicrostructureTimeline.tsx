@@ -5,8 +5,10 @@ import { OrderFlowMicrostructureEvent } from "@/types/market";
 import { useMarketStore } from "@/store/marketStore";
 
 const HIGH_ORDER_EVENT_TYPES = new Set([
+  "auction_trap_reversal",
   "failed_auction_high_reject",
   "failed_auction_low_reclaim",
+  "liquidity_ladder_breakout",
   "order_book_migration_layered",
   "order_book_migration_accelerated",
   "microstructure_confluence",
@@ -19,6 +21,7 @@ const TIMELINE_FILTERS = [
   { id: "migration", label: "Migration" },
   { id: "execution", label: "Execution" },
   { id: "absorption", label: "Absorption" },
+  { id: "composite", label: "Composite" },
 ] as const;
 
 type TimelineFilterId = (typeof TIMELINE_FILTERS)[number]["id"];
@@ -219,6 +222,8 @@ function familyTone(family: string) {
       return "bg-emerald-100 text-emerald-700";
     case "confluence":
       return "bg-amber-100 text-amber-800";
+    case "composite":
+      return "bg-orange-100 text-orange-700";
     default:
       return "bg-slate-100 text-slate-700";
   }
@@ -331,7 +336,7 @@ const EVENT_METADATA: Record<
   {
     label: string;
     shortLabel: string;
-    family: "auction" | "migration" | "execution" | "absorption" | "confluence" | "other";
+    family: "auction" | "migration" | "execution" | "absorption" | "composite" | "confluence" | "other";
     familyLabel: string;
   }
 > = {
@@ -406,5 +411,17 @@ const EVENT_METADATA: Record<
     shortLabel: "MCF",
     family: "confluence",
     familyLabel: "Confluence",
+  },
+  auction_trap_reversal: {
+    label: "Auction Trap Reversal",
+    shortLabel: "TRP",
+    family: "composite",
+    familyLabel: "Composite",
+  },
+  liquidity_ladder_breakout: {
+    label: "Liquidity Ladder Breakout",
+    shortLabel: "LLB",
+    family: "composite",
+    familyLabel: "Composite",
   },
 };

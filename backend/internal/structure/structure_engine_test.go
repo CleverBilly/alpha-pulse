@@ -32,6 +32,21 @@ func TestAnalyzeUptrendStructureWithSwingEvents(t *testing.T) {
 	if !containsEventLabel(result.Events, "HL") {
 		t.Fatal("expected HL event in structure events")
 	}
+	if result.PrimaryTier == "" {
+		t.Fatal("expected primary tier to be populated")
+	}
+	if result.InternalSupport <= 0 || result.InternalResistance <= 0 {
+		t.Fatalf("expected internal hierarchy levels to be populated: %+v", result)
+	}
+	if result.ExternalSupport <= 0 || result.ExternalResistance <= 0 {
+		t.Fatalf("expected external hierarchy levels to be populated: %+v", result)
+	}
+	if !containsEventTier(result.Events, "internal") {
+		t.Fatalf("expected internal tier events, got %#v", result.Events)
+	}
+	if !containsEventTier(result.Events, "external") {
+		t.Fatalf("expected external tier events, got %#v", result.Events)
+	}
 }
 
 func TestAnalyzeDetectsBearishChoch(t *testing.T) {
@@ -51,6 +66,9 @@ func TestAnalyzeDetectsBearishChoch(t *testing.T) {
 	}
 	if !containsEventLabel(result.Events, "CHOCH") {
 		t.Fatal("expected CHOCH event in structure events")
+	}
+	if result.PrimaryTier == "" {
+		t.Fatal("expected primary tier to be populated")
 	}
 }
 
@@ -148,6 +166,15 @@ func maxRecentHigh(klines []models.Kline) float64 {
 func containsEventLabel(events []models.StructureEvent, label string) bool {
 	for _, event := range events {
 		if event.Label == label {
+			return true
+		}
+	}
+	return false
+}
+
+func containsEventTier(events []models.StructureEvent, tier string) bool {
+	for _, event := range events {
+		if event.Tier == tier {
 			return true
 		}
 	}

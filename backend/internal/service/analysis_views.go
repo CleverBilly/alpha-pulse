@@ -11,25 +11,36 @@ type IndicatorSeriesResult struct {
 
 // StructureSeriesPoint 定义单个结构序列点。
 type StructureSeriesPoint struct {
-	OpenTime    int64    `json:"open_time"`
-	Trend       string   `json:"trend"`
-	Support     float64  `json:"support"`
-	Resistance  float64  `json:"resistance"`
-	BOS         bool     `json:"bos"`
-	Choch       bool     `json:"choch"`
-	EventLabels []string `json:"event_labels,omitempty"`
+	OpenTime           int64    `json:"open_time"`
+	Trend              string   `json:"trend"`
+	PrimaryTier        string   `json:"primary_tier,omitempty"`
+	Support            float64  `json:"support"`
+	Resistance         float64  `json:"resistance"`
+	InternalSupport    float64  `json:"internal_support,omitempty"`
+	InternalResistance float64  `json:"internal_resistance,omitempty"`
+	ExternalSupport    float64  `json:"external_support,omitempty"`
+	ExternalResistance float64  `json:"external_resistance,omitempty"`
+	BOS                bool     `json:"bos"`
+	Choch              bool     `json:"choch"`
+	EventLabels        []string `json:"event_labels,omitempty"`
+	EventTags          []string `json:"event_tags,omitempty"`
 }
 
 // StructureEventsResult 定义结构事件专用接口返回。
 type StructureEventsResult struct {
-	Symbol     string                  `json:"symbol"`
-	Interval   string                  `json:"interval"`
-	Trend      string                  `json:"trend"`
-	Support    float64                 `json:"support"`
-	Resistance float64                 `json:"resistance"`
-	BOS        bool                    `json:"bos"`
-	Choch      bool                    `json:"choch"`
-	Events     []models.StructureEvent `json:"events"`
+	Symbol             string                  `json:"symbol"`
+	Interval           string                  `json:"interval"`
+	Trend              string                  `json:"trend"`
+	PrimaryTier        string                  `json:"primary_tier,omitempty"`
+	Support            float64                 `json:"support"`
+	Resistance         float64                 `json:"resistance"`
+	InternalSupport    float64                 `json:"internal_support,omitempty"`
+	InternalResistance float64                 `json:"internal_resistance,omitempty"`
+	ExternalSupport    float64                 `json:"external_support,omitempty"`
+	ExternalResistance float64                 `json:"external_resistance,omitempty"`
+	BOS                bool                    `json:"bos"`
+	Choch              bool                    `json:"choch"`
+	Events             []models.StructureEvent `json:"events"`
 }
 
 // StructureSeriesResult 定义结构时间序列接口返回。
@@ -55,17 +66,19 @@ type LiquiditySeriesPoint struct {
 
 // LiquidityMapResult 定义流动性图谱专用接口返回。
 type LiquidityMapResult struct {
-	Symbol             string                      `json:"symbol"`
-	Interval           string                      `json:"interval"`
-	BuyLiquidity       float64                     `json:"buy_liquidity"`
-	SellLiquidity      float64                     `json:"sell_liquidity"`
-	SweepType          string                      `json:"sweep_type"`
-	OrderBookImbalance float64                     `json:"order_book_imbalance"`
-	DataSource         string                      `json:"data_source"`
-	EqualHigh          float64                     `json:"equal_high"`
-	EqualLow           float64                     `json:"equal_low"`
-	StopClusters       []models.LiquidityCluster   `json:"stop_clusters"`
-	WallLevels         []models.LiquidityWallLevel `json:"wall_levels"`
+	Symbol             string                             `json:"symbol"`
+	Interval           string                             `json:"interval"`
+	BuyLiquidity       float64                            `json:"buy_liquidity"`
+	SellLiquidity      float64                            `json:"sell_liquidity"`
+	SweepType          string                             `json:"sweep_type"`
+	OrderBookImbalance float64                            `json:"order_book_imbalance"`
+	DataSource         string                             `json:"data_source"`
+	EqualHigh          float64                            `json:"equal_high"`
+	EqualLow           float64                            `json:"equal_low"`
+	StopClusters       []models.LiquidityCluster          `json:"stop_clusters"`
+	WallLevels         []models.LiquidityWallLevel        `json:"wall_levels"`
+	WallStrengthBands  []models.LiquidityWallStrengthBand `json:"wall_strength_bands"`
+	WallEvolution      []models.LiquidityWallEvolution    `json:"wall_evolution"`
 }
 
 // LiquiditySeriesResult 定义流动性时间序列接口返回。

@@ -16,6 +16,26 @@ Alpha Pulse 采用 Monorepo 架构：
 
 ## 2. 运行时组件
 
+## 2.0 运行模式
+
+后端当前区分三种运行模式，由 `APP_MODE` 控制：
+
+- `dev`
+  - 用于本地开发
+  - 默认开启自动迁移、Redis 缓存、流式采集、调度任务
+  - 默认允许 Binance SDK 失败时回退到 mock 行情数据
+- `test`
+  - 用于联调演练和隔离验证
+  - 默认关闭自动迁移、Redis 缓存、流式采集、调度任务
+  - 默认保留 mock 行情回退
+- `prod`
+  - 用于真实部署
+  - 默认关闭自动迁移
+  - 默认开启 Redis 缓存、流式采集、调度任务
+  - 默认关闭 mock 行情回退，避免生产环境使用伪造市场数据
+
+`GIN_MODE` 默认随 `APP_MODE` 推导，但允许显式覆盖。
+
 ## 2.1 Backend
 
 主要组件：
@@ -28,6 +48,7 @@ Alpha Pulse 采用 Monorepo 架构：
 - Signal Service
 - Scheduler
 - Redis 快照缓存
+- Runtime Mode Config
 
 ## 2.2 Frontend
 
