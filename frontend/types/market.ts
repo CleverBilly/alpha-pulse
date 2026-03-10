@@ -84,6 +84,7 @@ export interface OrderFlow {
 }
 
 export interface OrderFlowLargeTrade {
+  agg_trade_id?: number;
   side: string;
   price: number;
   quantity: number;

@@ -7,6 +7,7 @@ func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&Kline{},
 		&AggTrade{},
+		&LargeTradeEvent{},
 		&OrderBookSnapshot{},
 		&Indicator{},
 		&OrderFlow{},
@@ -14,5 +15,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&Structure{},
 		&Liquidity{},
 		&Signal{},
+		&FeatureSnapshot{},
 	)
 }

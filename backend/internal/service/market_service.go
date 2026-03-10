@@ -28,6 +28,7 @@ type MarketService struct {
 	aggTradeRepo     *repository.AggTradeRepository
 	orderBookRepo    *repository.OrderBookSnapshotRepository
 	indicatorRepo    *repository.IndicatorRepository
+	largeTradeRepo   *repository.LargeTradeEventRepository
 	microEventRepo   *repository.MicrostructureEventRepository
 	analysisCache    MarketSnapshotCache
 	analysisCacheTTL time.Duration
@@ -45,6 +46,7 @@ func NewMarketService(
 	aggTradeRepo *repository.AggTradeRepository,
 	orderBookRepo *repository.OrderBookSnapshotRepository,
 	indicatorRepo *repository.IndicatorRepository,
+	largeTradeRepo *repository.LargeTradeEventRepository,
 	microEventRepo *repository.MicrostructureEventRepository,
 ) *MarketService {
 	return &MarketService{
@@ -58,6 +60,7 @@ func NewMarketService(
 		aggTradeRepo:    aggTradeRepo,
 		orderBookRepo:   orderBookRepo,
 		indicatorRepo:   indicatorRepo,
+		largeTradeRepo:  largeTradeRepo,
 		microEventRepo:  microEventRepo,
 	}
 }
@@ -215,6 +218,9 @@ func (s *MarketService) GetOrderFlow(symbol, interval string) (models.OrderFlow,
 		return models.OrderFlow{}, err
 	}
 	if err := s.db.Create(&result).Error; err != nil {
+		return models.OrderFlow{}, err
+	}
+	if err := persistLargeTradeEvents(s.largeTradeRepo, result); err != nil {
 		return models.OrderFlow{}, err
 	}
 	if err := persistMicrostructureEvents(s.microEventRepo, result); err != nil {

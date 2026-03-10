@@ -649,6 +649,36 @@ func scoreMicrostructureSequence(events []models.OrderFlowMicrostructureEvent) (
 				reasons = append(reasons, "挂单墙迁移与主动成交同向推进")
 			}
 		}
+		if event.Type == "iceberg_reload" {
+			rawScore += float64(signInt(event.Score)) * 1.2
+			if len(reasons) < 3 {
+				reasons = append(reasons, "隐藏挂单反复补单并维持承接")
+			}
+		}
+		if event.Type == "initiative_exhaustion" {
+			rawScore += float64(signInt(event.Score)) * 1.4
+			if len(reasons) < 3 {
+				reasons = append(reasons, "对手主动盘衰竭后出现反向收回")
+			}
+		}
+		if event.Type == "migration_auction_flip" {
+			rawScore += float64(signInt(event.Score)) * 1.8
+			if len(reasons) < 3 {
+				reasons = append(reasons, "失败拍卖与挂单墙迁移共同确认翻转")
+			}
+		}
+		if event.Type == "absorption_reload_continuation" {
+			rawScore += float64(signInt(event.Score)) * 1.6
+			if len(reasons) < 3 {
+				reasons = append(reasons, "吸收后的补单与主动成交延续同向推进")
+			}
+		}
+		if event.Type == "exhaustion_migration_reversal" {
+			rawScore += float64(signInt(event.Score)) * 2
+			if len(reasons) < 3 {
+				reasons = append(reasons, "主动盘耗尽后挂单墙迁移确认反转")
+			}
+		}
 	}
 
 	switch {

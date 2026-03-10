@@ -102,6 +102,12 @@ func TestAnalyzeAggTradesDetectsMicrostructureSignals(t *testing.T) {
 	if !hasMicrostructureEvent(result.MicrostructureEvents, "continuous_absorption", "bullish") {
 		t.Fatalf("expected bullish continuous absorption event, got %#v", result.MicrostructureEvents)
 	}
+	if !hasMicrostructureEvent(result.MicrostructureEvents, "iceberg_reload", "bullish") {
+		t.Fatalf("expected bullish iceberg reload event, got %#v", result.MicrostructureEvents)
+	}
+	if !hasMicrostructureEvent(result.MicrostructureEvents, "absorption_reload_continuation", "bullish") {
+		t.Fatalf("expected bullish absorption reload continuation event, got %#v", result.MicrostructureEvents)
+	}
 	if !hasMicrostructureEvent(result.MicrostructureEvents, "microstructure_confluence", "bullish") {
 		t.Fatalf("expected bullish microstructure confluence event, got %#v", result.MicrostructureEvents)
 	}
@@ -199,6 +205,54 @@ func TestDeriveCompositeMicrostructureEventsDetectsAuctionTrapReversal(t *testin
 	}
 }
 
+func TestDeriveCompositeMicrostructureEventsDetectsIcebergReloadAndContinuation(t *testing.T) {
+	events := DeriveCompositeMicrostructureEvents([]models.OrderFlowMicrostructureEvent{
+		{
+			Type:      "iceberg",
+			Bias:      "bullish",
+			Score:     4,
+			Strength:  0.64,
+			Price:     64320,
+			TradeTime: 1741300200000,
+			Detail:    "同价带重复出现隐藏买单承接",
+		},
+		{
+			Type:      "absorption",
+			Bias:      "bullish",
+			Score:     5,
+			Strength:  0.67,
+			Price:     64312,
+			TradeTime: 1741300260000,
+			Detail:    "卖压被持续吸收",
+		},
+		{
+			Type:      "large_trade_cluster",
+			Bias:      "bullish",
+			Score:     4,
+			Strength:  0.58,
+			Price:     64338,
+			TradeTime: 1741300320000,
+			Detail:    "连续卖方大单被市场吸收",
+		},
+		{
+			Type:      "initiative_shift",
+			Bias:      "bullish",
+			Score:     4,
+			Strength:  0.42,
+			Price:     64355,
+			TradeTime: 1741300380000,
+			Detail:    "买方主动性明显增强",
+		},
+	})
+
+	if !hasMicrostructureEvent(events, "iceberg_reload", "bullish") {
+		t.Fatalf("expected bullish iceberg reload, got %#v", events)
+	}
+	if !hasMicrostructureEvent(events, "absorption_reload_continuation", "bullish") {
+		t.Fatalf("expected bullish absorption reload continuation, got %#v", events)
+	}
+}
+
 func TestDeriveCompositeMicrostructureEventsDetectsLiquidityLadderBreakout(t *testing.T) {
 	events := DeriveCompositeMicrostructureEvents([]models.OrderFlowMicrostructureEvent{
 		{
@@ -232,6 +286,66 @@ func TestDeriveCompositeMicrostructureEventsDetectsLiquidityLadderBreakout(t *te
 
 	if !hasMicrostructureEvent(events, "liquidity_ladder_breakout", "bullish") {
 		t.Fatalf("expected bullish liquidity ladder breakout, got %#v", events)
+	}
+}
+
+func TestDeriveCompositeMicrostructureEventsDetectsInitiativeExhaustionAndCrossSourceReversal(t *testing.T) {
+	events := DeriveCompositeMicrostructureEvents([]models.OrderFlowMicrostructureEvent{
+		{
+			Type:      "aggression_burst",
+			Bias:      "bearish",
+			Score:     -3,
+			Strength:  0.52,
+			Price:     64180,
+			TradeTime: 1741300200000,
+			Detail:    "主动卖盘冲击放大",
+		},
+		{
+			Type:      "large_trade_cluster",
+			Bias:      "bearish",
+			Score:     -4,
+			Strength:  0.71,
+			Price:     64155,
+			TradeTime: 1741300260000,
+			Detail:    "连续买方大单被市场吸收",
+		},
+		{
+			Type:      "failed_auction_low_reclaim",
+			Bias:      "bullish",
+			Score:     6,
+			Strength:  0.76,
+			Price:     64092,
+			TradeTime: 1741300320000,
+			Detail:    "下方失败拍卖形成强收回分型",
+		},
+		{
+			Type:      "absorption",
+			Bias:      "bullish",
+			Score:     5,
+			Strength:  0.69,
+			Price:     64120,
+			TradeTime: 1741300380000,
+			Detail:    "卖压被持续吸收",
+		},
+		{
+			Type:      "order_book_migration_layered",
+			Bias:      "bullish",
+			Score:     5,
+			Strength:  0.63,
+			Price:     64148,
+			TradeTime: 1741300440000,
+			Detail:    "买方挂单墙连续多层上移",
+		},
+	})
+
+	if !hasMicrostructureEvent(events, "initiative_exhaustion", "bullish") {
+		t.Fatalf("expected bullish initiative exhaustion, got %#v", events)
+	}
+	if !hasMicrostructureEvent(events, "migration_auction_flip", "bullish") {
+		t.Fatalf("expected bullish migration auction flip, got %#v", events)
+	}
+	if !hasMicrostructureEvent(events, "exhaustion_migration_reversal", "bullish") {
+		t.Fatalf("expected bullish exhaustion migration reversal, got %#v", events)
 	}
 }
 

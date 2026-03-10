@@ -330,7 +330,9 @@ func newTestSignalService(t *testing.T, db *gorm.DB, cache MarketSnapshotCache, 
 		repository.NewOrderBookSnapshotRepository(db),
 		repository.NewIndicatorRepository(db),
 		repository.NewSignalRepository(db),
+		repository.NewLargeTradeEventRepository(db),
 		repository.NewMicrostructureEventRepository(db),
+		repository.NewFeatureSnapshotRepository(db),
 		cache,
 		ttl,
 	)
@@ -354,6 +356,7 @@ func newTestMarketService(t *testing.T, db *gorm.DB) *MarketService {
 		repository.NewAggTradeRepository(db),
 		repository.NewOrderBookSnapshotRepository(db),
 		repository.NewIndicatorRepository(db),
+		repository.NewLargeTradeEventRepository(db),
 		repository.NewMicrostructureEventRepository(db),
 	)
 }

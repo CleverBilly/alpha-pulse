@@ -6,9 +6,14 @@ import { useMarketStore } from "@/store/marketStore";
 
 const HIGH_ORDER_EVENT_TYPES = new Set([
   "auction_trap_reversal",
+  "absorption_reload_continuation",
+  "exhaustion_migration_reversal",
   "failed_auction_high_reject",
   "failed_auction_low_reclaim",
+  "iceberg_reload",
+  "initiative_exhaustion",
   "liquidity_ladder_breakout",
+  "migration_auction_flip",
   "order_book_migration_layered",
   "order_book_migration_accelerated",
   "microstructure_confluence",
@@ -352,6 +357,12 @@ const EVENT_METADATA: Record<
     family: "absorption",
     familyLabel: "Absorption",
   },
+  iceberg_reload: {
+    label: "Iceberg Reload",
+    shortLabel: "IRL",
+    family: "absorption",
+    familyLabel: "Absorption",
+  },
   aggression_burst: {
     label: "Aggression Burst",
     shortLabel: "AGR",
@@ -361,6 +372,12 @@ const EVENT_METADATA: Record<
   initiative_shift: {
     label: "Initiative Shift",
     shortLabel: "INI",
+    family: "execution",
+    familyLabel: "Execution",
+  },
+  initiative_exhaustion: {
+    label: "Initiative Exhaustion",
+    shortLabel: "IEX",
     family: "execution",
     familyLabel: "Execution",
   },
@@ -421,6 +438,24 @@ const EVENT_METADATA: Record<
   liquidity_ladder_breakout: {
     label: "Liquidity Ladder Breakout",
     shortLabel: "LLB",
+    family: "composite",
+    familyLabel: "Composite",
+  },
+  migration_auction_flip: {
+    label: "Migration Auction Flip",
+    shortLabel: "MAF",
+    family: "composite",
+    familyLabel: "Composite",
+  },
+  absorption_reload_continuation: {
+    label: "Absorption Reload Continuation",
+    shortLabel: "ARC",
+    family: "composite",
+    familyLabel: "Composite",
+  },
+  exhaustion_migration_reversal: {
+    label: "Exhaustion Migration Reversal",
+    shortLabel: "EMR",
     family: "composite",
     familyLabel: "Composite",
   },

@@ -2,7 +2,7 @@
 
 版本：V2.0 Source of Truth  
 状态：Active  
-更新日期：2026-03-07
+更新日期：2026-03-10
 
 ## 0. 文档定位
 
@@ -626,6 +626,12 @@ Signal Engine 当前为多因子连续评分模型。
 - `iceberg_bias`
 - `iceberg_strength`
 - `data_source`
+- `large_trades[]`
+
+说明：
+
+- `large_trades[]` 当前元素包含 `agg_trade_id / side / price / quantity / notional / trade_time`
+- 大单摘要会同步持久化到 `large_trade_events`
 
 ### 9.2.3 `microstructure_events`
 
@@ -687,6 +693,46 @@ Signal Engine 当前为多因子连续评分模型。
 - `entry_price`
 - `stop_loss`
 - `target_price`
+
+### 9.2.7 `large_trade_events`
+
+关键字段：
+
+- `orderflow_id`
+- `symbol`
+- `agg_trade_id`
+- `interval_type`
+- `open_time`
+- `side`
+- `price`
+- `quantity`
+- `notional`
+- `trade_time`
+
+用途：
+
+- 保存真实大单事件历史
+- 支持未来大单回放、聚类分析与时间轴查询
+
+### 9.2.8 `feature_snapshots`
+
+关键字段：
+
+- `symbol`
+- `interval_type`
+- `open_time`
+- `snapshot_source`
+- `feature_version`
+- `price`
+- `signal_action`
+- `signal_score`
+- `signal_confidence`
+- `snapshot_json`
+
+用途：
+
+- 保存 `market-snapshot` 的完整离线特征快照
+- 支持审计、训练前置与回测前上下文回放
 
 说明：
 
@@ -1010,22 +1056,22 @@ TTL：
 
 ## 17. 当前实现状态总结
 
-按当前项目实际能力判断：
+当前项目的 `Spot Analysis MVP` 主线开发已经完成。
 
-- 按“可演示 MVP”口径：约 `80%`
-- 按“完整交易研究终端”口径：约 `65% ~ 70%`
-
-已完成的关键能力：
+当前已完成的关键能力：
 
 - Spot SDK 接入
 - 聚合快照主链路
 - 多因子信号系统
 - 订单流大单与微结构事件
 - 结构事件与流动性时间序列
+- 高阶微结构模式与组合事件评分
+- `large_trade_events` 与 `feature_snapshots` 持久化
 - Market 页面与独立 AI Analysis 面板
-- Redis 快照缓存
-- 微结构历史持久化与图表标注
+- Redis 快照缓存与显式刷新
 - 基础自动化测试
+
+当前版本可作为研究型分析终端上线，但不包含 `Futures`、自动下单、回测平台和多交易所能力。
 
 ## 18. 后续路线图
 

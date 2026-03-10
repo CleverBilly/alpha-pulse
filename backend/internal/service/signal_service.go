@@ -65,7 +65,9 @@ type SignalService struct {
 	orderBookRepo   *repository.OrderBookSnapshotRepository
 	indicatorRepo   *repository.IndicatorRepository
 	signalRepo      *repository.SignalRepository
+	largeTradeRepo  *repository.LargeTradeEventRepository
 	microEventRepo  *repository.MicrostructureEventRepository
+	featureRepo     *repository.FeatureSnapshotRepository
 	snapshotCache   MarketSnapshotCache
 	snapshotTTL     time.Duration
 	viewCache       MarketSnapshotCache
@@ -87,7 +89,9 @@ func NewSignalService(
 	orderBookRepo *repository.OrderBookSnapshotRepository,
 	indicatorRepo *repository.IndicatorRepository,
 	signalRepo *repository.SignalRepository,
+	largeTradeRepo *repository.LargeTradeEventRepository,
 	microEventRepo *repository.MicrostructureEventRepository,
+	featureRepo *repository.FeatureSnapshotRepository,
 	snapshotCache MarketSnapshotCache,
 	snapshotTTL time.Duration,
 ) *SignalService {
@@ -105,7 +109,9 @@ func NewSignalService(
 		orderBookRepo:   orderBookRepo,
 		indicatorRepo:   indicatorRepo,
 		signalRepo:      signalRepo,
+		largeTradeRepo:  largeTradeRepo,
 		microEventRepo:  microEventRepo,
+		featureRepo:     featureRepo,
 		snapshotCache:   snapshotCache,
 		snapshotTTL:     snapshotTTL,
 	}
@@ -394,6 +400,10 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 			return MarketSnapshot{}, err
 		}
+		if err := persistLargeTradeEvents(s.largeTradeRepo, orderFlowResult); err != nil {
+			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
+			return MarketSnapshot{}, err
+		}
 		if err := persistMicrostructureEvents(s.microEventRepo, orderFlowResult); err != nil {
 			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 			return MarketSnapshot{}, err
@@ -434,7 +444,7 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 	}
 	logServiceDuration("signal_service", "market_snapshot.micro_history", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.Int("events", len(microstructureEvents)))
 
-	return MarketSnapshot{
+	snapshot := MarketSnapshot{
 		Price:                price,
 		Klines:               chartKlines,
 		Indicator:            indicatorResult,
@@ -447,7 +457,17 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 		LiquiditySeries:      liquiditySeries,
 		Signal:               signalResult,
 		SignalTimeline:       signalTimeline,
-	}, nil
+	}
+	if persist {
+		stageStartedAt = time.Now()
+		if err := persistFeatureSnapshot(s.featureRepo, snapshot); err != nil {
+			logServiceDuration("signal_service", "market_snapshot.feature_snapshot", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
+			return MarketSnapshot{}, err
+		}
+		logServiceDuration("signal_service", "market_snapshot.feature_snapshot", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.String("version", featureSnapshotVersion))
+	}
+
+	return snapshot, nil
 }
 
 // SetViewCache 为 signal-timeline 等视图接口配置缓存。

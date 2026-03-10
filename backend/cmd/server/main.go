@@ -82,7 +82,9 @@ func main() {
 	orderBookRepo := repository.NewOrderBookSnapshotRepository(db)
 	indicatorRepo := repository.NewIndicatorRepository(db)
 	signalRepo := repository.NewSignalRepository(db)
+	largeTradeRepo := repository.NewLargeTradeEventRepository(db)
 	microEventRepo := repository.NewMicrostructureEventRepository(db)
+	featureSnapshotRepo := repository.NewFeatureSnapshotRepository(db)
 
 	marketService := service.NewMarketService(
 		db,
@@ -95,6 +97,7 @@ func main() {
 		aggTradeRepo,
 		orderBookRepo,
 		indicatorRepo,
+		largeTradeRepo,
 		microEventRepo,
 	)
 	marketService.SetAnalysisCache(sharedCache, time.Duration(cfg.AnalysisCacheTTL)*time.Second)
@@ -114,7 +117,9 @@ func main() {
 		orderBookRepo,
 		indicatorRepo,
 		signalRepo,
+		largeTradeRepo,
 		microEventRepo,
+		featureSnapshotRepo,
 		sharedCache,
 		time.Duration(cfg.SnapshotCacheTTL)*time.Second,
 	)

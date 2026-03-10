@@ -200,6 +200,7 @@ Base URL：
 
 - 优先基于真实 `aggTrade` 计算
 - `aggTrade` 不足时回退到 OHLCV 估算
+- `large_trades[]` 元素包含 `agg_trade_id / side / price / quantity / notional / trade_time`
 - `microstructure_events[]` 表示当前订单流分析窗口内识别到的事件摘要
 
 ### 3.6 `GET /api/microstructure-events`
@@ -242,12 +243,17 @@ Base URL：
 - `failed_auction`
 - `failed_auction_high_reject`
 - `failed_auction_low_reclaim`
+- `iceberg_reload`
 - `initiative_shift`
+- `initiative_exhaustion`
 - `large_trade_cluster`
 - `order_book_migration`
 - `order_book_migration_layered`
 - `order_book_migration_accelerated`
 - `auction_trap_reversal`
+- `migration_auction_flip`
+- `absorption_reload_continuation`
+- `exhaustion_migration_reversal`
 - `liquidity_ladder_breakout`
 - `microstructure_confluence`
 

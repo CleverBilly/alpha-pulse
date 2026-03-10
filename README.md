@@ -2,6 +2,24 @@
 
 AI Crypto Trading Dashboard（BTC / ETH）
 
+## 当前状态
+
+当前仓库对应的版本已经完成 `Spot Analysis MVP` 主线开发，可作为现货研究型分析终端部署。
+
+当前上线范围：
+
+- `BTCUSDT / ETHUSDT`
+- `1m / 5m / 15m / 1h / 4h`
+- Dashboard / Chart / Signals / Market
+- 订单流、结构、流动性、信号、AI 解释统一快照分析
+
+当前不包含：
+
+- `Futures`
+- 自动下单
+- 回测平台
+- 多交易所接入
+
 ## Monorepo 结构
 
 - `backend`: Golang + Gin + GORM

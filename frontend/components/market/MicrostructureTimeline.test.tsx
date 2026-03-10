@@ -22,9 +22,10 @@ describe("MicrostructureTimeline", () => {
     expect(screen.getByText("Microstructure Timeline")).toBeInTheDocument();
     expect(screen.getByText("Net Score")).toBeInTheDocument();
     expect(screen.getAllByText("High Order").length).toBeGreaterThan(0);
-    expect(screen.getByText("Initiative Shift")).toBeInTheDocument();
+    expect(screen.getByText("Initiative Exhaustion")).toBeInTheDocument();
+    expect(screen.getByText("Iceberg Reload")).toBeInTheDocument();
     expect(screen.getByText("Microstructure Confluence")).toBeInTheDocument();
-    expect(screen.getByText("Large Trade Cluster")).toBeInTheDocument();
+    expect(screen.getByText("Exhaustion Migration Reversal")).toBeInTheDocument();
     expect(screen.getByText(/卖压被持续吸收/)).toBeInTheDocument();
     expect(screen.getAllByText("+5").length).toBeGreaterThan(0);
   });
@@ -39,10 +40,12 @@ describe("MicrostructureTimeline", () => {
 
     await user.click(screen.getAllByRole("button", { name: /Composite/i })[0]);
 
-    expect(screen.getByText(/失败拍卖后出现同向抛压确认/)).toBeInTheDocument();
+    expect(screen.getByText(/下方失败拍卖后挂单墙上移确认反转/)).toBeInTheDocument();
+    expect(screen.getByText(/吸收与补单维持后出现买方延续推进/)).toBeInTheDocument();
     expect(screen.getByText(/挂单墙迁移与主动买盘同向推进/)).toBeInTheDocument();
+    expect(screen.getByText(/主动卖盘耗尽后挂单墙上移确认反转/)).toBeInTheDocument();
     expect(screen.queryByText(/卖压被持续吸收/)).not.toBeInTheDocument();
-    expect(screen.queryByText("Initiative Shift")).not.toBeInTheDocument();
-    expect(screen.getByText("2 / 8 visible")).toBeInTheDocument();
+    expect(screen.queryByText("Initiative Exhaustion")).not.toBeInTheDocument();
+    expect(screen.getByText("4 / 8 visible")).toBeInTheDocument();
   });
 });

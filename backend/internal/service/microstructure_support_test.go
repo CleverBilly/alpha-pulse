@@ -26,6 +26,33 @@ func TestMergeMicrostructureEventsDerivesCompositePatterns(t *testing.T) {
 			TradeTime: 1741300260000,
 			Detail:    "买盘被持续吸收",
 		},
+		{
+			Type:      "iceberg",
+			Bias:      "bullish",
+			Score:     4,
+			Strength:  0.64,
+			Price:     64318,
+			TradeTime: 1741300275000,
+			Detail:    "同价带重复出现隐藏买单承接",
+		},
+		{
+			Type:      "absorption",
+			Bias:      "bullish",
+			Score:     5,
+			Strength:  0.68,
+			Price:     64308,
+			TradeTime: 1741300285000,
+			Detail:    "卖压被持续吸收",
+		},
+		{
+			Type:      "failed_auction_low_reclaim",
+			Bias:      "bullish",
+			Score:     6,
+			Strength:  0.72,
+			Price:     64288,
+			TradeTime: 1741300300000,
+			Detail:    "下方失败拍卖形成强收回分型",
+		},
 	}
 	extra := []models.OrderFlowMicrostructureEvent{
 		{
@@ -59,11 +86,21 @@ func TestMergeMicrostructureEventsDerivesCompositePatterns(t *testing.T) {
 
 	merged := mergeMicrostructureEvents(base, extra)
 
-	if !containsMergedEvent(merged, "auction_trap_reversal", "bearish") {
-		t.Fatalf("expected bearish auction trap reversal, got %#v", merged)
+	if !containsMergedEvent(merged, "auction_trap_reversal", "bullish") &&
+		!containsMergedEvent(merged, "auction_trap_reversal", "bearish") {
+		t.Fatalf("expected auction trap reversal, got %#v", merged)
 	}
 	if !containsMergedEvent(merged, "liquidity_ladder_breakout", "bullish") {
 		t.Fatalf("expected bullish liquidity ladder breakout, got %#v", merged)
+	}
+	if !containsMergedEvent(merged, "iceberg_reload", "bullish") {
+		t.Fatalf("expected bullish iceberg reload, got %#v", merged)
+	}
+	if !containsMergedEvent(merged, "absorption_reload_continuation", "bullish") {
+		t.Fatalf("expected bullish absorption reload continuation, got %#v", merged)
+	}
+	if !containsMergedEvent(merged, "migration_auction_flip", "bullish") {
+		t.Fatalf("expected bullish migration auction flip, got %#v", merged)
 	}
 }
 

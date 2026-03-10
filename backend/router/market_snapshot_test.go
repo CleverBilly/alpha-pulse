@@ -413,10 +413,33 @@ func TestMarketSnapshotEndpointPersistsAnalysisRowsAndAppliesFallbackLimit(t *te
 	assertCount(t, db, &models.Kline{}, "symbol = ? AND interval_type = ?", int64(expectedHistory), "ETHUSDT", "15m")
 	assertCount(t, db, &models.Indicator{}, "symbol = ?", 1, "ETHUSDT")
 	assertCount(t, db, &models.OrderFlow{}, "symbol = ?", 1, "ETHUSDT")
+	assertMinCount(t, db, &models.LargeTradeEvent{}, "symbol = ?", 1, "ETHUSDT")
 	assertMinCount(t, db, &models.MicrostructureEvent{}, "symbol = ? AND interval_type = ?", 1, "ETHUSDT", "15m")
 	assertCount(t, db, &models.Structure{}, "symbol = ?", 1, "ETHUSDT")
 	assertCount(t, db, &models.Liquidity{}, "symbol = ?", 1, "ETHUSDT")
 	assertCount(t, db, &models.Signal{}, "symbol = ?", 1, "ETHUSDT")
+	assertCount(t, db, &models.FeatureSnapshot{}, "symbol = ? AND interval_type = ?", 1, "ETHUSDT", "15m")
+
+	var latestLargeTrade models.LargeTradeEvent
+	if err := db.Where("symbol = ?", "ETHUSDT").Order("trade_time DESC, id DESC").First(&latestLargeTrade).Error; err != nil {
+		t.Fatalf("load latest large trade event failed: %v", err)
+	}
+	if latestLargeTrade.AggTradeID == 0 || latestLargeTrade.Notional <= 0 {
+		t.Fatalf("large trade event should preserve replay fields, got %+v", latestLargeTrade)
+	}
+
+	var latestFeatureSnapshot models.FeatureSnapshot
+	if err := db.Where("symbol = ? AND interval_type = ?", "ETHUSDT", "15m").First(&latestFeatureSnapshot).Error; err != nil {
+		t.Fatalf("load latest feature snapshot failed: %v", err)
+	}
+	if latestFeatureSnapshot.SignalAction == "" || latestFeatureSnapshot.SignalScore == 0 {
+		t.Fatalf("feature snapshot should preserve signal summary, got %+v", latestFeatureSnapshot)
+	}
+	var featurePayload map[string]any
+	if err := json.Unmarshal([]byte(latestFeatureSnapshot.SnapshotJSON), &featurePayload); err != nil {
+		t.Fatalf("unmarshal feature snapshot payload failed: %v", err)
+	}
+	assertJSONKeys(t, featurePayload, "price", "orderflow", "signal", "signal_timeline", "microstructure_events")
 }
 
 func TestMarketStructureEventsEndpointReturnsEventStream(t *testing.T) {
@@ -774,7 +797,9 @@ func newTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 	orderBookRepo := repository.NewOrderBookSnapshotRepository(db)
 	indicatorRepo := repository.NewIndicatorRepository(db)
 	signalRepo := repository.NewSignalRepository(db)
+	largeTradeRepo := repository.NewLargeTradeEventRepository(db)
 	microEventRepo := repository.NewMicrostructureEventRepository(db)
+	featureSnapshotRepo := repository.NewFeatureSnapshotRepository(db)
 
 	marketService := service.NewMarketService(
 		db,
@@ -787,6 +812,7 @@ func newTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 		aggTradeRepo,
 		orderBookRepo,
 		indicatorRepo,
+		largeTradeRepo,
 		microEventRepo,
 	)
 	signalService := service.NewSignalService(
@@ -803,7 +829,9 @@ func newTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 		orderBookRepo,
 		indicatorRepo,
 		signalRepo,
+		largeTradeRepo,
 		microEventRepo,
+		featureSnapshotRepo,
 		nil,
 		0,
 	)

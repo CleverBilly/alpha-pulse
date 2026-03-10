@@ -4,11 +4,12 @@ import "time"
 
 // OrderFlowLargeTrade 描述单笔大额成交事件。
 type OrderFlowLargeTrade struct {
-	Side      string  `json:"side"`
-	Price     float64 `json:"price"`
-	Quantity  float64 `json:"quantity"`
-	Notional  float64 `json:"notional"`
-	TradeTime int64   `json:"trade_time"`
+	AggTradeID int64   `json:"agg_trade_id,omitempty"`
+	Side       string  `json:"side"`
+	Price      float64 `json:"price"`
+	Quantity   float64 `json:"quantity"`
+	Notional   float64 `json:"notional"`
+	TradeTime  int64   `json:"trade_time"`
 }
 
 // OrderFlowMicrostructureEvent 描述最近成交流中识别到的微结构事件。

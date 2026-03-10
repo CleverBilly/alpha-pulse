@@ -462,6 +462,142 @@ func TestGenerateLiquidityLadderBreakoutAddsBonus(t *testing.T) {
 	}
 }
 
+func TestScoreMicrostructureSequenceReloadAndContinuationPatternsAddBonus(t *testing.T) {
+	baseScore, _ := scoreMicrostructureSequence([]models.OrderFlowMicrostructureEvent{
+		{
+			Type:      "iceberg",
+			Bias:      "bullish",
+			Score:     2,
+			Strength:  0.34,
+			Price:     64940,
+			TradeTime: 1741300000000,
+			Detail:    "同价带重复出现隐藏买单承接",
+		},
+		{
+			Type:      "large_trade_cluster",
+			Bias:      "bullish",
+			Score:     2,
+			Strength:  0.38,
+			Price:     64966,
+			TradeTime: 1741300060000,
+			Detail:    "连续卖方大单被市场吸收，承接强度提升",
+		},
+	})
+	withPatternsScore, withPatternReasons := scoreMicrostructureSequence([]models.OrderFlowMicrostructureEvent{
+		{
+			Type:      "iceberg",
+			Bias:      "bullish",
+			Score:     2,
+			Strength:  0.34,
+			Price:     64940,
+			TradeTime: 1741300000000,
+			Detail:    "同价带重复出现隐藏买单承接",
+		},
+		{
+			Type:      "large_trade_cluster",
+			Bias:      "bullish",
+			Score:     2,
+			Strength:  0.38,
+			Price:     64966,
+			TradeTime: 1741300060000,
+			Detail:    "连续卖方大单被市场吸收，承接强度提升",
+		},
+		{
+			Type:      "iceberg_reload",
+			Bias:      "bullish",
+			Score:     5,
+			Strength:  0.77,
+			Price:     64972,
+			TradeTime: 1741300120000,
+			Detail:    "隐藏买单反复补单并维持承接：iceberg + large_trade_cluster",
+		},
+		{
+			Type:      "absorption_reload_continuation",
+			Bias:      "bullish",
+			Score:     6,
+			Strength:  0.84,
+			Price:     64986,
+			TradeTime: 1741300180000,
+			Detail:    "吸收与补单维持后出现买方延续推进：iceberg_reload + large_trade_cluster",
+		},
+	})
+
+	if withPatternsScore <= baseScore {
+		t.Fatalf("expected reload continuation patterns to increase sequence score: base=%d with=%d", baseScore, withPatternsScore)
+	}
+	if !containsText(strings.Join(withPatternReasons, "；"), "补单") {
+		t.Fatalf("expected sequence reasons to mention 补单, got %#v", withPatternReasons)
+	}
+}
+
+func TestScoreMicrostructureSequenceExhaustionMigrationReversalAddsBonus(t *testing.T) {
+	baseScore, _ := scoreMicrostructureSequence([]models.OrderFlowMicrostructureEvent{
+		{
+			Type:      "failed_auction_low_reclaim",
+			Bias:      "bullish",
+			Score:     3,
+			Strength:  0.41,
+			Price:     64620,
+			TradeTime: 1741300000000,
+			Detail:    "下方失败拍卖形成强收回分型",
+		},
+		{
+			Type:      "order_book_migration_layered",
+			Bias:      "bullish",
+			Score:     2,
+			Strength:  0.35,
+			Price:     64642,
+			TradeTime: 1741300060000,
+			Detail:    "买方挂单墙连续多层上移",
+		},
+	})
+	withPatternScore, withPatternReasons := scoreMicrostructureSequence([]models.OrderFlowMicrostructureEvent{
+		{
+			Type:      "failed_auction_low_reclaim",
+			Bias:      "bullish",
+			Score:     3,
+			Strength:  0.41,
+			Price:     64620,
+			TradeTime: 1741300000000,
+			Detail:    "下方失败拍卖形成强收回分型",
+		},
+		{
+			Type:      "order_book_migration_layered",
+			Bias:      "bullish",
+			Score:     2,
+			Strength:  0.35,
+			Price:     64642,
+			TradeTime: 1741300060000,
+			Detail:    "买方挂单墙连续多层上移",
+		},
+		{
+			Type:      "initiative_exhaustion",
+			Bias:      "bullish",
+			Score:     5,
+			Strength:  0.81,
+			Price:     64655,
+			TradeTime: 1741300120000,
+			Detail:    "前序主动卖盘衰竭，随后出现买方收回：aggression_burst -> failed_auction_low_reclaim + absorption",
+		},
+		{
+			Type:      "exhaustion_migration_reversal",
+			Bias:      "bullish",
+			Score:     7,
+			Strength:  0.88,
+			Price:     64678,
+			TradeTime: 1741300240000,
+			Detail:    "主动卖盘耗尽后挂单墙上移确认反转：initiative_exhaustion + order_book_migration_layered",
+		},
+	})
+
+	if withPatternScore <= baseScore {
+		t.Fatalf("expected exhaustion migration reversal to increase sequence score: base=%d with=%d", baseScore, withPatternScore)
+	}
+	if !containsText(strings.Join(withPatternReasons, "；"), "主动盘") && !containsText(strings.Join(withPatternReasons, "；"), "挂单墙") {
+		t.Fatalf("expected sequence reasons to mention exhaustion or migration, got %#v", withPatternReasons)
+	}
+}
+
 func TestGenerateReturnsSellSignalForBearishConfluence(t *testing.T) {
 	engine := NewEngine()
 

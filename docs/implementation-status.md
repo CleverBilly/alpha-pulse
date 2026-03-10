@@ -1,249 +1,152 @@
-# Alpha Pulse 实现现状盘点
+# Alpha Pulse 实现现状与上线结论
 
-更新时间：2026-03-07  
+更新时间：2026-03-10  
 状态：与当前代码、测试和文档基线同步
 
 ## 1. 结论
 
-当前项目已经不是“项目骨架”，而是一个可运行的分析型交易终端 MVP。
+当前系统已经完成 `Spot Analysis MVP` 主线开发。
 
-按当前能力评估：
+如果目标是以下场景：
 
-- 按“可演示 MVP”口径：约 `80% ~ 85%`
-- 按“完整交易研究终端”口径：约 `65% ~ 70%`
+- 内部部署
+- 研究型分析终端
+- 演示与灰度上线
+- 现货市场的观察和辅助决策
 
-## 2. 当前总体完成度
+那么当前版本已经可上线。
 
-### 已完成
+如果目标是以下场景：
+
+- `Futures` 数据分析
+- 自动交易
+- 回测平台
+- 多交易所统一研究平台
+- 高频订单簿逐笔重建
+
+那么当前版本不属于“开发完成”，这些是明确延后的扩边方向。
+
+## 2. 项目已完成项
+
+### 2.1 总体能力
 
 - Monorepo 基础结构
 - Backend 分层架构
-- Binance SDK 接入
+- Binance Spot SDK 接入
 - Spot 数据链路
 - REST + WebSocket 混合采集
 - MySQL / Redis / Docker 基础接入
+- `market-snapshot` 聚合接口
+- `dev / test / prod` 运行模式
+
+### 2.2 分析引擎
+
 - Indicator Engine
-- Order Flow Engine 真实成交优先版本
-- Structure Engine 结构事件版
-- Liquidity Engine 盘口增强版
-- Signal Engine 多因子评分模型
-- AI Explain Engine
-- `GET /api/market-snapshot`
-- Dashboard / Chart / Signals / Market 页面
-- 结构 / 流动性 / 信号 / 微结构图层标注
-- 组件测试与主路径 E2E
+- Order Flow Engine 真实成交优先版
+- Large Trades 检测
+- 微结构事件序列识别
+- 更高阶微结构模式与组合评分
+- Structure Engine：`internal / external` hierarchy
+- Liquidity Engine：wall map / wall strength bands / wall evolution
+- Signal Engine 多因子连续评分
+- AI Explain Engine 基础版
 
-### 未完成但明确不属于当前主线
+### 2.3 数据与持久化
 
-- Futures Funding / Open Interest
-- 自动交易
-- 回测系统
-- 多交易所接入
-- 完整高频订单簿重放
+- 原始表：`kline / agg_trades / order_book_snapshots`
+- 分析表：`indicators / orderflow / microstructure_events / structure / liquidity / signals`
+- 扩展表：`large_trade_events / feature_snapshots`
+- 顶层快照、微结构事件、大单事件、信号时间线均已进入统一分析主链路
 
-## 3. 模块对照
-
-| 模块 | 当前状态 | 说明 |
-| --- | --- | --- |
-| Binance Spot 数据接入 | 已完成 | 采用 `go-binance/v2`，已支持 REST 与基础 WebSocket |
-| Binance Futures 数据接入 | 未开始 | 不在当前主线范围 |
-| 币种切换 | 已完成 | 当前支持 `BTCUSDT`、`ETHUSDT` |
-| 周期切换 | 已完成 | 当前支持 `1m / 5m / 15m / 1h / 4h` |
-| Indicator Engine | 已完成 | 最新值与序列均已可用 |
-| Order Flow Engine | 已完成增强版 | 真实 `aggTrade` 优先，支持 large trades 与微结构事件 |
-| 微结构事件持久化 | 已完成 | `microstructure_events` 已落库并可查询 |
-| Structure Engine | 已完成增强版 | 支持 internal / external swing hierarchy、HH/HL/LH/LL/BOS/CHOCH 与序列接口 |
-| Liquidity Engine | 已完成增强版 | 支持盘口失衡、equal high/low、stop clusters、细粒度 wall map、wall strength bands 与跨周期 wall 演化 |
-| Signal Engine | 已完成增强版 | 7 因子连续评分模型 |
-| AI Explain Engine | 已完成基础版 | 基于规则模板输出中文解释 |
-| 聚合快照接口 | 已完成 | 当前前端主接口 |
-| Dashboard 页面 | 已完成 | 主分析工作台 |
-| Chart 页面 | 已完成 | 图表分析与多图层标注 |
-| Signals 页面 | 已完成 | SignalCard + AI Analysis |
-| Market 页面 | 已完成基础版 | 市场概览、关键价位、信号带 |
-| Redis 缓存 | 已完成增强版 | 已覆盖 `market-snapshot / signal-timeline / indicator-series / liquidity-series`，并支持 symbol 级全周期失效与 `refresh=1` 绕过缓存 |
-| Runtime Modes | 已完成基础版 | 已区分 `dev / test / prod`，并接入 Gin mode、自动迁移、后台任务和 mock fallback 开关 |
-| 后端测试 | 已完成基础版 | 引擎测试、缓存测试、路由测试已具备 |
-| 前端组件测试 | 已完成基础版 | 关键组件已覆盖 |
-| 前端 E2E | 已完成基础版 | 主路径和异常态已覆盖 |
-
-## 4. 后端完成情况
-
-### 4.1 数据层
-
-已落地原始数据表：
-
-- `kline`
-- `agg_trades`
-- `order_book_snapshots`
-
-已落地分析结果表：
-
-- `indicators`
-- `orderflow`
-- `microstructure_events`
-- `structure`
-- `liquidity`
-- `signals`
-
-### 4.2 服务层
-
-已完成主要服务：
-
-- `MarketService`
-- `SignalService`
-
-其中：
-
-- `SignalService.buildMarketSnapshot` 已成为主装配入口
-- `market-snapshot` 已集成指标序列、结构序列、流动性序列、信号时间线和微结构历史序列
-
-### 4.3 路由层
-
-当前对外 API 已覆盖：
-
-- `price`
-- `kline`
-- `indicators`
-- `indicator-series`
-- `orderflow`
-- `microstructure-events`
-- `structure`
-- `market-structure-events`
-- `market-structure-series`
-- `liquidity`
-- `liquidity-map`
-- `liquidity-series`
-- `signal`
-- `signal-timeline`
-- `market-snapshot`
-
-## 5. 前端完成情况
-
-### 5.1 页面
-
-已完成页面：
+### 2.4 前端与交互
 
 - `/dashboard`
 - `/chart`
 - `/signals`
 - `/market`
-
-### 5.2 图表
-
-`KlineChart` 当前已支持：
-
-- 多根蜡烛图
-- 指标线
-- 结构点标注
-- 流动性轨迹
-- 历史信号点
-- Entry / Target / Stop 水平线
-- 微结构事件标注：`ABS / ICE / AGR / FAU / FAH / FAL / OBM / OBL / OBA / MCF`
-- 配置驱动的次级微结构图层开关：`initiative_shift / large_trade_cluster / failed_auction / order_book_migration / microstructure_confluence`
-- 微结构事件 tooltip：`type / bias / score / strength / detail`
-
-### 5.3 面板
-
-已完成组件：
-
-- `PriceTicker`
-- `SignalCard`
-- `OrderFlowPanel`
-- `LiquidityPanel`
-  - 支持 bid / ask 分层 wall map、wall strength bands 与跨周期 wall 演化展示
-- `KlineChart`
-  - 支持 structure hierarchy：主层级与 internal support / resistance 同图表达
+- `BTCUSDT / ETHUSDT` 切换
+- `1m / 5m / 15m / 1h / 4h` 周期切换
+- K 线、结构、流动性、信号、微结构图层
+- `Microstructure Timeline`
 - `AIAnalysisPanel`
-- `MarketOverviewBoard`
-- `MarketLevelsBoard`
-- `SignalTape`
-- `MicrostructureTimeline`
-  - 支持事件家族过滤、摘要统计和高阶事件高亮
 
-## 6. 测试完成情况
+### 2.5 质量与稳定性
 
-### 6.1 Backend
+- 后端引擎测试
+- 路由集成测试
+- 缓存测试与缓存失效测试
+- `market-snapshot` JSON 契约测试
+- 前端组件测试
+- Playwright 主路径与异常态测试
+- 当前代码基线已通过 `go test ./...`
+- 当前代码基线已通过 `npm test`
+- 当前代码基线已通过 `npm run build`
 
-已覆盖：
+## 3. 当前可上线项
 
-- Indicator Engine
-- Order Flow Engine
-- Structure Engine
-- Liquidity Engine
-- Signal Engine
-- Market Snapshot 路由
-- Snapshot Cache 行为
-- Analysis View Cache 行为
-- 缓存失效策略
-- `market-snapshot` JSON 契约
-- 统一耗时日志
+### 3.1 可上线范围
 
-### 6.2 Frontend
+当前可直接上线的系统边界是：
 
-组件测试已覆盖：
+- `BTCUSDT / ETHUSDT` 现货分析
+- 统一 `market-snapshot` 驱动的前端工作台
+- 图表、信号、订单流、结构、流动性与 AI 解释联动展示
+- Redis 热点缓存与显式刷新
+- `large_trade_events` / `feature_snapshots` 后台持久化
 
-- `PriceTicker`
-- `OrderFlowPanel`
-- `SignalCard`
-- `AIAnalysisPanel`
-- `KlineChart`
-- `MicrostructureTimeline`
+### 3.2 上线条件
 
-E2E 已覆盖：
+建议按以下口径上线：
 
-- Dashboard 主路径
-- Signals 页面
-- Market 页面
-- 接口失败
-- 弱网加载
-- 切币
-- 手动刷新
+1. 使用 `APP_MODE=prod`
+2. 使用真实 MySQL / Redis / Binance 连接
+3. 保持 `ALLOW_MOCK_BINANCE_DATA=false`
+4. 继续以 `market-snapshot` 作为前端主接口
 
-### 6.3 当前验证结果
+### 3.3 上线预期
 
-当前代码基线下已验证通过：
+当前版本适合作为：
 
-- `go test ./...`
-- `npm test`
-- `npm run build`
+- 研究终端
+- 内部分析平台
+- 演示环境
+- 辅助决策看盘工具
 
-## 7. 当前最重要的能力边界
+当前版本不应被描述为：
 
-### 当前已具备
+- 自动交易平台
+- 完整量化研究平台
+- 多资产 / 多交易所中台
 
-- 真实成交优先的订单流
-- 盘口增强流动性分析
-- 多因子信号解释
-- 微结构事件持久化与图表展示
-- 微结构时间线卡片、事件过滤与图表 tooltip
-- 多端点 Redis 缓存、symbol 级失效与显式刷新
-- `dev / test / prod` 运行模式与启动期开关
-- Liquidity Engine 细粒度 wall map / wall strength bands / 跨周期 wall 演化
-- Structure Engine internal / external swing hierarchy
-- 高阶微结构模式：连续吸收、失败拍卖扩展型、挂单迁移分层、失败拍卖陷阱反转、流动性阶梯突破、组合事件评分
-- Collector / fallback / engine stage 统一耗时日志
-- 页面级统一快照驱动
+## 4. 后续增强项
 
-### 当前仍缺失
+### 4.1 近期待增强
 
-- Futures 数据域
-- 大单事件独立持久化表
-- 更丰富的高阶微结构模式库
-- 更细粒度的可观测性与缓存分层
+- 围绕 `large_trade_events` 增加查询、导出与回放链路
+- 围绕 `feature_snapshots` 增加检索、导出与训练前置链路
+- 在统一耗时日志之上补 metrics / monitoring
+- 评估部分分析序列是否需要单独落表或冷存储
 
-## 8. 当前主要风险与技术债
+### 4.2 明确延后
 
-1. 指标/结构/流动性序列没有单独落表，重算成本仍在服务端承担
-2. 盘口仍是快照增强分析，不是完整 order book replay
+- `Futures`：Funding / Open Interest / Futures 因子
+- 自动下单
+- 回测平台
+- 用户系统 / 权限系统
+- 多交易所接入
+- 完整高频订单簿重放
+
+## 5. 当前主要技术债
+
+1. 指标、结构、流动性序列仍以实时计算和缓存为主，未全面落表
+2. 盘口分析仍是快照增强，不是完整 order book replay
 3. Explain Engine 仍是规则模板，不是独立模型服务
 4. 当前已有统一耗时日志，但仍缺少 metrics 指标沉淀与监控面板
 
-## 9. 推荐下一步
+## 6. 后续文档口径
 
-当前最合理的下一阶段方向：
+后续文档默认遵守以下口径：
 
-1. 继续扩展更高阶微结构模式库
-2. 按需继续扩展更高阶微结构模式库
-3. 为日志继续接入 metrics/monitoring，并考虑 `feature_snapshots`
-4. 如果要继续扩数据域，再单独开 Futures 方向，不要和当前 Spot 主链路混改
+1. 当前系统已完成 `Spot Analysis MVP`
+2. `Futures` 与自动交易类能力不属于当前完成范围
+3. 后续工作以“增强项”或“扩边项”表达，不再表述为主线未完成

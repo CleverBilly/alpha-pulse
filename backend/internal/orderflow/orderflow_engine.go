@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,7 +21,7 @@ const (
 	aggregationWindow     = 6
 	largeTradeThreshold   = 100000.0
 	maxLargeTradeEvents   = 8
-	maxMicroEvents        = 14
+	maxMicroEvents        = 18
 	icebergBucketPct      = 0.00025
 	icebergPriceDriftPct  = 0.0015
 	aggressionWindow      = 20
@@ -214,11 +215,12 @@ func (e *Engine) AnalyzeOrderBookMicrostructure(_ string, snapshots []models.Ord
 
 func appendLargeTradeEvent(events []models.OrderFlowLargeTrade, trade models.AggTrade, side string) []models.OrderFlowLargeTrade {
 	event := models.OrderFlowLargeTrade{
-		Side:      side,
-		Price:     roundFloat(trade.Price, 8),
-		Quantity:  roundFloat(trade.Quantity, 8),
-		Notional:  roundFloat(trade.QuoteQuantity, 8),
-		TradeTime: trade.TradeTime,
+		AggTradeID: trade.AggTradeID,
+		Side:       side,
+		Price:      roundFloat(trade.Price, 8),
+		Quantity:   roundFloat(trade.Quantity, 8),
+		Notional:   roundFloat(trade.QuoteQuantity, 8),
+		TradeTime:  trade.TradeTime,
 	}
 
 	events = append(events, event)
@@ -350,6 +352,9 @@ func buildMicrostructureEvents(
 	}
 	if event, ok := detectMicrostructureConfluence(events); ok {
 		events = append(events, event)
+	}
+	if derived := DeriveCompositeMicrostructureEvents(events); len(derived) > 0 {
+		events = append(events, derived...)
 	}
 
 	sort.Slice(events, func(i, j int) bool {
@@ -842,18 +847,95 @@ func DeriveCompositeMicrostructureEvents(
 	})
 
 	recent := sorted
-	if len(recent) > 8 {
-		recent = recent[len(recent)-8:]
+	if len(recent) > 10 {
+		recent = recent[len(recent)-10:]
 	}
 
-	derived := make([]models.OrderFlowMicrostructureEvent, 0, 2)
-	if event, ok := detectAuctionTrapReversal(recent); ok {
+	working := make([]models.OrderFlowMicrostructureEvent, len(recent))
+	copy(working, recent)
+
+	derived := make([]models.OrderFlowMicrostructureEvent, 0, 7)
+	seen := make(map[string]struct{}, 7)
+	appendDerived := func(event models.OrderFlowMicrostructureEvent, ok bool) {
+		if !ok {
+			return
+		}
+		key := compositeEventKey(event)
+		if _, exists := seen[key]; exists {
+			return
+		}
+		seen[key] = struct{}{}
 		derived = append(derived, event)
+		working = append(working, event)
 	}
-	if event, ok := detectLiquidityLadderBreakout(recent); ok {
-		derived = append(derived, event)
-	}
+
+	appendDerived(detectIcebergReload(working))
+	appendDerived(detectInitiativeExhaustion(working))
+
+	sort.Slice(working, func(i, j int) bool {
+		if working[i].TradeTime == working[j].TradeTime {
+			if working[i].Score == working[j].Score {
+				return working[i].Type < working[j].Type
+			}
+			return working[i].Score < working[j].Score
+		}
+		return working[i].TradeTime < working[j].TradeTime
+	})
+
+	appendDerived(detectAuctionTrapReversal(working))
+	appendDerived(detectLiquidityLadderBreakout(working))
+	appendDerived(detectMigrationAuctionFlip(working))
+	appendDerived(detectAbsorptionReloadContinuation(working))
+	appendDerived(detectExhaustionMigrationReversal(working))
 	return derived
+}
+
+func detectIcebergReload(events []models.OrderFlowMicrostructureEvent) (models.OrderFlowMicrostructureEvent, bool) {
+	bullishEvent, bullishOK := buildCompositeCandidate(
+		events,
+		"bullish",
+		icebergReloadBaseTypes,
+		icebergReloadConfirmTypes,
+		"iceberg_reload",
+		5,
+		8.5,
+		14,
+		"隐藏买单反复补单并维持承接",
+	)
+	bearishEvent, bearishOK := buildCompositeCandidate(
+		events,
+		"bearish",
+		icebergReloadBaseTypes,
+		icebergReloadConfirmTypes,
+		"iceberg_reload",
+		-5,
+		8.5,
+		14,
+		"隐藏卖单反复补单并维持压制",
+	)
+	return selectStrongerCompositeCandidate(bullishEvent, bullishOK, bearishEvent, bearishOK)
+}
+
+func detectInitiativeExhaustion(events []models.OrderFlowMicrostructureEvent) (models.OrderFlowMicrostructureEvent, bool) {
+	bullishEvent, bullishOK := buildInitiativeExhaustionCandidate(
+		events,
+		"bullish",
+		"bearish",
+		5,
+		9.5,
+		16,
+		"前序主动卖盘衰竭，随后出现买方收回",
+	)
+	bearishEvent, bearishOK := buildInitiativeExhaustionCandidate(
+		events,
+		"bearish",
+		"bullish",
+		-5,
+		9.5,
+		16,
+		"前序主动买盘衰竭，随后出现卖方反压",
+	)
+	return selectStrongerCompositeCandidate(bullishEvent, bullishOK, bearishEvent, bearishOK)
 }
 
 func detectAuctionTrapReversal(events []models.OrderFlowMicrostructureEvent) (models.OrderFlowMicrostructureEvent, bool) {
@@ -878,6 +960,32 @@ func detectAuctionTrapReversal(events []models.OrderFlowMicrostructureEvent) (mo
 		9.5,
 		15,
 		"失败拍卖后出现同向抛压确认",
+	)
+	return selectStrongerCompositeCandidate(bullishEvent, bullishOK, bearishEvent, bearishOK)
+}
+
+func detectMigrationAuctionFlip(events []models.OrderFlowMicrostructureEvent) (models.OrderFlowMicrostructureEvent, bool) {
+	bullishEvent, bullishOK := buildCompositeCandidate(
+		events,
+		"bullish",
+		auctionTrapBaseTypes,
+		migrationBaseTypes,
+		"migration_auction_flip",
+		6,
+		10.25,
+		16,
+		"下方失败拍卖后挂单墙上移确认反转",
+	)
+	bearishEvent, bearishOK := buildCompositeCandidate(
+		events,
+		"bearish",
+		auctionTrapBaseTypes,
+		migrationBaseTypes,
+		"migration_auction_flip",
+		-6,
+		10.25,
+		16,
+		"上方失败拍卖后挂单墙下移确认反转",
 	)
 	return selectStrongerCompositeCandidate(bullishEvent, bullishOK, bearishEvent, bearishOK)
 }
@@ -908,6 +1016,97 @@ func detectLiquidityLadderBreakout(events []models.OrderFlowMicrostructureEvent)
 	return selectStrongerCompositeCandidate(bullishEvent, bullishOK, bearishEvent, bearishOK)
 }
 
+func detectAbsorptionReloadContinuation(events []models.OrderFlowMicrostructureEvent) (models.OrderFlowMicrostructureEvent, bool) {
+	bullishEvent, bullishOK := buildCompositeCandidate(
+		events,
+		"bullish",
+		reloadContinuationBaseTypes,
+		executionDriveTypes,
+		"absorption_reload_continuation",
+		6,
+		9.8,
+		15.5,
+		"吸收与补单维持后出现买方延续推进",
+	)
+	bearishEvent, bearishOK := buildCompositeCandidate(
+		events,
+		"bearish",
+		reloadContinuationBaseTypes,
+		executionDriveTypes,
+		"absorption_reload_continuation",
+		-6,
+		9.8,
+		15.5,
+		"吸收与补单维持后出现卖方延续推进",
+	)
+	return selectStrongerCompositeCandidate(bullishEvent, bullishOK, bearishEvent, bearishOK)
+}
+
+func detectExhaustionMigrationReversal(events []models.OrderFlowMicrostructureEvent) (models.OrderFlowMicrostructureEvent, bool) {
+	bullishEvent, bullishOK := buildCompositeCandidate(
+		events,
+		"bullish",
+		initiativeExhaustionTypes,
+		migrationBaseTypes,
+		"exhaustion_migration_reversal",
+		7,
+		10.6,
+		16.5,
+		"主动卖盘耗尽后挂单墙上移确认反转",
+	)
+	bearishEvent, bearishOK := buildCompositeCandidate(
+		events,
+		"bearish",
+		initiativeExhaustionTypes,
+		migrationBaseTypes,
+		"exhaustion_migration_reversal",
+		-7,
+		10.6,
+		16.5,
+		"主动买盘耗尽后挂单墙下移确认反转",
+	)
+	return selectStrongerCompositeCandidate(bullishEvent, bullishOK, bearishEvent, bearishOK)
+}
+
+func buildInitiativeExhaustionCandidate(
+	events []models.OrderFlowMicrostructureEvent,
+	bias, exhaustedBias string,
+	score int,
+	minScore, normalizeBy float64,
+	prefix string,
+) (models.OrderFlowMicrostructureEvent, bool) {
+	pressureMatches, pressureScore := collectCompositeMatches(events, exhaustedBias, exhaustionPressureTypes)
+	recoveryMatches, recoveryScore := collectCompositeMatches(events, bias, exhaustionRecoveryTypes)
+	if len(pressureMatches) == 0 || len(recoveryMatches) == 0 {
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+
+	latestPressure := latestCompositeEvent(events, exhaustedBias, pressureMatches)
+	latestRecovery := latestCompositeEvent(events, bias, recoveryMatches)
+	if latestRecovery.TradeTime <= latestPressure.TradeTime {
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+
+	totalScore := pressureScore*0.72 + recoveryScore
+	if totalScore < minScore {
+		return models.OrderFlowMicrostructureEvent{}, false
+	}
+
+	detailParts := []string{
+		strings.Join(pressureMatches, " + "),
+		strings.Join(recoveryMatches, " + "),
+	}
+	return models.OrderFlowMicrostructureEvent{
+		Type:      "initiative_exhaustion",
+		Bias:      bias,
+		Score:     score,
+		Strength:  roundFloat(clamp(totalScore/normalizeBy, 0, 1), 6),
+		Price:     roundFloat(latestRecovery.Price, 8),
+		TradeTime: latestRecovery.TradeTime,
+		Detail:    prefix + "：" + strings.Join(detailParts, " -> "),
+	}, true
+}
+
 func buildCompositeCandidate(
 	events []models.OrderFlowMicrostructureEvent,
 	bias string,
@@ -928,12 +1127,7 @@ func buildCompositeCandidate(
 		return models.OrderFlowMicrostructureEvent{}, false
 	}
 
-	combinedTypes := append([]string{}, baseMatches...)
-	for _, match := range confirmMatches {
-		if !containsString(combinedTypes, match) {
-			combinedTypes = append(combinedTypes, match)
-		}
-	}
+	combinedTypes := mergeCompositeMatchTypes(baseMatches, confirmMatches)
 
 	latest := latestCompositeEvent(events, bias, combinedTypes)
 	return models.OrderFlowMicrostructureEvent{
@@ -945,6 +1139,18 @@ func buildCompositeCandidate(
 		TradeTime: latest.TradeTime,
 		Detail:    prefix + "：" + strings.Join(combinedTypes, " + "),
 	}, true
+}
+
+func mergeCompositeMatchTypes(groups ...[]string) []string {
+	combined := make([]string, 0)
+	for _, group := range groups {
+		for _, match := range group {
+			if !containsString(combined, match) {
+				combined = append(combined, match)
+			}
+		}
+	}
+	return combined
 }
 
 func collectCompositeMatches(
@@ -978,12 +1184,14 @@ func latestCompositeEvent(
 	types []string,
 ) models.OrderFlowMicrostructureEvent {
 	latest := events[len(events)-1]
+	found := false
 	for _, event := range events {
 		if event.Bias != bias || !containsString(types, event.Type) {
 			continue
 		}
-		if event.TradeTime >= latest.TradeTime {
+		if !found || event.TradeTime >= latest.TradeTime {
 			latest = event
+			found = true
 		}
 	}
 	return latest
@@ -1016,13 +1224,18 @@ func selectStrongerCompositeCandidate(
 func isHighOrderMicrostructureEvent(eventType string) bool {
 	switch eventType {
 	case "continuous_absorption",
+		"absorption_reload_continuation",
 		"auction_trap_reversal",
+		"exhaustion_migration_reversal",
 		"failed_auction",
 		"failed_auction_high_reject",
 		"failed_auction_low_reclaim",
+		"iceberg_reload",
 		"initiative_shift",
+		"initiative_exhaustion",
 		"liquidity_ladder_breakout",
 		"large_trade_cluster",
+		"migration_auction_flip",
 		"order_book_migration",
 		"order_book_migration_layered",
 		"order_book_migration_accelerated":
@@ -1042,6 +1255,7 @@ var auctionTrapConfirmTypes = map[string]struct{}{
 	"absorption":            {},
 	"continuous_absorption": {},
 	"iceberg":               {},
+	"iceberg_reload":        {},
 	"large_trade_cluster":   {},
 }
 
@@ -1057,6 +1271,41 @@ var executionDriveTypes = map[string]struct{}{
 	"large_trade_cluster": {},
 }
 
+var icebergReloadBaseTypes = map[string]struct{}{
+	"iceberg": {},
+}
+
+var icebergReloadConfirmTypes = map[string]struct{}{
+	"absorption":            {},
+	"continuous_absorption": {},
+	"large_trade_cluster":   {},
+}
+
+var exhaustionPressureTypes = map[string]struct{}{
+	"aggression_burst":    {},
+	"initiative_shift":    {},
+	"large_trade_cluster": {},
+}
+
+var exhaustionRecoveryTypes = map[string]struct{}{
+	"absorption":                       {},
+	"continuous_absorption":            {},
+	"failed_auction":                   {},
+	"failed_auction_high_reject":       {},
+	"failed_auction_low_reclaim":       {},
+	"order_book_migration":             {},
+	"order_book_migration_layered":     {},
+	"order_book_migration_accelerated": {},
+}
+
+var reloadContinuationBaseTypes = map[string]struct{}{
+	"iceberg_reload": {},
+}
+
+var initiativeExhaustionTypes = map[string]struct{}{
+	"initiative_exhaustion": {},
+}
+
 func containsString(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {
@@ -1064,6 +1313,13 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func compositeEventKey(event models.OrderFlowMicrostructureEvent) string {
+	return event.Type +
+		"|" + event.Bias +
+		"|" + strconv.FormatInt(event.TradeTime, 10) +
+		"|" + strconv.FormatFloat(event.Price, 'f', 8, 64)
 }
 
 func calculateNotionalDeltaRatio(trades []models.AggTrade) float64 {

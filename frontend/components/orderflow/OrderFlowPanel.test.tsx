@@ -23,6 +23,6 @@ describe("OrderFlowPanel", () => {
     expect(screen.getAllByText("Absorption").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Iceberg").length).toBeGreaterThan(0);
     expect(screen.getByText(/卖压被持续吸收/)).toBeInTheDocument();
-    expect(screen.getByText(/连续卖方大单被市场吸收/)).toBeInTheDocument();
+    expect(screen.getByText(/主动卖盘耗尽后挂单墙上移确认反转/)).toBeInTheDocument();
   });
 });

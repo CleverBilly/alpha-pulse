@@ -34,10 +34,15 @@ describe("KlineChart", () => {
     expect(screen.getByText("AGR")).toBeInTheDocument();
     expect(screen.queryByText("SHF")).not.toBeInTheDocument();
     expect(screen.queryByText("LTC")).not.toBeInTheDocument();
+    expect(screen.queryByText("IRL")).not.toBeInTheDocument();
+    expect(screen.queryByText("IEX")).not.toBeInTheDocument();
     expect(screen.queryByText("FAH")).not.toBeInTheDocument();
     expect(screen.queryByText("OBL")).not.toBeInTheDocument();
     expect(screen.queryByText("TRP")).not.toBeInTheDocument();
     expect(screen.queryByText("LLB")).not.toBeInTheDocument();
+    expect(screen.queryByText("MAF")).not.toBeInTheDocument();
+    expect(screen.queryByText("ARC")).not.toBeInTheDocument();
+    expect(screen.queryByText("EMR")).not.toBeInTheDocument();
     expect(screen.queryByText("MCF")).not.toBeInTheDocument();
     expect(screen.getByText("Events")).toBeInTheDocument();
     expect(screen.getByText("Struct Tier")).toBeInTheDocument();
@@ -46,6 +51,7 @@ describe("KlineChart", () => {
 
     await user.click(screen.getByRole("button", { name: "Initiative Shift" }));
     await user.click(screen.getByRole("button", { name: "Large Trade Cluster" }));
+    await user.click(screen.getByRole("button", { name: "Reload / Exhaustion" }));
     await user.click(screen.getByRole("button", { name: "Failed Auction" }));
     await user.click(screen.getByRole("button", { name: "Order Book Migration" }));
     await user.click(screen.getByRole("button", { name: "Composite Patterns" }));
@@ -53,10 +59,15 @@ describe("KlineChart", () => {
 
     expect(screen.getByText("SHF")).toBeInTheDocument();
     expect(screen.getByText("LTC")).toBeInTheDocument();
+    expect(screen.getByText("IRL")).toBeInTheDocument();
+    expect(screen.getByText("IEX")).toBeInTheDocument();
     expect(screen.getByText("FAH")).toBeInTheDocument();
     expect(screen.getByText("OBL")).toBeInTheDocument();
     expect(screen.getByText("TRP")).toBeInTheDocument();
     expect(screen.getByText("LLB")).toBeInTheDocument();
+    expect(screen.getByText("MAF")).toBeInTheDocument();
+    expect(screen.getByText("ARC")).toBeInTheDocument();
+    expect(screen.getByText("EMR")).toBeInTheDocument();
     expect(screen.getByText("MCF")).toBeInTheDocument();
 
     await user.hover(screen.getByRole("button", { name: "Micro ABS Absorption" }));

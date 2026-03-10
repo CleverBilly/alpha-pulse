@@ -198,8 +198,36 @@
 
 说明：
 
-- `large_trades[]` 是当前窗口摘要，不是独立持久化事件表
+- `large_trades[]` 是当前窗口摘要，元素包含 `agg_trade_id / side / price / quantity / notional / trade_time`
+- 大单事件会同步映射写入 `large_trade_events` 表
 - `microstructure_events[]` 会在持久化时映射写入 `microstructure_events` 表
+
+## 4.5.1 `large_trade_events`
+
+用途：
+
+- 持久化真实大单事件
+- 支持未来大单历史回放、聚类分析与时间轴重建
+
+核心字段：
+
+- `id`
+- `orderflow_id`
+- `symbol`
+- `agg_trade_id`
+- `interval_type`
+- `open_time`
+- `side`
+- `price`
+- `quantity`
+- `notional`
+- `trade_time`
+- `created_at`
+
+说明：
+
+- 当前按 `symbol + agg_trade_id` 去重
+- 该表是 `large_trades[]` 的持久化镜像，不替代原始 `agg_trades`
 
 ## 4.6 `microstructure_events`
 
@@ -232,12 +260,17 @@
 - `failed_auction`
 - `failed_auction_high_reject`
 - `failed_auction_low_reclaim`
+- `iceberg_reload`
 - `initiative_shift`
+- `initiative_exhaustion`
 - `large_trade_cluster`
 - `order_book_migration`
 - `order_book_migration_layered`
 - `order_book_migration_accelerated`
 - `auction_trap_reversal`
+- `migration_auction_flip`
+- `absorption_reload_continuation`
+- `exhaustion_migration_reversal`
 - `liquidity_ladder_breakout`
 - `microstructure_confluence`
 
@@ -341,6 +374,33 @@
 
 - 历史信号时间线由该表读取并压缩得到
 
+## 4.10 `feature_snapshots`
+
+用途：
+
+- 持久化 `market-snapshot` 聚合结果
+- 支持离线审计、训练前置与回测前特征回放
+
+核心字段：
+
+- `id`
+- `symbol`
+- `interval_type`
+- `open_time`
+- `snapshot_source`
+- `feature_version`
+- `price`
+- `signal_action`
+- `signal_score`
+- `signal_confidence`
+- `snapshot_json`
+- `created_at`
+
+说明：
+
+- 当前 `snapshot_source` 固定为 `market_snapshot`
+- `snapshot_json` 保存完整聚合快照，便于离线复盘同一时刻的输入/输出上下文
+
 ## 5. 当前不单独落表但已存在的逻辑对象
 
 这些对象当前已参与业务，但没有独立持久化表：
@@ -349,7 +409,6 @@
 - `structure_series`
 - `liquidity_series`
 - `signal_timeline`
-- `large_trades[]`
 - `structure.events[]`
 - `liquidity.stop_clusters[]`
 - `liquidity.wall_levels[]`
@@ -374,19 +433,15 @@
 - 这些序列可由历史 K 线和当前引擎滚动生成
 - 避免过早引入大量冗余分析结果表
 
-### 6.2 `large_trades` 未独立建表
+### 6.2 `large_trades` 仍保留响应摘要
 
-当前大单事件仅作为订单流结果摘要返回，没有独立持久化表。
+当前大单事件既保留在订单流响应摘要中，也会独立落到 `large_trade_events`。
 
-如果后续需要：
+取舍：
 
-- 大单历史回放
-- 大单图层渲染
-- 大单聚类统计
-
-建议新增：
-
-- `large_trade_events`
+- 响应体继续保留轻量 `large_trades[]`
+- 历史回放与聚类分析读取 `large_trade_events`
+- 原始逐笔明细仍以 `agg_trades` 为准
 
 ### 6.3 Futures 相关表未引入
 
@@ -401,11 +456,9 @@
 
 建议按照真实需要再扩：
 
-- `large_trade_events`
 - `signal_runs`
 - `funding_rates`
 - `open_interest`
-- `feature_snapshots`（如果后续需要离线训练或因子回放）
 
 ## 8. 迁移与约束建议
 

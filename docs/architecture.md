@@ -432,7 +432,7 @@ MarketSnapshotLoader
 1. 扩展微结构图层和历史事件查询
 2. 扩展 Redis 到更多热点接口和模块缓存
 3. 若引入 Futures，再新增独立数据源与因子，不要污染 Spot 主链路
-4. 若引入回放/训练，再考虑独立 `feature_snapshots` 或 `signal_runs`
+4. 基于现有 `feature_snapshots` 补查询、导出与回放链路；只有在需要显式运行级审计时再补 `signal_runs`
 
 ## 15. 对后续开发的约束
 

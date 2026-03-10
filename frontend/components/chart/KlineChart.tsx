@@ -25,6 +25,11 @@ const SECONDARY_MICROSTRUCTURE_LAYERS = [
   { key: "initiative_shift", label: "Initiative Shift", types: ["initiative_shift"] },
   { key: "large_trade_cluster", label: "Large Trade Cluster", types: ["large_trade_cluster"] },
   {
+    key: "reload_exhaustion",
+    label: "Reload / Exhaustion",
+    types: ["iceberg_reload", "initiative_exhaustion"],
+  },
+  {
     key: "failed_auction",
     label: "Failed Auction",
     types: ["failed_auction", "failed_auction_high_reject", "failed_auction_low_reclaim"],
@@ -37,7 +42,13 @@ const SECONDARY_MICROSTRUCTURE_LAYERS = [
   {
     key: "composite_patterns",
     label: "Composite Patterns",
-    types: ["auction_trap_reversal", "liquidity_ladder_breakout"],
+    types: [
+      "auction_trap_reversal",
+      "liquidity_ladder_breakout",
+      "migration_auction_flip",
+      "absorption_reload_continuation",
+      "exhaustion_migration_reversal",
+    ],
   },
   { key: "microstructure_confluence", label: "Microstructure Confluence", types: ["microstructure_confluence"] },
 ] as const;
@@ -47,6 +58,7 @@ type SecondaryLayerKey = (typeof SECONDARY_MICROSTRUCTURE_LAYERS)[number]["key"]
 const DEFAULT_SECONDARY_LAYER_STATE: Record<SecondaryLayerKey, boolean> = {
   initiative_shift: false,
   large_trade_cluster: false,
+  reload_exhaustion: false,
   failed_auction: false,
   order_book_migration: false,
   composite_patterns: false,
@@ -1393,10 +1405,14 @@ function resolveMicrostructureMarkerLabel(type: string) {
       return "ABS";
     case "iceberg":
       return "ICE";
+    case "iceberg_reload":
+      return "IRL";
     case "aggression_burst":
       return "AGR";
     case "initiative_shift":
       return "SHF";
+    case "initiative_exhaustion":
+      return "IEX";
     case "large_trade_cluster":
       return "LTC";
     case "failed_auction":
@@ -1415,6 +1431,12 @@ function resolveMicrostructureMarkerLabel(type: string) {
       return "TRP";
     case "liquidity_ladder_breakout":
       return "LLB";
+    case "migration_auction_flip":
+      return "MAF";
+    case "absorption_reload_continuation":
+      return "ARC";
+    case "exhaustion_migration_reversal":
+      return "EMR";
     case "microstructure_confluence":
       return "MCF";
     default:
@@ -1454,7 +1476,8 @@ function resolveMicrostructureMarkerTone(type: string, bias: string) {
   if (
     type === "failed_auction" ||
     type === "failed_auction_high_reject" ||
-    type === "failed_auction_low_reclaim"
+    type === "failed_auction_low_reclaim" ||
+    type === "initiative_exhaustion"
   ) {
     return bias === "bearish"
       ? {
@@ -1501,7 +1524,13 @@ function resolveMicrostructureMarkerTone(type: string, bias: string) {
         };
   }
 
-  if (type === "auction_trap_reversal" || type === "liquidity_ladder_breakout") {
+  if (
+    type === "auction_trap_reversal" ||
+    type === "liquidity_ladder_breakout" ||
+    type === "migration_auction_flip" ||
+    type === "absorption_reload_continuation" ||
+    type === "exhaustion_migration_reversal"
+  ) {
     return bias === "bearish"
       ? {
           color: "#7c2d12",
@@ -1515,7 +1544,7 @@ function resolveMicrostructureMarkerTone(type: string, bias: string) {
         };
   }
 
-  if (type === "iceberg") {
+  if (type === "iceberg" || type === "iceberg_reload") {
     return bias === "bearish"
       ? {
           color: "#c2410c",
