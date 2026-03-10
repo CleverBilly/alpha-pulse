@@ -21,13 +21,13 @@ type schemaCommentMetadata struct {
 }
 
 type mysqlFullColumn struct {
-	Field     string         `gorm:"column:Field"`
-	Type      string         `gorm:"column:Type"`
-	Collation sql.NullString `gorm:"column:Collation"`
-	Null      string         `gorm:"column:Null"`
-	Default   sql.NullString `gorm:"column:Default"`
-	Extra     sql.NullString `gorm:"column:Extra"`
-	Comment   sql.NullString `gorm:"column:Comment"`
+	Field     string         `gorm:"column:field"`
+	Type      string         `gorm:"column:type"`
+	Collation sql.NullString `gorm:"column:collation"`
+	Null      string         `gorm:"column:is_nullable"`
+	Default   sql.NullString `gorm:"column:default_value"`
+	Extra     sql.NullString `gorm:"column:extra"`
+	Comment   sql.NullString `gorm:"column:comment"`
 }
 
 func autoMigrateWithTableComment(db *gorm.DB, model any) error {
@@ -139,8 +139,22 @@ func lookupMySQLTableComment(db *gorm.DB, table string) (string, error) {
 
 func lookupMySQLColumn(db *gorm.DB, table, column string) (mysqlFullColumn, error) {
 	var result mysqlFullColumn
-	query := fmt.Sprintf("SHOW FULL COLUMNS FROM %s LIKE ?", quoteMySQLIdentifier(table))
-	if err := db.Raw(query, column).Scan(&result).Error; err != nil {
+	if err := db.Raw(
+		`SELECT
+			COLUMN_NAME AS field,
+			COLUMN_TYPE AS type,
+			COLLATION_NAME AS collation,
+			IS_NULLABLE AS is_nullable,
+			COLUMN_DEFAULT AS default_value,
+			EXTRA AS extra,
+			COLUMN_COMMENT AS comment
+		FROM information_schema.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE()
+			AND TABLE_NAME = ?
+			AND COLUMN_NAME = ?`,
+		table,
+		column,
+	).Scan(&result).Error; err != nil {
 		return mysqlFullColumn{}, fmt.Errorf("query column metadata for %s.%s failed: %w", table, column, err)
 	}
 	if result.Field == "" {
