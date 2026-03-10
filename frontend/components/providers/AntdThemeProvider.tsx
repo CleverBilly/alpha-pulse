@@ -20,8 +20,8 @@ const appTheme: ThemeConfig = {
     fontFamily: "\"Azeret Mono\", \"IBM Plex Sans\", \"Noto Sans SC\", sans-serif",
     borderRadius: 18,
     borderRadiusLG: 24,
-    boxShadow: "0 18px 60px rgba(32, 42, 63, 0.10)",
-    boxShadowSecondary: "0 10px 30px rgba(32, 42, 63, 0.08)",
+    boxShadow: "0 8px 32px rgba(32, 42, 63, 0.06)",
+    boxShadowSecondary: "0 4px 16px rgba(32, 42, 63, 0.04)",
   },
   components: {
     Layout: {
@@ -48,7 +48,10 @@ const appTheme: ThemeConfig = {
       itemSelectedColor: "#0f766e",
       itemColor: "#52607a",
       itemHoverColor: "#172033",
+      itemHoverBg: "rgba(15, 118, 110, 0.06)",
       activeBarBorderWidth: 0,
+      activeBarHeight: 0,
+      activeBarWidth: 0,
       horizontalLineHeight: "42px",
       itemBorderRadius: 14,
     },
