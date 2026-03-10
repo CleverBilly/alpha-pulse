@@ -32,5 +32,6 @@ describe("SignalCard", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "刷新信号" }));
     expect(refreshDashboard).toHaveBeenCalledTimes(1);
+    expect(refreshDashboard).toHaveBeenCalledWith(true);
   });
 });

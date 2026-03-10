@@ -12,6 +12,6 @@ test("market page shows overview, price ladder and signal tape", async ({ page }
   await expect(page.getByRole("heading", { name: "Order Flow" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Liquidity" })).toBeVisible();
   await expect(page.getByText("Microstructure Events")).toBeVisible();
-  await expect(page.getByText("Initiative Shift").first()).toBeVisible();
-  await expect(page.getByText("Stop Clusters")).toBeVisible();
+  await expect(page.getByText("Initiative Exhaustion").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Stop Clusters" })).toBeVisible();
 });

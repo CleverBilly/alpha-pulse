@@ -77,5 +77,6 @@ describe("KlineChart", () => {
 
     await user.click(screen.getByRole("button", { name: "更新K线" }));
     expect(refreshDashboard).toHaveBeenCalledTimes(1);
+    expect(refreshDashboard).toHaveBeenCalledWith(true);
   });
 });

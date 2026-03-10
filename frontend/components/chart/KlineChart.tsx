@@ -142,7 +142,7 @@ export default function KlineChart() {
         </div>
         <button
           onClick={() => {
-            void refreshDashboard();
+            void refreshDashboard(true);
           }}
           className="rounded-lg border border-slate-200 px-3 py-1 text-sm text-slate-700"
         >

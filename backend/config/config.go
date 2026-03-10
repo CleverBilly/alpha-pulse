@@ -4,6 +4,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 const (
@@ -37,6 +39,7 @@ type Config struct {
 
 // Load 从环境变量加载配置。
 func Load() Config {
+	loadDotEnvFiles()
 	mode := normalizeMode(firstNonEmptyEnv("APP_MODE", "APP_ENV"))
 	defaults := defaultsForMode(mode)
 	ginMode := normalizeGinMode(getEnv("GIN_MODE", defaults.ginMode), defaults.ginMode)
@@ -65,6 +68,29 @@ func Load() Config {
 		EnableScheduler:          getEnvAsBool("ENABLE_SCHEDULER", defaults.enableScheduler),
 		AllowMockBinanceData:     getEnvAsBool("ALLOW_MOCK_BINANCE_DATA", defaults.allowMockBinanceData),
 		SchedulerIntervalSeconds: schedulerInterval,
+	}
+}
+
+func loadDotEnvFiles() {
+	candidates := []string{
+		".env.local",
+		".env",
+		"backend/.env.local",
+		"backend/.env",
+	}
+
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err == nil {
+			values, readErr := godotenv.Read(path)
+			if readErr != nil {
+				continue
+			}
+			for key, value := range values {
+				if strings.TrimSpace(os.Getenv(key)) == "" {
+					_ = os.Setenv(key, value)
+				}
+			}
+		}
 	}
 }
 

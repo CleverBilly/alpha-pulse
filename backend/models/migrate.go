@@ -4,7 +4,7 @@ import "gorm.io/gorm"
 
 // AutoMigrate 自动创建或更新数据表结构。
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(
+	models := []any{
 		&Kline{},
 		&AggTrade{},
 		&LargeTradeEvent{},
@@ -16,5 +16,13 @@ func AutoMigrate(db *gorm.DB) error {
 		&Liquidity{},
 		&Signal{},
 		&FeatureSnapshot{},
-	)
+	}
+
+	for _, model := range models {
+		if err := autoMigrateWithTableComment(db, model); err != nil {
+			return err
+		}
+	}
+
+	return syncMySQLSchemaComments(db, models)
 }

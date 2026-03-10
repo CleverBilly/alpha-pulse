@@ -30,7 +30,7 @@ export function buildMockMarketStoreState(overrides: Record<string, unknown> = {
     refreshOrderFlow: async () => undefined,
     refreshStructure: async () => undefined,
     refreshLiquidity: async () => undefined,
-    refreshDashboard: async () => undefined,
+    refreshDashboard: async (_refresh?: boolean) => undefined,
     ...overrides,
   };
 }

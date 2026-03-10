@@ -19,6 +19,7 @@ describe("LiquidityPanel", () => {
 
     render(<LiquidityPanel />);
 
+    expect(screen.getByRole("heading", { name: "Liquidity" })).toBeInTheDocument();
     expect(screen.getByText("Wall Map")).toBeInTheDocument();
     expect(screen.getByText("Ask Wall Map")).toBeInTheDocument();
     expect(screen.getByText("Bid Wall Map")).toBeInTheDocument();
@@ -45,5 +46,6 @@ describe("LiquidityPanel", () => {
     await user.click(screen.getByRole("button", { name: "更新" }));
 
     expect(refreshDashboard).toHaveBeenCalledTimes(1);
+    expect(refreshDashboard).toHaveBeenCalledWith(true);
   });
 });

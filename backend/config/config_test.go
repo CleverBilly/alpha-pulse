@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -98,6 +100,43 @@ func TestLoadHonorsModeOverrides(t *testing.T) {
 	expectedSymbols := []string{"BTCUSDT", "SOLUSDT", "ETHUSDT"}
 	if !reflect.DeepEqual(cfg.MarketSymbols, expectedSymbols) {
 		t.Fatalf("unexpected market symbols: got=%#v want=%#v", cfg.MarketSymbols, expectedSymbols)
+	}
+}
+
+func TestLoadReadsDotEnvFile(t *testing.T) {
+	clearConfigEnv(t)
+
+	workingDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd failed: %v", err)
+	}
+
+	tempDir := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(tempDir, ".env"),
+		[]byte("APP_MODE=prod\nMYSQL_DSN=test:test@tcp(127.0.0.1:3306)/alpha_pulse_dev?charset=utf8mb4&parseTime=True&loc=Local\nENABLE_REDIS_CACHE=false\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("write temp env failed: %v", err)
+	}
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("chdir temp dir failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(workingDir)
+	})
+
+	cfg := Load()
+
+	if cfg.AppMode != ModeProd {
+		t.Fatalf("expected .env mode %s, got %s", ModeProd, cfg.AppMode)
+	}
+	if cfg.MySQLDSN != "test:test@tcp(127.0.0.1:3306)/alpha_pulse_dev?charset=utf8mb4&parseTime=True&loc=Local" {
+		t.Fatalf("unexpected mysql dsn from .env: %s", cfg.MySQLDSN)
+	}
+	if cfg.EnableRedisCache {
+		t.Fatal("expected .env override to disable redis cache")
 	}
 }
 

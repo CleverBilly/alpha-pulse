@@ -81,6 +81,7 @@
 - 当前代码基线已通过 `go test ./...`
 - 当前代码基线已通过 `npm test`
 - 当前代码基线已通过 `npm run build`
+- 当前代码基线已通过 `npm run lint`
 
 ## 3. 当前可上线项
 

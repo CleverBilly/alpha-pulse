@@ -43,7 +43,7 @@ interface MarketState {
   refreshOrderFlow: () => Promise<void>;
   refreshStructure: () => Promise<void>;
   refreshLiquidity: () => Promise<void>;
-  refreshDashboard: () => Promise<void>;
+  refreshDashboard: (refresh?: boolean) => Promise<void>;
 }
 
 export const useMarketStore = create<MarketState>((set, get) => ({
@@ -74,34 +74,34 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   },
 
   refreshPrice: async () => {
-    await get().refreshDashboard();
+    await get().refreshDashboard(true);
   },
 
   refreshKline: async () => {
-    await get().refreshDashboard();
+    await get().refreshDashboard(true);
   },
 
   refreshIndicators: async () => {
-    await get().refreshDashboard();
+    await get().refreshDashboard(true);
   },
 
   refreshOrderFlow: async () => {
-    await get().refreshDashboard();
+    await get().refreshDashboard(true);
   },
 
   refreshStructure: async () => {
-    await get().refreshDashboard();
+    await get().refreshDashboard(true);
   },
 
   refreshLiquidity: async () => {
-    await get().refreshDashboard();
+    await get().refreshDashboard(true);
   },
 
-  refreshDashboard: async () => {
+  refreshDashboard: async (refresh = false) => {
     try {
       const { symbol, interval } = get();
       set({ loading: true, error: null });
-      const snapshot = await marketApi.getMarketSnapshot(symbol, interval, 48, true);
+      const snapshot = await marketApi.getMarketSnapshot(symbol, interval, 48, refresh);
       const latestKline = snapshot.klines[snapshot.klines.length - 1] ?? null;
 
       set({

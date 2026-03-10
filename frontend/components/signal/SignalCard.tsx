@@ -19,7 +19,7 @@ export default function SignalCard() {
         <h3 className="text-lg font-semibold">Signal</h3>
         <button
           onClick={() => {
-            void refreshDashboard();
+            void refreshDashboard(true);
           }}
           className="rounded-lg border border-slate-200 px-3 py-1 text-sm"
         >

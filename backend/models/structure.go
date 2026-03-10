@@ -13,14 +13,14 @@ type StructureEvent struct {
 
 // Structure 对应 structure 表，保存市场结构分析结果。
 type Structure struct {
-	ID         uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	Symbol     string    `gorm:"size:20;index;not null" json:"symbol"`
-	Trend      string    `gorm:"size:20;not null" json:"trend"`
-	Support    float64   `gorm:"type:decimal(18,8);not null" json:"support"`
-	Resistance float64   `gorm:"type:decimal(18,8);not null" json:"resistance"`
-	BOS        bool      `gorm:"column:bos;not null" json:"bos"`
-	Choch      bool      `gorm:"column:choch;not null" json:"choch"`
-	CreatedAt  time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
+	ID         uint64    `gorm:"primaryKey;autoIncrement;comment:主键 ID" json:"id"`
+	Symbol     string    `gorm:"size:20;index;not null;comment:交易对代码，如 BTCUSDT" json:"symbol"`
+	Trend      string    `gorm:"size:20;not null;comment:当前市场结构趋势，如 uptrend、downtrend、range" json:"trend"`
+	Support    float64   `gorm:"type:decimal(18,8);not null;comment:当前主支撑位" json:"support"`
+	Resistance float64   `gorm:"type:decimal(18,8);not null;comment:当前主阻力位" json:"resistance"`
+	BOS        bool      `gorm:"column:bos;not null;comment:是否出现结构突破 BOS" json:"bos"`
+	Choch      bool      `gorm:"column:choch;not null;comment:是否出现角色转换 CHOCH" json:"choch"`
+	CreatedAt  time.Time `gorm:"column:created_at;autoCreateTime;comment:结构分析入库时间" json:"created_at"`
 
 	// PrimaryTier 不落库，用于说明当前 support/resistance 采用的 swing hierarchy 层级。
 	PrimaryTier string `gorm:"-" json:"primary_tier,omitempty"`
@@ -40,4 +40,9 @@ type Structure struct {
 // TableName 指定数据表名。
 func (Structure) TableName() string {
 	return "structure"
+}
+
+// TableComment 返回数据表注释。
+func (Structure) TableComment() string {
+	return "市场结构分析快照，记录趋势、关键支撑阻力以及 BOS 和 CHOCH 状态"
 }

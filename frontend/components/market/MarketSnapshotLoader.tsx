@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { useMarketStore } from "@/store/marketStore";
 
+const AUTO_REFRESH_INTERVAL_MS = 4000;
+
 export default function MarketSnapshotLoader() {
   const symbol = useMarketStore((state) => state.symbol);
   const interval = useMarketStore((state) => state.interval);
@@ -12,7 +14,7 @@ export default function MarketSnapshotLoader() {
     void refreshDashboard();
     const timer = setInterval(() => {
       void refreshDashboard();
-    }, 10000);
+    }, AUTO_REFRESH_INTERVAL_MS);
 
     return () => clearInterval(timer);
   }, [refreshDashboard, symbol, interval]);

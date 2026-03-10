@@ -37,12 +37,12 @@ export default function LiquidityPanel() {
     <section className="rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-panel">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Liquidity</p>
-          <h3 className="mt-2 text-xl font-semibold text-slate-900">Wall Map</h3>
+          <h3 className="text-xl font-semibold text-slate-900">Liquidity</h3>
+          <p className="mt-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Wall Map</p>
         </div>
         <button
           onClick={() => {
-            void refreshDashboard();
+            void refreshDashboard(true);
           }}
           className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700"
         >

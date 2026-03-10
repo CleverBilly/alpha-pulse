@@ -35,7 +35,7 @@ export default function PriceTicker() {
             </select>
             <button
               onClick={() => {
-                void refreshDashboard();
+                void refreshDashboard(true);
               }}
               className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white"
             >

@@ -43,9 +43,14 @@ docker compose up --build
 ### 方式二：本地开发
 
 ```bash
+cp backend/.env.example backend/.env
 ./scripts/bootstrap.sh
 ./scripts/dev.sh
 ```
+
+- `backend/.env` 会在后端启动时自动加载，适合本地直接调试 MySQL 8
+- `./scripts/dev.sh` 默认直接使用本地 MySQL / Redis，不依赖 Docker
+- 如果你仍想用 Docker 起本地依赖，可使用 `USE_DOCKER_DEPS=1 ./scripts/dev.sh`
 
 ## 运行模式
 
@@ -131,6 +136,7 @@ ANALYSIS_VIEW_CACHE_TTL=15
 - 默认值为 `15`
 - Redis 不可用时，后端会自动退化为无缓存模式，不阻断主服务启动
 - `ENABLE_REDIS_CACHE=false` 时会显式跳过 Redis 初始化
+- 页面自动轮询默认走缓存；点击页面内“刷新”按钮时会显式附加 `refresh=1`
 
 ## 后端 API
 

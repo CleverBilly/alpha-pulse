@@ -72,6 +72,7 @@
 - [x] `go test ./...`
 - [x] `npm test`
 - [x] `npm run build`
+- [x] `npm run lint`
 
 ## 3. 当前可上线项
 
