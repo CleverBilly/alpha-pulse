@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { Card, Tag, Typography } from "antd";
 import { useMarketStore } from "@/store/marketStore";
 
 export default function MarketLevelsBoard() {
@@ -30,52 +31,57 @@ export default function MarketLevelsBoard() {
   );
 
   return (
-    <section className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-panel">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-            Key Levels
-          </p>
-          <h3 className="mt-2 text-xl font-semibold text-slate-900">Price Ladder</h3>
-        </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
-          Current {formatPrice(price?.price)}
-        </span>
-      </div>
-
-      <div className="mt-5 space-y-3">
-        {levelRows.map((row) => (
-          <div
-            key={row.label}
-            className={`grid grid-cols-[1.2fr_1fr_0.9fr] items-center gap-3 rounded-2xl border px-4 py-3 ${row.tone}`}
-          >
-            <span className="text-sm font-medium">{row.label}</span>
-            <span className="text-right text-sm font-semibold">{formatPrice(row.value)}</span>
-            <span className="text-right text-xs">
-              {formatDistance(price?.price, row.value)}
-            </span>
+    <section>
+      <Card
+        variant="borderless"
+        className="surface-card surface-card--paper"
+      >
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+              Key Levels
+            </p>
+            <Typography.Title level={3} className="!mb-0 !mt-3 !text-[24px] !tracking-[-0.03em]">
+              Price Ladder
+            </Typography.Title>
           </div>
-        ))}
-      </div>
+          <Tag>Current {formatPrice(price?.price)}</Tag>
+        </div>
 
-      <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-        <h4 className="text-sm font-semibold text-slate-900">Stop Clusters</h4>
-        <div className="mt-3 space-y-2">
-          {(liquidity?.stop_clusters ?? []).slice(0, 6).map((cluster) => (
+        <div className="mt-5 space-y-3">
+          {levelRows.map((row) => (
             <div
-              key={`${cluster.kind}-${cluster.price}`}
-              className="flex items-center justify-between rounded-xl border border-white bg-white px-3 py-2 text-sm"
+              key={row.label}
+              className={`grid grid-cols-[1.2fr_1fr_0.9fr] items-center gap-3 rounded-[22px] border px-4 py-3 ${row.tone}`}
             >
-              <span className="text-slate-700">{cluster.label}</span>
-              <span className="font-medium text-slate-900">{cluster.price.toFixed(2)}</span>
-              <span className="text-xs text-slate-500">strength {cluster.strength.toFixed(2)}</span>
+              <span className="text-sm font-medium">{row.label}</span>
+              <span className="text-right text-sm font-semibold">{formatPrice(row.value)}</span>
+              <span className="text-right text-xs">
+                {formatDistance(price?.price, row.value)}
+              </span>
             </div>
           ))}
-          {(liquidity?.stop_clusters ?? []).length === 0 ? (
-            <p className="text-sm text-slate-500">暂无止损簇</p>
-          ) : null}
         </div>
-      </div>
+
+        <div className="mt-6 rounded-[24px] border border-slate-100 bg-slate-50 p-4">
+          <h4 className="text-sm font-semibold text-slate-900">Stop Clusters</h4>
+          <div className="mt-3 space-y-2">
+            {(liquidity?.stop_clusters ?? []).slice(0, 6).map((cluster) => (
+              <div
+                key={`${cluster.kind}-${cluster.price}`}
+                className="flex items-center justify-between rounded-[18px] border border-white bg-white px-3 py-2 text-sm shadow-[0_10px_24px_rgba(32,42,63,0.04)]"
+              >
+                <span className="text-slate-700">{cluster.label}</span>
+                <span className="font-medium text-slate-900">{cluster.price.toFixed(2)}</span>
+                <span className="text-xs text-slate-500">strength {cluster.strength.toFixed(2)}</span>
+              </div>
+            ))}
+            {(liquidity?.stop_clusters ?? []).length === 0 ? (
+              <p className="text-sm text-slate-500">暂无止损簇</p>
+            ) : null}
+          </div>
+        </div>
+      </Card>
     </section>
   );
 }

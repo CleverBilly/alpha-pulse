@@ -2,8 +2,9 @@ import { expect, test } from "@playwright/test";
 import { mockMarketSnapshotApi } from "./support/mockMarketApi";
 
 test("dashboard renders chart, signal and supports 4h interval", async ({ page }) => {
-  await mockMarketSnapshotApi(page);
+  const controller = await mockMarketSnapshotApi(page);
   await page.goto("/dashboard");
+  await expect.poll(() => controller.getRequestCount()).toBeGreaterThan(0);
 
   await expect(page.getByRole("heading", { name: "Kline Chart" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Signal" })).toBeVisible();
@@ -25,5 +26,5 @@ test("dashboard renders chart, signal and supports 4h interval", async ({ page }
   await expect(tooltip.getByText("卖压被持续吸收，价格未继续下破")).toBeVisible();
 
   await page.getByRole("button", { name: "4h" }).click();
-  await expect(page.getByText("当前周期 4h")).toBeVisible();
+  await expect(page.getByRole("button", { name: "4h" })).toHaveAttribute("aria-pressed", "true");
 });

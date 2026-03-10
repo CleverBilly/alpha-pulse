@@ -27,3 +27,13 @@ export interface MarketSnapshot {
   signal: Signal;
   signal_timeline: SignalTimelinePoint[];
 }
+
+export interface MarketSnapshotStreamMessage {
+  type: "snapshot" | "error";
+  symbol: string;
+  interval: string;
+  limit: number;
+  sent_at: number;
+  data?: MarketSnapshot;
+  error?: string;
+}

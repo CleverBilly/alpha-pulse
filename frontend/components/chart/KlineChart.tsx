@@ -1,6 +1,8 @@
 "use client";
 
+import type { Dispatch, SetStateAction } from "react";
 import { useMemo, useState } from "react";
+import { Tag, Typography } from "antd";
 import { useMarketStore } from "@/store/marketStore";
 import {
   IndicatorSeriesPoint,
@@ -54,6 +56,7 @@ const SECONDARY_MICROSTRUCTURE_LAYERS = [
 ] as const;
 
 type SecondaryLayerKey = (typeof SECONDARY_MICROSTRUCTURE_LAYERS)[number]["key"];
+type LegendFocusKey = "indicators" | "structure" | "liquidity" | "signal" | "micro";
 
 const DEFAULT_SECONDARY_LAYER_STATE: Record<SecondaryLayerKey, boolean> = {
   initiative_shift: false,
@@ -82,7 +85,10 @@ export default function KlineChart() {
     refreshDashboard,
   } = useMarketStore();
   const [enabledLayers, setEnabledLayers] = useState<Record<SecondaryLayerKey, boolean>>(DEFAULT_SECONDARY_LAYER_STATE);
-  const [activeMicrostructureMarkerKey, setActiveMicrostructureMarkerKey] = useState<string | null>(null);
+  const [hoveredCandleIndex, setHoveredCandleIndex] = useState<number | null>(null);
+  const [hoveredMicrostructureMarkerKey, setHoveredMicrostructureMarkerKey] = useState<string | null>(null);
+  const [pinnedMicrostructureMarkerKey, setPinnedMicrostructureMarkerKey] = useState<string | null>(null);
+  const [focusedLegendKey, setFocusedLegendKey] = useState<LegendFocusKey | null>(null);
   const visibleKlines = klines.slice(-48);
   const visibleMicrostructureTypes = useMemo(() => {
     const types: string[] = [...PRIMARY_MICROSTRUCTURE_TYPES];
@@ -123,497 +129,803 @@ export default function KlineChart() {
   );
   const activeMicrostructureMarker = useMemo(
     () =>
-      chart.microstructureMarkers.find((marker) => marker.key === activeMicrostructureMarkerKey) ?? null,
-    [activeMicrostructureMarkerKey, chart.microstructureMarkers],
+      chart.microstructureMarkers.find(
+        (marker) => marker.key === (pinnedMicrostructureMarkerKey ?? hoveredMicrostructureMarkerKey),
+      ) ?? null,
+    [hoveredMicrostructureMarkerKey, pinnedMicrostructureMarkerKey, chart.microstructureMarkers],
   );
+  const hoveredKline = hoveredCandleIndex !== null ? visibleKlines[hoveredCandleIndex] ?? null : null;
+  const hoveredCandle = hoveredCandleIndex !== null ? chart.candles[hoveredCandleIndex] ?? null : null;
   const latestKline = visibleKlines[visibleKlines.length - 1] ?? null;
   const microstructureTooltip = activeMicrostructureMarker
     ? buildMicrostructureTooltip(activeMicrostructureMarker)
     : null;
+  const legendOpacity = (key: LegendFocusKey) => (focusedLegendKey === null || focusedLegendKey === key ? 1 : 0.16);
+  const highlightedLegendLabel = focusedLegendKey ? resolveLegendFocusLabel(focusedLegendKey) : "All layers";
 
   return (
-    <section className="rounded-2xl bg-panel p-5 shadow-panel">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-semibold">Kline Chart</h3>
-          <p className="text-sm text-muted">
-            48 根 K 线，叠加结构点、动态支撑阻力、流动性轨迹、信号位与多指标
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            void refreshDashboard(true);
-          }}
-          className="rounded-lg border border-slate-200 px-3 py-1 text-sm text-slate-700"
-        >
-          更新K线
-        </button>
-      </div>
-
-      {loading && visibleKlines.length === 0 ? <p className="text-sm text-muted">加载中...</p> : null}
-      {error ? <p className="text-sm text-negative">{error}</p> : null}
-      {!loading && !error && visibleKlines.length === 0 ? (
-        <p className="text-sm text-muted">暂无 K 线数据</p>
-      ) : null}
-
-      {visibleKlines.length > 0 ? (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-500">
-              Core Layers: ABS / ICE / AGR
-            </span>
-            {SECONDARY_MICROSTRUCTURE_LAYERS.map((layer) => (
-              <LayerToggle
-                key={layer.key}
-                label={layer.label}
-                active={enabledLayers[layer.key]}
-                onClick={() => {
-                  setEnabledLayers((value) => ({ ...value, [layer.key]: !value[layer.key] }));
-                  setActiveMicrostructureMarkerKey(null);
-                }}
-              />
-            ))}
+    <section>
+      <div className="surface-panel surface-panel--paper">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <Typography.Title level={3} className="!mb-0 !text-[24px] !tracking-[-0.03em]">
+              Kline Chart
+            </Typography.Title>
+            <p className="mt-2 text-sm text-muted">
+              48 根 K 线，叠加结构点、动态支撑阻力、流动性轨迹、信号位与多指标
+            </p>
           </div>
+          <button
+            onClick={() => {
+              void refreshDashboard(true);
+            }}
+            className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+          >
+            更新K线
+          </button>
+        </div>
 
-          <div className="overflow-hidden rounded-xl border border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-3">
-            <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="h-[360px] w-full">
-              <defs>
-                <linearGradient id="chart-bg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="rgba(14,165,233,0.08)" />
-                  <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-                </linearGradient>
-              </defs>
+        {loading && visibleKlines.length === 0 ? <p className="text-sm text-muted">加载中...</p> : null}
+        {error ? <p className="text-sm text-negative">{error}</p> : null}
+        {!loading && !error && visibleKlines.length === 0 ? (
+          <p className="text-sm text-muted">暂无 K 线数据</p>
+        ) : null}
 
-              <rect x="0" y="0" width={CHART_WIDTH} height={CHART_HEIGHT} fill="url(#chart-bg)" />
+        {visibleKlines.length > 0 ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <Tag>Core Layers: ABS / ICE / AGR</Tag>
+              {SECONDARY_MICROSTRUCTURE_LAYERS.map((layer) => (
+                <LayerToggle
+                  key={layer.key}
+                  label={layer.label}
+                  active={enabledLayers[layer.key]}
+                  onClick={() => {
+                    setEnabledLayers((value) => ({ ...value, [layer.key]: !value[layer.key] }));
+                    setHoveredMicrostructureMarkerKey(null);
+                    setPinnedMicrostructureMarkerKey(null);
+                  }}
+                />
+              ))}
+            </div>
 
-              {chart.gridLines.map((line, index) => (
-                <g key={`grid-${index}`}>
-                  <line
-                    x1={PADDING_LEFT}
-                    y1={line.y}
-                    x2={CHART_WIDTH - PADDING_RIGHT}
-                    y2={line.y}
-                    stroke="rgba(148,163,184,0.22)"
-                    strokeDasharray="4 6"
-                  />
-                  <text
-                    x={CHART_WIDTH - PADDING_RIGHT + 8}
-                    y={line.y + 4}
-                    fontSize="11"
-                    fill="#64748b"
-                  >
-                    {line.value.toFixed(2)}
-                  </text>
-                </g>
-              ))}
+            <div className="overflow-hidden rounded-[26px] border border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+              <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="h-[360px] w-full">
+                <defs>
+                  <linearGradient id="chart-bg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="rgba(14,165,233,0.08)" />
+                    <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+                  </linearGradient>
+                </defs>
 
-              {chart.zoneLines.map((line) => (
-                <g key={`${line.label}-${line.y}`}>
-                  <line
-                    x1={PADDING_LEFT}
-                    y1={line.y}
-                    x2={CHART_WIDTH - PADDING_RIGHT}
-                    y2={line.y}
-                    stroke={line.color}
-                    strokeWidth="1.3"
-                    strokeDasharray={line.dasharray}
-                    opacity="0.72"
-                  />
-                  <rect
-                    x={CHART_WIDTH - PADDING_RIGHT + 8}
-                    y={line.y - 9}
-                    width={line.label.length * 7.2 + 18}
-                    height={18}
-                    rx={9}
-                    fill={line.labelBackground}
-                    opacity="0.92"
-                  />
-                  <text
-                    x={CHART_WIDTH - PADDING_RIGHT + 16}
-                    y={line.y + 4}
-                    fontSize="10"
-                    fill={line.labelColor}
-                  >
-                    {line.label}
-                  </text>
-                </g>
-              ))}
+                <rect x="0" y="0" width={CHART_WIDTH} height={CHART_HEIGHT} fill="url(#chart-bg)" />
 
-              {chart.series.supportTrack.map((points, index) => (
-                <polyline
-                  key={`support-track-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#047857"
-                  strokeWidth="1.8"
-                  opacity="0.8"
-                />
-              ))}
-              {chart.series.internalSupportTrack.map((points, index) => (
-                <polyline
-                  key={`internal-support-track-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#0f766e"
-                  strokeWidth="1.2"
-                  strokeDasharray="4 4"
-                  opacity="0.45"
-                />
-              ))}
-              {chart.series.resistanceTrack.map((points, index) => (
-                <polyline
-                  key={`resistance-track-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#be123c"
-                  strokeWidth="1.8"
-                  opacity="0.8"
-                />
-              ))}
-              {chart.series.internalResistanceTrack.map((points, index) => (
-                <polyline
-                  key={`internal-resistance-track-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#fb7185"
-                  strokeWidth="1.2"
-                  strokeDasharray="4 4"
-                  opacity="0.45"
-                />
-              ))}
-              {chart.series.buyLiquidityTrack.map((points, index) => (
-                <polyline
-                  key={`buy-liquidity-track-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#0f766e"
-                  strokeWidth="1.4"
-                  strokeDasharray="7 5"
-                  opacity="0.7"
-                />
-              ))}
-              {chart.series.sellLiquidityTrack.map((points, index) => (
-                <polyline
-                  key={`sell-liquidity-track-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#ea580c"
-                  strokeWidth="1.4"
-                  strokeDasharray="7 5"
-                  opacity="0.7"
-                />
-              ))}
-              {chart.series.equalHighTrack.map((points, index) => (
-                <polyline
-                  key={`equal-high-track-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#b45309"
-                  strokeWidth="1.2"
-                  strokeDasharray="3 5"
-                  opacity="0.6"
-                />
-              ))}
-              {chart.series.equalLowTrack.map((points, index) => (
-                <polyline
-                  key={`equal-low-track-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#155e75"
-                  strokeWidth="1.2"
-                  strokeDasharray="3 5"
-                  opacity="0.6"
-                />
-              ))}
-
-              {chart.series.bollingerUpper.map((points, index) => (
-                <polyline
-                  key={`bb-upper-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#38bdf8"
-                  strokeWidth="1.5"
-                  strokeDasharray="4 4"
-                />
-              ))}
-              {chart.series.bollingerMiddle.map((points, index) => (
-                <polyline
-                  key={`bb-middle-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#64748b"
-                  strokeWidth="1.3"
-                />
-              ))}
-              {chart.series.bollingerLower.map((points, index) => (
-                <polyline
-                  key={`bb-lower-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#7dd3fc"
-                  strokeWidth="1.5"
-                  strokeDasharray="4 4"
-                />
-              ))}
-              {chart.series.vwap.map((points, index) => (
-                <polyline
-                  key={`vwap-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#f59e0b"
-                  strokeWidth="1.8"
-                />
-              ))}
-              {chart.series.ema20.map((points, index) => (
-                <polyline
-                  key={`ema20-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#10b981"
-                  strokeWidth="2"
-                />
-              ))}
-              {chart.series.ema50.map((points, index) => (
-                <polyline
-                  key={`ema50-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#f43f5e"
-                  strokeWidth="2"
-                />
-              ))}
-
-              {chart.candles.map((candle, index) => (
-                <g key={`${candle.openTime}-${index}`}>
-                  <line
-                    x1={candle.x}
-                    y1={candle.highY}
-                    x2={candle.x}
-                    y2={candle.lowY}
-                    stroke={candle.color}
-                    strokeWidth="1.5"
-                  />
-                  <rect
-                    x={candle.x - candle.bodyWidth / 2}
-                    y={candle.bodyY}
-                    width={candle.bodyWidth}
-                    height={candle.bodyHeight}
-                    rx="2"
-                    fill={candle.color}
-                    opacity="0.92"
-                  />
-                </g>
-              ))}
-
-              {chart.structureMarkers.map((marker) => (
-                <g key={`${marker.label}-${marker.openTime}-${marker.x}`}>
-                  <circle
-                    cx={marker.x}
-                    cy={marker.y}
-                    r={marker.tier === "internal" ? 3.8 : 4.6}
-                    fill={marker.color}
-                    stroke="#ffffff"
-                    strokeWidth={marker.tier === "internal" ? 1.2 : 1.4}
-                    opacity={marker.tier === "internal" ? 0.82 : 1}
-                  />
-                  <rect
-                    x={marker.x - marker.label.length * 3.6 - 7}
-                    y={marker.labelY - 9}
-                    width={marker.label.length * 7.2 + 14}
-                    height={16}
-                    rx={8}
-                    fill={marker.labelBackground}
-                    opacity={marker.tier === "internal" ? 0.88 : 1}
-                  />
-                  <text
-                    x={marker.x}
-                    y={marker.labelY + 3}
-                    textAnchor="middle"
-                    fontSize={marker.tier === "internal" ? "8.8" : "9.5"}
-                    fill={marker.labelColor}
-                    fontWeight="600"
-                  >
-                    {marker.label}
-                  </text>
-                </g>
-              ))}
-
-              {chart.microstructureMarkers.map((marker) => (
-                <g
-                  key={marker.key}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Micro ${marker.label} ${formatMicrostructureEventType(marker.type)}`}
-                  className="cursor-pointer"
-                  onMouseEnter={() => setActiveMicrostructureMarkerKey(marker.key)}
-                  onMouseLeave={() => setActiveMicrostructureMarkerKey((value) => (value === marker.key ? null : value))}
-                  onFocus={() => setActiveMicrostructureMarkerKey(marker.key)}
-                  onBlur={() => setActiveMicrostructureMarkerKey((value) => (value === marker.key ? null : value))}
-                  onClick={() => setActiveMicrostructureMarkerKey(marker.key)}
-                >
-                  <rect
-                    x={marker.x - 5.2}
-                    y={marker.y - 5.2}
-                    width={10.4}
-                    height={10.4}
-                    rx={2.4}
-                    fill={marker.color}
-                    stroke="#ffffff"
-                    strokeWidth="1.3"
-                    transform={`rotate(45 ${marker.x} ${marker.y})`}
-                  />
-                  <rect
-                    x={marker.x - 18}
-                    y={marker.labelY - 9}
-                    width={36}
-                    height={16}
-                    rx={8}
-                    fill={marker.labelBackground}
-                  />
-                  <text
-                    x={marker.x}
-                    y={marker.labelY + 3}
-                    textAnchor="middle"
-                    fontSize="9.5"
-                    fill={marker.labelColor}
-                    fontWeight="700"
-                  >
-                    {marker.label}
-                  </text>
-                </g>
-              ))}
-
-              {microstructureTooltip ? (
-                <g pointerEvents="none" aria-label="Microstructure Tooltip">
-                  <rect
-                    x={microstructureTooltip.x}
-                    y={microstructureTooltip.y}
-                    width={microstructureTooltip.width}
-                    height={microstructureTooltip.height}
-                    rx={14}
-                    fill="rgba(15,23,42,0.94)"
-                    stroke="rgba(148,163,184,0.24)"
-                  />
-                  {microstructureTooltip.lines.map((line, index) => (
+                {chart.gridLines.map((line, index) => (
+                  <g key={`grid-${index}`}>
+                    <line
+                      x1={PADDING_LEFT}
+                      y1={line.y}
+                      x2={CHART_WIDTH - PADDING_RIGHT}
+                      y2={line.y}
+                      stroke="rgba(148,163,184,0.22)"
+                      strokeDasharray="4 6"
+                    />
                     <text
-                      key={`${line}-${index}`}
-                      x={microstructureTooltip.x + 14}
-                      y={microstructureTooltip.y + 20 + index * 14}
-                      fontSize={index === 0 ? "11.5" : "10.5"}
-                      fill={index === 0 ? "#f8fafc" : "#cbd5e1"}
-                      fontWeight={index === 0 ? "700" : "500"}
+                      x={CHART_WIDTH - PADDING_RIGHT + 8}
+                      y={line.y + 4}
+                      fontSize="11"
+                      fill="#64748b"
                     >
-                      {line}
+                      {line.value.toFixed(2)}
                     </text>
+                  </g>
+                ))}
+
+                {chart.zoneLines.map((line) => {
+                  const opacity = resolveZoneLineOpacity(line.label, focusedLegendKey);
+                  return (
+                    <g key={`${line.label}-${line.y}`} opacity={opacity}>
+                      <line
+                        x1={PADDING_LEFT}
+                        y1={line.y}
+                        x2={CHART_WIDTH - PADDING_RIGHT}
+                        y2={line.y}
+                        stroke={line.color}
+                        strokeWidth="1.3"
+                        strokeDasharray={line.dasharray}
+                        opacity="0.72"
+                      />
+                      <rect
+                        x={CHART_WIDTH - PADDING_RIGHT + 8}
+                        y={line.y - 9}
+                        width={line.label.length * 7.2 + 18}
+                        height={18}
+                        rx={9}
+                        fill={line.labelBackground}
+                        opacity="0.92"
+                      />
+                      <text
+                        x={CHART_WIDTH - PADDING_RIGHT + 16}
+                        y={line.y + 4}
+                        fontSize="10"
+                        fill={line.labelColor}
+                      >
+                        {line.label}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                <g opacity={legendOpacity("structure")}>
+                  {chart.series.supportTrack.map((points, index) => (
+                    <polyline
+                      key={`support-track-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#047857"
+                      strokeWidth="1.8"
+                      opacity="0.8"
+                    />
+                  ))}
+                  {chart.series.internalSupportTrack.map((points, index) => (
+                    <polyline
+                      key={`internal-support-track-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#0f766e"
+                      strokeWidth="1.2"
+                      strokeDasharray="4 4"
+                      opacity="0.45"
+                    />
+                  ))}
+                  {chart.series.resistanceTrack.map((points, index) => (
+                    <polyline
+                      key={`resistance-track-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#be123c"
+                      strokeWidth="1.8"
+                      opacity="0.8"
+                    />
+                  ))}
+                  {chart.series.internalResistanceTrack.map((points, index) => (
+                    <polyline
+                      key={`internal-resistance-track-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#fb7185"
+                      strokeWidth="1.2"
+                      strokeDasharray="4 4"
+                      opacity="0.45"
+                    />
                   ))}
                 </g>
+
+                <g opacity={legendOpacity("liquidity")}>
+                  {chart.series.buyLiquidityTrack.map((points, index) => (
+                    <polyline
+                      key={`buy-liquidity-track-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#0f766e"
+                      strokeWidth="1.4"
+                      strokeDasharray="7 5"
+                      opacity="0.7"
+                    />
+                  ))}
+                  {chart.series.sellLiquidityTrack.map((points, index) => (
+                    <polyline
+                      key={`sell-liquidity-track-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#ea580c"
+                      strokeWidth="1.4"
+                      strokeDasharray="7 5"
+                      opacity="0.7"
+                    />
+                  ))}
+                  {chart.series.equalHighTrack.map((points, index) => (
+                    <polyline
+                      key={`equal-high-track-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#b45309"
+                      strokeWidth="1.2"
+                      strokeDasharray="3 5"
+                      opacity="0.6"
+                    />
+                  ))}
+                  {chart.series.equalLowTrack.map((points, index) => (
+                    <polyline
+                      key={`equal-low-track-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#155e75"
+                      strokeWidth="1.2"
+                      strokeDasharray="3 5"
+                      opacity="0.6"
+                    />
+                  ))}
+                </g>
+
+                <g opacity={legendOpacity("indicators")}>
+                  {chart.series.bollingerUpper.map((points, index) => (
+                    <polyline
+                      key={`bb-upper-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#38bdf8"
+                      strokeWidth="1.5"
+                      strokeDasharray="4 4"
+                    />
+                  ))}
+                  {chart.series.bollingerMiddle.map((points, index) => (
+                    <polyline
+                      key={`bb-middle-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#64748b"
+                      strokeWidth="1.3"
+                    />
+                  ))}
+                  {chart.series.bollingerLower.map((points, index) => (
+                    <polyline
+                      key={`bb-lower-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#7dd3fc"
+                      strokeWidth="1.5"
+                      strokeDasharray="4 4"
+                    />
+                  ))}
+                  {chart.series.vwap.map((points, index) => (
+                    <polyline
+                      key={`vwap-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#f59e0b"
+                      strokeWidth="1.8"
+                    />
+                  ))}
+                  {chart.series.ema20.map((points, index) => (
+                    <polyline
+                      key={`ema20-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#10b981"
+                      strokeWidth="2"
+                    />
+                  ))}
+                  {chart.series.ema50.map((points, index) => (
+                    <polyline
+                      key={`ema50-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#f43f5e"
+                      strokeWidth="2"
+                    />
+                  ))}
+                </g>
+
+                {chart.candles.map((candle, index) => (
+                  <g key={`${candle.openTime}-${index}`}>
+                    <line
+                      x1={candle.x}
+                      y1={candle.highY}
+                      x2={candle.x}
+                      y2={candle.lowY}
+                      stroke={candle.color}
+                      strokeWidth="1.5"
+                    />
+                    <rect
+                      x={candle.x - candle.bodyWidth / 2}
+                      y={candle.bodyY}
+                      width={candle.bodyWidth}
+                      height={candle.bodyHeight}
+                      rx="2"
+                      fill={candle.color}
+                      opacity="0.92"
+                    />
+                    <rect
+                      x={candle.x - candle.hitBoxWidth / 2}
+                      y={PADDING_TOP}
+                      width={candle.hitBoxWidth}
+                      height={CHART_HEIGHT - PADDING_TOP - PADDING_BOTTOM}
+                      fill="transparent"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Candle ${formatCandleAriaLabel(visibleKlines[index])}`}
+                      onMouseEnter={() => setHoveredCandleIndex(index)}
+                      onMouseLeave={() => setHoveredCandleIndex((value) => (value === index ? null : value))}
+                      onFocus={() => setHoveredCandleIndex(index)}
+                      onBlur={() => setHoveredCandleIndex((value) => (value === index ? null : value))}
+                    />
+                  </g>
+                ))}
+
+                {hoveredCandle && hoveredKline ? (
+                  <g pointerEvents="none" aria-label="Candle Hover Lens">
+                    <line
+                      x1={hoveredCandle.x}
+                      y1={PADDING_TOP}
+                      x2={hoveredCandle.x}
+                      y2={CHART_HEIGHT - PADDING_BOTTOM}
+                      stroke="rgba(15,118,110,0.36)"
+                      strokeDasharray="5 5"
+                    />
+                    <circle
+                      cx={hoveredCandle.x}
+                      cy={hoveredCandle.closeY}
+                      r={5}
+                      fill="#ffffff"
+                      stroke={hoveredCandle.color}
+                      strokeWidth="2"
+                    />
+                    <rect
+                      x={clamp(hoveredCandle.x - 34, 10, CHART_WIDTH - 86)}
+                      y={PADDING_TOP + 6}
+                      width={76}
+                      height={18}
+                      rx={9}
+                      fill="rgba(15,118,110,0.14)"
+                    />
+                    <text
+                      x={clamp(hoveredCandle.x + 4, 18, CHART_WIDTH - 58)}
+                      y={PADDING_TOP + 18}
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill="#0f766e"
+                      fontWeight="700"
+                    >
+                      {formatKlineTime(hoveredKline.open_time)}
+                    </text>
+                  </g>
+                ) : null}
+
+                <g opacity={legendOpacity("structure")}>
+                  {chart.structureMarkers.map((marker) => (
+                    <g key={`${marker.label}-${marker.openTime}-${marker.x}`}>
+                      <circle
+                        cx={marker.x}
+                        cy={marker.y}
+                        r={marker.tier === "internal" ? 3.8 : 4.6}
+                        fill={marker.color}
+                        stroke="#ffffff"
+                        strokeWidth={marker.tier === "internal" ? 1.2 : 1.4}
+                        opacity={marker.tier === "internal" ? 0.82 : 1}
+                      />
+                      <rect
+                        x={marker.x - marker.label.length * 3.6 - 7}
+                        y={marker.labelY - 9}
+                        width={marker.label.length * 7.2 + 14}
+                        height={16}
+                        rx={8}
+                        fill={marker.labelBackground}
+                        opacity={marker.tier === "internal" ? 0.88 : 1}
+                      />
+                      <text
+                        x={marker.x}
+                        y={marker.labelY + 3}
+                        textAnchor="middle"
+                        fontSize={marker.tier === "internal" ? "8.8" : "9.5"}
+                        fill={marker.labelColor}
+                        fontWeight="600"
+                      >
+                        {marker.label}
+                      </text>
+                    </g>
+                  ))}
+                </g>
+
+                <g opacity={legendOpacity("micro")}>
+                  {chart.microstructureMarkers.map((marker) => {
+                    const isPinned = pinnedMicrostructureMarkerKey === marker.key;
+                    const isHovered = hoveredMicrostructureMarkerKey === marker.key;
+                    return (
+                      <g
+                        key={marker.key}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Micro ${marker.label} ${formatMicrostructureEventType(marker.type)}`}
+                        className="cursor-pointer"
+                        onMouseEnter={() => setHoveredMicrostructureMarkerKey(marker.key)}
+                        onMouseLeave={() =>
+                          setHoveredMicrostructureMarkerKey((value) => (value === marker.key ? null : value))
+                        }
+                        onFocus={() => setHoveredMicrostructureMarkerKey(marker.key)}
+                        onBlur={() =>
+                          setHoveredMicrostructureMarkerKey((value) => (value === marker.key ? null : value))
+                        }
+                        onClick={() =>
+                          setPinnedMicrostructureMarkerKey((value) => (value === marker.key ? null : marker.key))
+                        }
+                      >
+                        <rect
+                          x={marker.x - (isPinned || isHovered ? 6.2 : 5.2)}
+                          y={marker.y - (isPinned || isHovered ? 6.2 : 5.2)}
+                          width={isPinned || isHovered ? 12.4 : 10.4}
+                          height={isPinned || isHovered ? 12.4 : 10.4}
+                          rx={2.4}
+                          fill={marker.color}
+                          stroke="#ffffff"
+                          strokeWidth={isPinned ? "1.8" : "1.3"}
+                          transform={`rotate(45 ${marker.x} ${marker.y})`}
+                        />
+                        <rect
+                          x={marker.x - 18}
+                          y={marker.labelY - 9}
+                          width={36}
+                          height={16}
+                          rx={8}
+                          fill={marker.labelBackground}
+                          opacity={isPinned || isHovered ? 1 : 0.88}
+                        />
+                        <text
+                          x={marker.x}
+                          y={marker.labelY + 3}
+                          textAnchor="middle"
+                          fontSize="9.5"
+                          fill={marker.labelColor}
+                          fontWeight="700"
+                        >
+                          {marker.label}
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                  {microstructureTooltip ? (
+                    <g pointerEvents="none" aria-label="Microstructure Tooltip">
+                      <rect
+                        x={microstructureTooltip.x}
+                        y={microstructureTooltip.y}
+                        width={microstructureTooltip.width}
+                        height={microstructureTooltip.height}
+                        rx={14}
+                        fill="rgba(15,23,42,0.94)"
+                        stroke="rgba(148,163,184,0.24)"
+                      />
+                      {microstructureTooltip.lines.map((line, index) => (
+                        <text
+                          key={`${line}-${index}`}
+                          x={microstructureTooltip.x + 14}
+                          y={microstructureTooltip.y + 20 + index * 14}
+                          fontSize={index === 0 ? "11.5" : "10.5"}
+                          fill={index === 0 ? "#f8fafc" : "#cbd5e1"}
+                          fontWeight={index === 0 ? "700" : "500"}
+                        >
+                          {line}
+                        </text>
+                      ))}
+                    </g>
+                  ) : null}
+                </g>
+
+                <g opacity={legendOpacity("signal")}>
+                  {chart.signalMarkers.map((marker) => (
+                    <g key={`${marker.label}-${marker.x}-${marker.y}`}>
+                      <circle
+                        cx={marker.x}
+                        cy={marker.y}
+                        r={5.6}
+                        fill={marker.color}
+                        stroke="#ffffff"
+                        strokeWidth="1.6"
+                      />
+                      <rect
+                        x={marker.x - marker.label.length * 3.6 - 10}
+                        y={marker.labelY - 10}
+                        width={marker.label.length * 7.2 + 20}
+                        height={18}
+                        rx={9}
+                        fill={marker.labelBackground}
+                      />
+                      <text
+                        x={marker.x}
+                        y={marker.labelY + 3}
+                        textAnchor="middle"
+                        fontSize="9.5"
+                        fill={marker.labelColor}
+                        fontWeight="700"
+                      >
+                        {marker.label}
+                      </text>
+                    </g>
+                  ))}
+                </g>
+
+                {chart.timeLabels.map((label) => (
+                  <g key={label.x}>
+                    <line
+                      x1={label.x}
+                      y1={CHART_HEIGHT - PADDING_BOTTOM + 4}
+                      x2={label.x}
+                      y2={CHART_HEIGHT - PADDING_BOTTOM + 10}
+                      stroke="rgba(100,116,139,0.6)"
+                    />
+                    <text
+                      x={label.x}
+                      y={CHART_HEIGHT - 10}
+                      textAnchor="middle"
+                      fontSize="11"
+                      fill="#64748b"
+                    >
+                      {label.label}
+                    </text>
+                  </g>
+                ))}
+              </svg>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-[24px] border border-slate-100 bg-white/82 px-4 py-3 shadow-[0_10px_24px_rgba(32,42,63,0.04)] md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Legend Focus</p>
+                <p className="mt-2 text-sm text-slate-700">
+                  当前聚焦 <span className="font-semibold text-slate-950">{highlightedLegendLabel}</span>。点击 legend 可以隔离图层。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFocusedLegendKey(null)}
+                className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+              >
+                Reset View
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 text-xs">
+              <Legend
+                label="EMA20"
+                value={indicator?.ema20}
+                color="bg-emerald-500"
+                focused={focusedLegendKey === "indicators"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "indicators"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "indicators")}
+              />
+              <Legend
+                label="EMA50"
+                value={indicator?.ema50}
+                color="bg-rose-500"
+                focused={focusedLegendKey === "indicators"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "indicators"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "indicators")}
+              />
+              <Legend
+                label="VWAP"
+                value={indicator?.vwap}
+                color="bg-amber-500"
+                focused={focusedLegendKey === "indicators"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "indicators"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "indicators")}
+              />
+              <Legend
+                label="BB Upper"
+                value={indicator?.bollinger_upper}
+                color="bg-sky-500"
+                focused={focusedLegendKey === "indicators"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "indicators"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "indicators")}
+              />
+              <Legend
+                label="BB Mid"
+                value={indicator?.bollinger_middle}
+                color="bg-slate-500"
+                focused={focusedLegendKey === "indicators"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "indicators"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "indicators")}
+              />
+              <Legend
+                label="BB Lower"
+                value={indicator?.bollinger_lower}
+                color="bg-cyan-400"
+                focused={focusedLegendKey === "indicators"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "indicators"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "indicators")}
+              />
+              <Legend
+                label="Support"
+                value={structure?.support}
+                color="bg-emerald-700"
+                focused={focusedLegendKey === "structure"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "structure"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "structure")}
+              />
+              <Legend
+                label="Resistance"
+                value={structure?.resistance}
+                color="bg-rose-700"
+                focused={focusedLegendKey === "structure"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "structure"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "structure")}
+              />
+              <Legend
+                label="Int Support"
+                value={structure?.internal_support}
+                color="bg-teal-500"
+                focused={focusedLegendKey === "structure"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "structure"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "structure")}
+              />
+              <Legend
+                label="Int Resistance"
+                value={structure?.internal_resistance}
+                color="bg-pink-400"
+                focused={focusedLegendKey === "structure"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "structure"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "structure")}
+              />
+              <Legend
+                label="Buy Liquidity"
+                value={liquidity?.buy_liquidity}
+                color="bg-teal-600"
+                focused={focusedLegendKey === "liquidity"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "liquidity"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "liquidity")}
+              />
+              <Legend
+                label="Sell Liquidity"
+                value={liquidity?.sell_liquidity}
+                color="bg-orange-500"
+                focused={focusedLegendKey === "liquidity"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "liquidity"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "liquidity")}
+              />
+              <Legend
+                label="Equal High"
+                value={liquidity?.equal_high}
+                color="bg-amber-700"
+                focused={focusedLegendKey === "liquidity"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "liquidity"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "liquidity")}
+              />
+              <Legend
+                label="Equal Low"
+                value={liquidity?.equal_low}
+                color="bg-cyan-700"
+                focused={focusedLegendKey === "liquidity"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "liquidity"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "liquidity")}
+              />
+              <Legend
+                label="Micro Events"
+                value={String(chart.microstructureMarkers.length)}
+                color="bg-fuchsia-600"
+                focused={focusedLegendKey === "micro"}
+                dimmed={focusedLegendKey !== null && focusedLegendKey !== "micro"}
+                onClick={() => toggleLegendFocus(setFocusedLegendKey, "micro")}
+              />
+              {signal?.signal !== "NEUTRAL" ? (
+                <>
+                  <Legend
+                    label="Signal Entry"
+                    value={signal?.entry_price}
+                    color="bg-sky-700"
+                    focused={focusedLegendKey === "signal"}
+                    dimmed={focusedLegendKey !== null && focusedLegendKey !== "signal"}
+                    onClick={() => toggleLegendFocus(setFocusedLegendKey, "signal")}
+                  />
+                  <Legend
+                    label="Signal Target"
+                    value={signal?.target_price}
+                    color="bg-violet-700"
+                    focused={focusedLegendKey === "signal"}
+                    dimmed={focusedLegendKey !== null && focusedLegendKey !== "signal"}
+                    onClick={() => toggleLegendFocus(setFocusedLegendKey, "signal")}
+                  />
+                  <Legend
+                    label="Signal Stop"
+                    value={signal?.stop_loss}
+                    color="bg-rose-800"
+                    focused={focusedLegendKey === "signal"}
+                    dimmed={focusedLegendKey !== null && focusedLegendKey !== "signal"}
+                    onClick={() => toggleLegendFocus(setFocusedLegendKey, "signal")}
+                  />
+                </>
               ) : null}
+            </div>
 
-              {chart.signalMarkers.map((marker) => (
-                <g key={`${marker.label}-${marker.x}-${marker.y}`}>
-                  <circle
-                    cx={marker.x}
-                    cy={marker.y}
-                    r={5.6}
-                    fill={marker.color}
-                    stroke="#ffffff"
-                    strokeWidth="1.6"
-                  />
-                  <rect
-                    x={marker.x - marker.label.length * 3.6 - 10}
-                    y={marker.labelY - 10}
-                    width={marker.label.length * 7.2 + 20}
-                    height={18}
-                    rx={9}
-                    fill={marker.labelBackground}
-                  />
-                  <text
-                    x={marker.x}
-                    y={marker.labelY + 3}
-                    textAnchor="middle"
-                    fontSize="9.5"
-                    fill={marker.labelColor}
-                    fontWeight="700"
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="rounded-[24px] border border-slate-100 bg-white/82 p-4 shadow-[0_12px_24px_rgba(32,42,63,0.04)]">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Hover Lens</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">Hover a candle to inspect the local auction.</p>
+                  </div>
+                  <Tag color={hoveredKline ? "cyan" : "default"}>
+                    {hoveredKline ? formatKlineTime(hoveredKline.open_time) : "Waiting"}
+                  </Tag>
+                </div>
+
+                {hoveredKline ? (
+                  <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                    <Metric label="Open" value={hoveredKline.open_price} />
+                    <Metric label="High" value={hoveredKline.high_price} />
+                    <Metric label="Low" value={hoveredKline.low_price} />
+                    <Metric label="Close" value={hoveredKline.close_price} />
+                    <Metric label="Volume" value={hoveredKline.volume} digits={4} />
+                    <Metric label="Range" value={hoveredKline.high_price - hoveredKline.low_price} />
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm leading-6 text-slate-600">
+                    将鼠标移动到任意 K 线柱体上，可以查看该根 candle 的 OHLC、volume 和当前时间锚点。
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-[24px] border border-slate-100 bg-slate-950 p-4 text-slate-100 shadow-[0_16px_30px_rgba(15,23,42,0.16)]">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Active Marker</p>
+                    <p className="mt-2 text-sm font-semibold text-white">Click a micro marker to pin the detail card.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHoveredMicrostructureMarkerKey(null);
+                      setPinnedMicrostructureMarkerKey(null);
+                    }}
+                    className="rounded-full border border-white/15 bg-white/8 px-3 py-1 text-xs font-semibold text-white transition hover:border-white/25 hover:bg-white/12"
                   >
-                    {marker.label}
-                  </text>
-                </g>
-              ))}
+                    Clear
+                  </button>
+                </div>
 
-              {chart.timeLabels.map((label) => (
-                <g key={label.x}>
-                  <line
-                    x1={label.x}
-                    y1={CHART_HEIGHT - PADDING_BOTTOM + 4}
-                    x2={label.x}
-                    y2={CHART_HEIGHT - PADDING_BOTTOM + 10}
-                    stroke="rgba(100,116,139,0.6)"
-                  />
-                  <text
-                    x={label.x}
-                    y={CHART_HEIGHT - 10}
-                    textAnchor="middle"
-                    fontSize="11"
-                    fill="#64748b"
-                  >
-                    {label.label}
-                  </text>
-                </g>
-              ))}
-            </svg>
-          </div>
+                {activeMicrostructureMarker ? (
+                  <div className="mt-4 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Tag color={activeMicrostructureMarker.bias === "bullish" ? "success" : "error"}>
+                        {activeMicrostructureMarker.bias}
+                      </Tag>
+                      <Tag color="purple">{activeMicrostructureMarker.label}</Tag>
+                      <Tag color="cyan">{formatKlineTime(activeMicrostructureMarker.tradeTime)}</Tag>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Metric label="Score" value={activeMicrostructureMarker.score} digits={0} tone="dark" />
+                      <Metric label="Strength" value={activeMicrostructureMarker.strength} tone="dark" />
+                      <Metric label="Price" value={activeMicrostructureMarker.price} tone="dark" />
+                      <Metric
+                        label="State"
+                        value={pinnedMicrostructureMarkerKey === activeMicrostructureMarker.key ? "Pinned" : "Hover"}
+                        tone="dark"
+                      />
+                    </div>
+                    <p className="text-sm leading-6 text-slate-300">{activeMicrostructureMarker.detail}</p>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm leading-6 text-slate-300">
+                    现在会在 hover 时临时显示 marker 详情，点击后可固定观察，不会因为鼠标移开而消失。
+                  </p>
+                )}
+              </div>
+            </div>
 
-          <div className="flex flex-wrap gap-2 text-xs">
-            <Legend label="EMA20" value={indicator?.ema20} color="bg-emerald-500" />
-            <Legend label="EMA50" value={indicator?.ema50} color="bg-rose-500" />
-            <Legend label="VWAP" value={indicator?.vwap} color="bg-amber-500" />
-            <Legend label="BB Upper" value={indicator?.bollinger_upper} color="bg-sky-500" />
-            <Legend label="BB Mid" value={indicator?.bollinger_middle} color="bg-slate-500" />
-            <Legend label="BB Lower" value={indicator?.bollinger_lower} color="bg-cyan-400" />
-            <Legend label="Support" value={structure?.support} color="bg-emerald-700" />
-            <Legend label="Resistance" value={structure?.resistance} color="bg-rose-700" />
-            <Legend label="Int Support" value={structure?.internal_support} color="bg-teal-500" />
-            <Legend label="Int Resistance" value={structure?.internal_resistance} color="bg-pink-400" />
-            <Legend label="Buy Liquidity" value={liquidity?.buy_liquidity} color="bg-teal-600" />
-            <Legend label="Sell Liquidity" value={liquidity?.sell_liquidity} color="bg-orange-500" />
-            <Legend label="Equal High" value={liquidity?.equal_high} color="bg-amber-700" />
-            <Legend label="Equal Low" value={liquidity?.equal_low} color="bg-cyan-700" />
-            <Legend label="Micro Events" value={chart.microstructureMarkers.length} color="bg-fuchsia-600" />
-            {signal?.signal !== "NEUTRAL" ? (
-              <>
-                <Legend label="Signal Entry" value={signal?.entry_price} color="bg-sky-700" />
-                <Legend label="Signal Target" value={signal?.target_price} color="bg-violet-700" />
-                <Legend label="Signal Stop" value={signal?.stop_loss} color="bg-rose-800" />
-              </>
+            {latestKline ? (
+              <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4 xl:grid-cols-6">
+                <Metric label="Open" value={latestKline.open_price} />
+                <Metric label="High" value={latestKline.high_price} />
+                <Metric label="Low" value={latestKline.low_price} />
+                <Metric label="Close" value={latestKline.close_price} />
+                <Metric label="Volume" value={latestKline.volume} digits={4} />
+                {indicator ? <Metric label="VWAP" value={indicator.vwap} /> : null}
+                {indicator ? <Metric label="EMA20" value={indicator.ema20} /> : null}
+                {indicator ? <Metric label="EMA50" value={indicator.ema50} /> : null}
+                {structure ? <Metric label="Trend" value={structure.trend} /> : null}
+                {structure ? <Metric label="Struct Tier" value={structure.primary_tier || "internal"} /> : null}
+                {structure ? <Metric label="Events" value={String(structure.events.length)} /> : null}
+                {structure?.internal_support ? <Metric label="Int Support" value={structure.internal_support} /> : null}
+                {structure?.internal_resistance ? <Metric label="Int Resist" value={structure.internal_resistance} /> : null}
+                <Metric label="Micro Events" value={String(chart.microstructureMarkers.length)} />
+                {liquidity ? <Metric label="Sweep" value={liquidity.sweep_type || "none"} /> : null}
+                {liquidity ? <Metric label="OB Imb." value={liquidity.order_book_imbalance} digits={3} /> : null}
+                {signal ? <Metric label="Signal" value={signal.signal} /> : null}
+                {signal ? <Metric label="Entry" value={signal.entry_price} /> : null}
+                {signal ? <Metric label="Target" value={signal.target_price} /> : null}
+                {signal ? <Metric label="Stop" value={signal.stop_loss} /> : null}
+              </div>
             ) : null}
           </div>
-
-          {latestKline ? (
-            <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4 xl:grid-cols-6">
-              <Metric label="Open" value={latestKline.open_price} />
-              <Metric label="High" value={latestKline.high_price} />
-              <Metric label="Low" value={latestKline.low_price} />
-              <Metric label="Close" value={latestKline.close_price} />
-              <Metric label="Volume" value={latestKline.volume} digits={4} />
-              {indicator ? <Metric label="VWAP" value={indicator.vwap} /> : null}
-              {indicator ? <Metric label="EMA20" value={indicator.ema20} /> : null}
-              {indicator ? <Metric label="EMA50" value={indicator.ema50} /> : null}
-              {structure ? <Metric label="Trend" value={structure.trend} /> : null}
-              {structure ? <Metric label="Struct Tier" value={structure.primary_tier || "internal"} /> : null}
-              {structure ? <Metric label="Events" value={String(structure.events.length)} /> : null}
-              {structure?.internal_support ? <Metric label="Int Support" value={structure.internal_support} /> : null}
-              {structure?.internal_resistance ? <Metric label="Int Resist" value={structure.internal_resistance} /> : null}
-              <Metric label="Micro Events" value={String(chart.microstructureMarkers.length)} />
-              {liquidity ? <Metric label="Sweep" value={liquidity.sweep_type || "none"} /> : null}
-              {liquidity ? <Metric label="OB Imb." value={liquidity.order_book_imbalance} digits={3} /> : null}
-              {signal ? <Metric label="Signal" value={signal.signal} /> : null}
-              {signal ? <Metric label="Entry" value={signal.entry_price} /> : null}
-              {signal ? <Metric label="Target" value={signal.target_price} /> : null}
-              {signal ? <Metric label="Stop" value={signal.stop_loss} /> : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -622,17 +934,25 @@ function Metric({
   label,
   value,
   digits = 2,
+  tone = "light",
 }: {
   label: string;
   value: number | string;
   digits?: number;
+  tone?: "light" | "dark";
 }) {
   const display = typeof value === "number" ? value.toFixed(digits) : value;
 
   return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
-      <p className="text-xs text-muted">{label}</p>
-      <p className="mt-1 font-semibold">{display}</p>
+    <div
+      className={`rounded-lg border p-3 ${
+        tone === "dark"
+          ? "border-white/10 bg-white/6"
+          : "border-slate-100 bg-slate-50"
+      }`}
+    >
+      <p className={`text-xs ${tone === "dark" ? "text-slate-400" : "text-muted"}`}>{label}</p>
+      <p className={`mt-1 font-semibold ${tone === "dark" ? "text-white" : ""}`}>{display}</p>
     </div>
   );
 }
@@ -641,17 +961,36 @@ function Legend({
   label,
   value,
   color,
+  focused,
+  dimmed,
+  onClick,
 }: {
   label: string;
-  value?: number;
+  value?: number | string;
   color: string;
+  focused: boolean;
+  dimmed: boolean;
+  onClick: () => void;
 }) {
+  const display =
+    typeof value === "number" ? (value > 0 ? value.toFixed(2) : "-") : value ?? "-";
   return (
-    <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1">
+    <button
+      type="button"
+      aria-pressed={focused}
+      onClick={onClick}
+      className={`flex items-center gap-2 rounded-full border px-3 py-1 transition ${
+        focused
+          ? "border-slate-950 bg-slate-950 text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)]"
+          : dimmed
+            ? "border-slate-100 bg-white/55 text-slate-400"
+            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+      }`}
+    >
       <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
-      <span className="font-medium text-slate-700">{label}</span>
-      <span className="text-slate-500">{typeof value === "number" && value > 0 ? value.toFixed(2) : "-"}</span>
-    </div>
+      <span className="font-medium">{label}</span>
+      <span className={focused ? "text-slate-200" : "text-slate-500"}>{display}</span>
+    </button>
   );
 }
 
@@ -835,9 +1174,11 @@ function buildChartModel(
       x,
       highY: priceToY(item.high_price),
       lowY: priceToY(item.low_price),
+      closeY,
       bodyY: Math.min(openY, closeY),
       bodyHeight: Math.max(Math.abs(closeY - openY), 2),
       bodyWidth,
+      hitBoxWidth: Math.max(slotWidth, 14),
       color: item.close_price >= item.open_price ? "#10b981" : "#f43f5e",
     };
   });
@@ -1625,6 +1966,61 @@ function wrapTooltipText(text: string, maxChars: number, maxLines: number) {
   return lines;
 }
 
+function toggleLegendFocus(
+  setFocusedLegendKey: Dispatch<SetStateAction<LegendFocusKey | null>>,
+  key: LegendFocusKey,
+) {
+  setFocusedLegendKey((value) => (value === key ? null : key));
+}
+
+function resolveLegendFocusLabel(key: LegendFocusKey) {
+  switch (key) {
+    case "indicators":
+      return "Indicator Stack";
+    case "structure":
+      return "Structure Map";
+    case "liquidity":
+      return "Liquidity Map";
+    case "signal":
+      return "Signal Markers";
+    case "micro":
+      return "Microstructure";
+    default:
+      return "All layers";
+  }
+}
+
+function resolveZoneLineOpacity(label: string, focusedLegendKey: LegendFocusKey | null) {
+  if (!focusedLegendKey) {
+    return 1;
+  }
+
+  const upperLabel = label.toUpperCase();
+  if (
+    focusedLegendKey === "structure" &&
+    (upperLabel.includes("SUPPORT") ||
+      upperLabel.includes("RESIST") ||
+      upperLabel.includes("BOS") ||
+      upperLabel.includes("CHOCH"))
+  ) {
+    return 1;
+  }
+  if (
+    focusedLegendKey === "liquidity" &&
+    (upperLabel.includes("LIQ") || upperLabel.includes("EQH") || upperLabel.includes("EQL") || upperLabel.includes("SWEEP"))
+  ) {
+    return 1;
+  }
+  if (
+    focusedLegendKey === "signal" &&
+    (upperLabel.includes("ENTRY") || upperLabel.includes("TARGET") || upperLabel.includes("STOP"))
+  ) {
+    return 1;
+  }
+
+  return 0.18;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
@@ -1633,7 +2029,16 @@ function formatKlineTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString("zh-CN", {
     hour: "2-digit",
     minute: "2-digit",
-  });
+	});
+}
+
+function formatCandleAriaLabel(kline?: Kline) {
+  if (!kline) {
+    return "unknown";
+  }
+  return `${formatKlineTime(kline.open_time)} open ${kline.open_price.toFixed(2)} high ${kline.high_price.toFixed(
+    2,
+  )} low ${kline.low_price.toFixed(2)} close ${kline.close_price.toFixed(2)}`;
 }
 
 interface CandleShape {
@@ -1641,9 +2046,11 @@ interface CandleShape {
   x: number;
   highY: number;
   lowY: number;
+  closeY: number;
   bodyY: number;
   bodyHeight: number;
   bodyWidth: number;
+  hitBoxWidth: number;
   color: string;
 }
 

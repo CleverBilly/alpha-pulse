@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { Card, Progress, Tag, Typography } from "antd";
 import { useMarketStore } from "@/store/marketStore";
 
 export default function MarketOverviewBoard() {
@@ -56,39 +57,66 @@ export default function MarketOverviewBoard() {
   }, [indicator?.rsi, liquidity?.order_book_imbalance, orderFlow?.delta, signal?.confidence, signal?.score, structure?.trend]);
 
   return (
-    <section className="rounded-[28px] border border-slate-200/80 bg-[linear-gradient(135deg,#ffffff_0%,#eff6ff_48%,#ecfeff_100%)] p-6 shadow-panel">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
-            Market Overview
-          </p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-900">{regime.headline}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            当前价格 {formatPrice(price?.price)}，信号倾向为 {regime.stance}。{regime.momentum}，{regime.flowBias}，
-            {regime.liquidityPressure}。
-          </p>
-        </div>
+    <section>
+      <Card
+        variant="borderless"
+        className="surface-card surface-card--market"
+      >
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
+                Market Overview
+              </p>
+              <Typography.Title level={2} className="!mb-0 !mt-3 !text-[30px] !leading-tight !tracking-[-0.04em]">
+                {regime.headline}
+              </Typography.Title>
+              <Typography.Paragraph className="!mb-0 !mt-3 !text-[15px] !leading-7 !text-slate-600">
+                当前价格 {formatPrice(price?.price)}，信号倾向为 {regime.stance}。{regime.momentum}，{regime.flowBias}，
+                {regime.liquidityPressure}。
+              </Typography.Paragraph>
+            </div>
 
-        <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 backdrop-blur">
-          <p className="text-xs text-slate-500">Confidence</p>
-          <p className="mt-1 text-3xl font-semibold text-slate-900">{regime.confidence.toFixed(0)}%</p>
-        </div>
-      </div>
+            <div className="min-w-[250px] rounded-[28px] border border-white/70 bg-white/76 p-5 shadow-[0_14px_36px_rgba(32,42,63,0.08)]">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Confidence</span>
+                <Tag color={signalTone(signal?.signal).tag}>{signal?.signal ?? "NEUTRAL"}</Tag>
+              </div>
+              <div className="mt-4 flex items-end justify-between gap-4">
+                <p className="text-4xl font-semibold tracking-[-0.04em] text-slate-900">
+                  {regime.confidence.toFixed(0)}%
+                </p>
+                <div className="text-right text-xs text-slate-500">
+                  <p>Flow</p>
+                  <p className="mt-1 font-medium text-slate-700">{regime.flowBias}</p>
+                </div>
+              </div>
+              <Progress percent={Math.max(0, Math.min(100, regime.confidence))} showInfo={false} className="!mt-4" />
+            </div>
+          </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <StatCard label="Price" value={formatPrice(price?.price)} accent="text-sky-700" />
-        <StatCard label="Signal" value={signal?.signal ?? "NEUTRAL"} accent={signalTone(signal?.signal).text} />
-        <StatCard label="Trend" value={structure?.trend ?? "range"} accent={trendTone(structure?.trend).text} />
-        <StatCard label="Momentum" value={`${(indicator?.rsi ?? 0).toFixed(1)} RSI`} accent="text-violet-700" />
-        <StatCard label="Delta" value={formatCompact(orderFlow?.delta)} accent="text-emerald-700" />
-        <StatCard label="CVD" value={formatCompact(orderFlow?.cvd)} accent="text-slate-700" />
-        <StatCard
-          label="Order Book"
-          value={formatSigned(liquidity?.order_book_imbalance, 3)}
-          accent="text-amber-700"
-        />
-        <StatCard label="Sweep" value={liquidity?.sweep_type || "none"} accent="text-rose-700" />
-      </div>
+          <div className="flex flex-wrap gap-2">
+            <Tag color="cyan">{regime.stance}</Tag>
+            <Tag color="gold">{regime.momentum}</Tag>
+            <Tag color={imbalanceTone(liquidity?.order_book_imbalance)}>{regime.liquidityPressure}</Tag>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <StatCard label="Price" value={formatPrice(price?.price)} accent="text-sky-700" />
+            <StatCard label="Signal" value={signal?.signal ?? "NEUTRAL"} accent={signalTone(signal?.signal).text} />
+            <StatCard label="Trend" value={structure?.trend ?? "range"} accent={trendTone(structure?.trend).text} />
+            <StatCard label="Momentum" value={`${(indicator?.rsi ?? 0).toFixed(1)} RSI`} accent="text-violet-700" />
+            <StatCard label="Delta" value={formatCompact(orderFlow?.delta)} accent="text-emerald-700" />
+            <StatCard label="CVD" value={formatCompact(orderFlow?.cvd)} accent="text-slate-700" />
+            <StatCard
+              label="Order Book"
+              value={formatSigned(liquidity?.order_book_imbalance, 3)}
+              accent="text-amber-700"
+            />
+            <StatCard label="Sweep" value={liquidity?.sweep_type || "none"} accent="text-rose-700" />
+          </div>
+        </div>
+      </Card>
     </section>
   );
 }
@@ -103,8 +131,8 @@ function StatCard({
   accent: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white/75 p-4 backdrop-blur">
-      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">{label}</p>
+    <div className="rounded-[24px] border border-white/70 bg-white/72 p-4 shadow-[0_12px_30px_rgba(32,42,63,0.05)] backdrop-blur">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
       <p className={`mt-2 text-lg font-semibold ${accent}`}>{value}</p>
     </div>
   );
@@ -134,12 +162,12 @@ function formatSigned(value?: number | null, digits = 2) {
 
 function signalTone(action?: string) {
   if (action === "BUY") {
-    return { text: "text-emerald-700" };
+    return { text: "text-emerald-700", tag: "success" };
   }
   if (action === "SELL") {
-    return { text: "text-rose-700" };
+    return { text: "text-rose-700", tag: "error" };
   }
-  return { text: "text-slate-700" };
+  return { text: "text-slate-700", tag: undefined };
 }
 
 function trendTone(trend?: string) {
@@ -150,4 +178,17 @@ function trendTone(trend?: string) {
     return { text: "text-rose-700" };
   }
   return { text: "text-slate-700" };
+}
+
+function imbalanceTone(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+  if (value >= 0.12) {
+    return "success";
+  }
+  if (value <= -0.12) {
+    return "error";
+  }
+  return "gold";
 }

@@ -18,12 +18,22 @@ interface SnapshotResponseOverride {
 
 interface MockMarketSnapshotOptions {
   delayMs?: number;
+  disableWebSocket?: boolean;
   onRequest?: (context: SnapshotRequestContext) => void;
   resolver?: (context: SnapshotRequestContext) => SnapshotResponseOverride | Promise<SnapshotResponseOverride>;
 }
 
 export async function mockMarketSnapshotApi(page: Page, options: MockMarketSnapshotOptions = {}) {
   let requestCount = 0;
+
+  if (options.disableWebSocket ?? true) {
+    await page.routeWebSocket(/wss?:\/\/(127\.0\.0\.1|localhost):8080\/api\/market-snapshot\/stream.*/, (ws) => {
+      void ws.close({
+        code: 1013,
+        reason: "E2E mocked HTTP snapshot",
+      });
+    });
+  }
 
   await page.route(/http:\/\/(127\.0\.0\.1|localhost):8080\/api\/market-snapshot.*/, async (route) => {
     const url = new URL(route.request().url());

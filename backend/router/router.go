@@ -28,6 +28,7 @@ func SetupRouter(handlers HandlerSet) *gin.Engine {
 	api := r.Group("/api")
 	{
 		api.GET("/market-snapshot", handlers.Market.GetMarketSnapshot)
+		api.GET("/market-snapshot/stream", handlers.Market.StreamMarketSnapshot)
 		api.GET("/price", handlers.Market.GetPrice)
 		api.GET("/kline", handlers.Market.GetKline)
 		api.GET("/indicators", handlers.Market.GetIndicators)

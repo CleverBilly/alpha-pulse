@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Tag } from "antd";
 import { OrderFlowMicrostructureEvent } from "@/types/market";
 import { useMarketStore } from "@/store/marketStore";
 
@@ -46,26 +47,52 @@ export default function MicrostructureTimeline() {
     [activeFilter, events],
   );
   const summary = useMemo(() => buildSummary(visibleEvents, events.length), [visibleEvents, events.length]);
+  const dominantFamily = useMemo(() => resolveDominantFamily(visibleEvents), [visibleEvents]);
+  const averageStrength = useMemo(
+    () =>
+      visibleEvents.length > 0
+        ? visibleEvents.reduce((sum, event) => sum + event.strength, 0) / visibleEvents.length
+        : 0,
+    [visibleEvents],
+  );
 
   return (
-    <section className="rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,#fffef6_0%,#ffffff_55%,#f8fafc_100%)] p-6 shadow-panel">
+    <section className="surface-panel surface-panel--warm">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700">
             Microstructure
           </p>
           <h3 className="mt-2 text-xl font-semibold text-slate-900">Microstructure Timeline</h3>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            这里把盘口吸收、迁移、执行切换和高阶共振事件串成一条可读的盘中叙事链。
+          </p>
         </div>
         <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
           {visibleEvents.length} / {events.length} visible
         </span>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Visible" value={`${summary.visibleCount} / ${summary.totalCount}`} />
-        <SummaryCard label="Net Score" value={formatSigned(summary.netScore)} />
-        <SummaryCard label="Bias Tilt" value={`${summary.bullishCount}B / ${summary.bearishCount}S`} />
-        <SummaryCard label="High Order" value={summary.highOrderCount.toString()} accent />
+      <div className="mt-5 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="rounded-[24px] border border-slate-200/70 bg-white/80 px-4 py-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Tag color="gold">{dominantFamily.label}</Tag>
+            <Tag color={summary.netScore >= 0 ? "success" : "error"}>
+              Net {formatSigned(summary.netScore)}
+            </Tag>
+            <Tag color="blue">Avg Strength {averageStrength.toFixed(2)}</Tag>
+          </div>
+          <p className="mt-3 text-sm leading-7 text-slate-600">
+            {dominantFamily.copy(summary, averageStrength)}
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SummaryCard label="Visible" value={`${summary.visibleCount} / ${summary.totalCount}`} />
+          <SummaryCard label="Net Score" value={formatSigned(summary.netScore)} />
+          <SummaryCard label="Bias Tilt" value={`${summary.bullishCount}B / ${summary.bearishCount}S`} />
+          <SummaryCard label="High Order" value={summary.highOrderCount.toString()} accent />
+        </div>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2">
@@ -279,6 +306,40 @@ function buildSummary(events: OrderFlowMicrostructureEvent[], totalCount: number
       highOrderCount: 0,
     },
   );
+}
+
+function resolveDominantFamily(events: OrderFlowMicrostructureEvent[]) {
+  if (events.length === 0) {
+    return {
+      label: "Awaiting micro events",
+      copy: () => "当前还没有足够的微结构事件用于形成可读叙事。",
+    };
+  }
+
+  const counts = new Map<string, number>();
+  for (const event of events) {
+    const family = getEventMeta(event.type).familyLabel;
+    counts.set(family, (counts.get(family) ?? 0) + 1);
+  }
+
+  const [label = "Mixed Flow"] =
+    [...counts.entries()].sort((left, right) => right[1] - left[1])[0] ?? [];
+
+  return {
+    label,
+    copy: (
+      summary: {
+        netScore: number;
+        bullishCount: number;
+        bearishCount: number;
+        highOrderCount: number;
+      },
+      averageStrength: number,
+    ) =>
+      `${label} 当前是主导叙事，净分数 ${formatSigned(summary.netScore)}，高阶事件 ${summary.highOrderCount} 个，平均强度 ${averageStrength.toFixed(
+        2,
+      )}。多头 ${summary.bullishCount} 个，空头 ${summary.bearishCount} 个。`,
+  };
 }
 
 function getEventMeta(type: string) {

@@ -73,7 +73,13 @@ describe("KlineChart", () => {
     await user.hover(screen.getByRole("button", { name: "Micro ABS Absorption" }));
     expect(screen.getByText("Absorption · ABS")).toBeInTheDocument();
     expect(screen.getByText("BULLISH | score +5")).toBeInTheDocument();
-    expect(screen.getByText("卖压被持续吸收，价格未继续下破")).toBeInTheDocument();
+    expect(screen.getAllByText("卖压被持续吸收，价格未继续下破").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: /EMA20/i }));
+    expect(screen.getByText("Indicator Stack")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Micro ABS Absorption" }));
+    expect(screen.getByText("Pinned")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "更新K线" }));
     expect(refreshDashboard).toHaveBeenCalledTimes(1);

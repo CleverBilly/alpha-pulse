@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { Card, Progress, Tag, Typography } from "antd";
 import { LiquidityWallEvolution, LiquidityWallLevel, LiquidityWallStrengthBand } from "@/types/market";
 import { useMarketStore } from "@/store/marketStore";
 
@@ -34,100 +35,105 @@ export default function LiquidityPanel() {
   );
 
   return (
-    <section className="rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-panel">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-xl font-semibold text-slate-900">Liquidity</h3>
-          <p className="mt-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Wall Map</p>
+    <section>
+      <Card
+        variant="borderless"
+        className="surface-card surface-card--paper"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Typography.Title level={3} className="!mb-0 !text-[24px] !tracking-[-0.03em]">
+              Liquidity
+            </Typography.Title>
+            <p className="mt-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Wall Map</p>
+          </div>
+          <button
+            onClick={() => {
+              void refreshDashboard(true);
+            }}
+            className="rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+          >
+            更新
+          </button>
         </div>
-        <button
-          onClick={() => {
-            void refreshDashboard(true);
-          }}
-          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700"
-        >
-          更新
-        </button>
-      </div>
 
-      {liquidity ? (
-        <>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="Buy Liquidity" value={formatPrice(liquidity.buy_liquidity)} />
-            <MetricCard label="Sell Liquidity" value={formatPrice(liquidity.sell_liquidity)} />
-            <MetricCard label="Imbalance" value={formatSigned(liquidity.order_book_imbalance, 2)} />
-            <MetricCard label="Sweep" value={formatSweepType(liquidity.sweep_type)} accent />
-          </div>
-
-          <div className="mt-6 grid gap-4 lg:grid-cols-2">
-            <WallColumn
-              title="Ask Wall Map"
-              subtitle="上方卖单墙与潜在流动性回收区"
-              walls={askWalls}
-              currentPrice={price?.price}
-              tone="border-rose-100 bg-[linear-gradient(180deg,rgba(255,241,242,0.7)_0%,rgba(255,255,255,0.98)_100%)]"
-            />
-            <WallColumn
-              title="Bid Wall Map"
-              subtitle="下方买单墙与被动承接带"
-              walls={bidWalls}
-              currentPrice={price?.price}
-              tone="border-emerald-100 bg-[linear-gradient(180deg,rgba(236,253,245,0.7)_0%,rgba(255,255,255,0.98)_100%)]"
-            />
-          </div>
-
-          <div className="mt-6 grid gap-4 lg:grid-cols-2">
-            <BandColumn
-              title="Ask Heat Bands"
-              subtitle="按距离分带聚合卖单墙热度"
-              bands={askBands}
-              tone="border-rose-100 bg-[linear-gradient(180deg,rgba(255,241,242,0.7)_0%,rgba(255,255,255,0.98)_100%)]"
-              barTone="from-rose-300 to-rose-500"
-            />
-            <BandColumn
-              title="Bid Heat Bands"
-              subtitle="按距离分带聚合买单墙热度"
-              bands={bidBands}
-              tone="border-emerald-100 bg-[linear-gradient(180deg,rgba(236,253,245,0.7)_0%,rgba(255,255,255,0.98)_100%)]"
-              barTone="from-emerald-300 to-emerald-500"
-            />
-          </div>
-
-          <div className="mt-6 rounded-[24px] border border-slate-200 bg-white px-4 py-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">Cross-Interval Wall Evolution</p>
-                <p className="mt-1 text-xs text-slate-500">观察 1m 到 4h 的主导 wall、强度变化和距离迁移。</p>
-              </div>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-500">
-                {wallEvolution.length} intervals
-              </span>
+        {liquidity ? (
+          <>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="Buy Liquidity" value={formatPrice(liquidity.buy_liquidity)} />
+              <MetricCard label="Sell Liquidity" value={formatPrice(liquidity.sell_liquidity)} />
+              <MetricCard label="Imbalance" value={formatSigned(liquidity.order_book_imbalance, 2)} />
+              <MetricCard label="Sweep" value={formatSweepType(liquidity.sweep_type)} accent />
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {wallEvolution.map((point) => (
-                <EvolutionCard key={point.interval} point={point} />
-              ))}
-              {wallEvolution.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                  当前数据源未提供跨周期 wall 演化概览
+            <div className="mt-6 grid gap-4 lg:grid-cols-2">
+              <WallColumn
+                title="Ask Wall Map"
+                subtitle="上方卖单墙与潜在流动性回收区"
+                walls={askWalls}
+                currentPrice={price?.price}
+                tone="border-rose-100 bg-[linear-gradient(180deg,rgba(255,241,242,0.7)_0%,rgba(255,255,255,0.98)_100%)]"
+              />
+              <WallColumn
+                title="Bid Wall Map"
+                subtitle="下方买单墙与被动承接带"
+                walls={bidWalls}
+                currentPrice={price?.price}
+                tone="border-emerald-100 bg-[linear-gradient(180deg,rgba(236,253,245,0.7)_0%,rgba(255,255,255,0.98)_100%)]"
+              />
+            </div>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-2">
+              <BandColumn
+                title="Ask Heat Bands"
+                subtitle="按距离分带聚合卖单墙热度"
+                bands={askBands}
+                tone="border-rose-100 bg-[linear-gradient(180deg,rgba(255,241,242,0.7)_0%,rgba(255,255,255,0.98)_100%)]"
+                strokeColor="#f43f5e"
+              />
+              <BandColumn
+                title="Bid Heat Bands"
+                subtitle="按距离分带聚合买单墙热度"
+                bands={bidBands}
+                tone="border-emerald-100 bg-[linear-gradient(180deg,rgba(236,253,245,0.7)_0%,rgba(255,255,255,0.98)_100%)]"
+                strokeColor="#10b981"
+              />
+            </div>
+
+            <div className="mt-6 rounded-[24px] border border-slate-200 bg-white px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Cross-Interval Wall Evolution</p>
+                  <p className="mt-1 text-xs text-slate-500">观察 1m 到 4h 的主导 wall、强度变化和距离迁移。</p>
                 </div>
-              ) : null}
-            </div>
-          </div>
+                <Tag>{wallEvolution.length} intervals</Tag>
+              </div>
 
-          <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Chip label={`Source ${liquidity.data_source}`} />
-              <Chip label={`Equal High ${formatPrice(liquidity.equal_high)}`} />
-              <Chip label={`Equal Low ${formatPrice(liquidity.equal_low)}`} />
-              <Chip label={`${(liquidity.stop_clusters ?? []).length} stop clusters`} />
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {wallEvolution.map((point) => (
+                  <EvolutionCard key={point.interval} point={point} />
+                ))}
+                {wallEvolution.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                    当前数据源未提供跨周期 wall 演化概览
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
-        </>
-      ) : (
-        <p className="mt-5 text-sm text-slate-500">暂无流动性数据</p>
-      )}
+
+            <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Chip label={`Source ${liquidity.data_source}`} />
+                <Chip label={`Equal High ${formatPrice(liquidity.equal_high)}`} />
+                <Chip label={`Equal Low ${formatPrice(liquidity.equal_low)}`} />
+                <Chip label={`${(liquidity.stop_clusters ?? []).length} stop clusters`} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="mt-5 text-sm text-slate-500">暂无流动性数据</p>
+        )}
+      </Card>
     </section>
   );
 }
@@ -137,13 +143,13 @@ function BandColumn({
   subtitle,
   bands,
   tone,
-  barTone,
+  strokeColor,
 }: {
   title: string;
   subtitle: string;
   bands: LiquidityWallStrengthBand[];
   tone: string;
-  barTone: string;
+  strokeColor: string;
 }) {
   const maxStrength = bands.reduce((max, band) => Math.max(max, band.strength), 0);
 
@@ -170,12 +176,13 @@ function BandColumn({
               </div>
             </div>
 
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className={`h-full rounded-full bg-gradient-to-r ${barTone}`}
-                style={{ width: `${resolveBandWidth(band.strength, maxStrength)}%` }}
-              />
-            </div>
+            <Progress
+              percent={resolveBandWidth(band.strength, maxStrength)}
+              showInfo={false}
+              size="small"
+              strokeColor={strokeColor}
+              className="!mt-3"
+            />
           </div>
         ))}
 
@@ -253,7 +260,7 @@ function EvolutionCard({ point }: { point: LiquidityWallEvolution }) {
         : "bg-slate-100 text-slate-600";
 
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+    <div className="rounded-[22px] border border-slate-100 bg-slate-50 px-4 py-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-semibold text-slate-900">{point.interval}</p>
         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${dominantTone}`}>{dominantLabel}</span>
@@ -289,10 +296,10 @@ function MetricCard({
       className={`rounded-[22px] border px-4 py-3 ${
         accent
           ? "border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,1)_0%,rgba(255,255,255,1)_100%)]"
-          : "border-slate-100 bg-white"
+          : "border-slate-100 bg-white/76"
       }`}
     >
-      <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
       <p className="mt-2 text-lg font-semibold text-slate-900">{value}</p>
     </div>
   );
@@ -300,15 +307,15 @@ function MetricCard({
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{label}</p>
+    <div className="rounded-[18px] border border-slate-100 bg-slate-50 px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
       <p className="mt-1 font-semibold text-slate-900">{value}</p>
     </div>
   );
 }
 
 function Chip({ label }: { label: string }) {
-  return <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">{label}</span>;
+  return <Tag>{label}</Tag>;
 }
 
 function formatPrice(value?: number | null) {

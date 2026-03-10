@@ -1,5 +1,6 @@
 "use client";
 
+import { Button, Card, Progress, Tag, Typography } from "antd";
 import { useMarketStore } from "@/store/marketStore";
 
 export default function SignalCard() {
@@ -14,72 +15,109 @@ export default function SignalCard() {
         : "bg-slate-200 text-slate-700";
 
   return (
-    <section className="rounded-2xl bg-panel p-5 shadow-panel">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="text-lg font-semibold">Signal</h3>
-        <button
-          onClick={() => {
-            void refreshDashboard(true);
-          }}
-          className="rounded-lg border border-slate-200 px-3 py-1 text-sm"
-        >
-          刷新信号
-        </button>
-      </div>
-
-      {loading && !signal ? <p className="text-sm text-muted">加载中...</p> : null}
-      {error ? <p className="text-sm text-negative">{error}</p> : null}
-      {!loading && !error && !signal ? <p className="text-sm text-muted">暂无信号数据</p> : null}
-
-      {signal ? (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${badgeClass}`}>
-              {action}
-            </span>
-            <span className="text-xs text-muted">{signal.symbol}</span>
-          </div>
-
-          <p className="text-sm leading-6 text-muted">{signal.explain}</p>
-
-          <div className="grid grid-cols-2 gap-3 text-sm xl:grid-cols-4">
-            <Data label="Score" value={signal.score.toString()} />
-            <Data label="Confidence" value={`${signal.confidence.toFixed(0)}%`} />
-            <Data label="Entry" value={formatNumber(signal.entry_price)} />
-            <Data label="Target" value={formatNumber(signal.target_price)} />
-            <Data label="Stop" value={formatNumber(signal.stop_loss)} />
-            <Data label="R/R" value={signal.risk_reward.toFixed(2)} />
-            <Data label="Trend Bias" value={signal.trend_bias || "neutral"} />
-            <Data label="RSI" value={indicator ? indicator.rsi.toFixed(2) : "-"} />
-          </div>
-
-          <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h4 className="text-sm font-semibold">Factor Breakdown</h4>
-              <span className="text-xs text-muted">{signal.factors.length} factors</span>
-            </div>
-            <div className="space-y-2">
-              {signal.factors.map((factor) => (
-                <FactorRow
-                  key={factor.key}
-                  name={factor.name}
-                  score={factor.score}
-                  reason={factor.reason}
-                />
-              ))}
-            </div>
-          </div>
+    <section>
+      <Card
+        variant="borderless"
+        className="surface-card surface-card--paper"
+      >
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <Typography.Title level={3} className="!mb-0 !text-[24px] !tracking-[-0.03em]">
+            Signal
+          </Typography.Title>
+          <Button
+            onClick={() => {
+              void refreshDashboard(true);
+            }}
+            className="!rounded-2xl !border-slate-200 !bg-white/80"
+          >
+            刷新信号
+          </Button>
         </div>
-      ) : null}
+
+        {loading && !signal ? <p className="text-sm text-muted">加载中...</p> : null}
+        {error ? <p className="text-sm text-negative">{error}</p> : null}
+        {!loading && !error && !signal ? <p className="text-sm text-muted">暂无信号数据</p> : null}
+
+        {signal ? (
+          <div className="space-y-5">
+            <div className="flex flex-col gap-4 rounded-[28px] border border-white/75 bg-white/76 p-5 shadow-[0_14px_38px_rgba(32,42,63,0.06)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${badgeClass}`}>
+                    {action}
+                  </span>
+                  <Tag color="blue">{signal.symbol}</Tag>
+                  <Tag color={signal.trend_bias === "bullish" ? "success" : signal.trend_bias === "bearish" ? "error" : undefined}>
+                    {signal.trend_bias || "neutral"}
+                  </Tag>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Confidence</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-slate-900">
+                    {signal.confidence.toFixed(0)}%
+                  </p>
+                </div>
+              </div>
+
+              <Progress percent={Math.max(0, Math.min(100, signal.confidence))} showInfo={false} />
+              <Typography.Paragraph className="!mb-0 !text-[14px] !leading-7 !text-slate-600">
+                {signal.explain}
+              </Typography.Paragraph>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-sm xl:grid-cols-4">
+              <Data label="Score" value={signal.score.toString()} accent />
+              <Data label="Confidence" value={`${signal.confidence.toFixed(0)} / 100`} />
+              <Data label="Entry" value={formatNumber(signal.entry_price)} />
+              <Data label="Target" value={formatNumber(signal.target_price)} />
+              <Data label="Stop" value={formatNumber(signal.stop_loss)} />
+              <Data label="R/R" value={signal.risk_reward.toFixed(2)} />
+              <Data label="Trend Bias" value={signal.trend_bias || "neutral"} />
+              <Data label="RSI" value={indicator ? indicator.rsi.toFixed(2) : "-"} />
+            </div>
+
+            <div className="rounded-[28px] border border-slate-100 bg-slate-50/82 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h4 className="text-sm font-semibold">Factor Breakdown</h4>
+                <span className="text-xs text-muted">{signal.factors.length} factors</span>
+              </div>
+              <div className="space-y-2">
+                {signal.factors.map((factor) => (
+                  <FactorRow
+                    key={factor.key}
+                    name={factor.name}
+                    score={factor.score}
+                    reason={factor.reason}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </Card>
     </section>
   );
 }
 
-function Data({ label, value }: { label: string; value: string }) {
+function Data({
+  label,
+  value,
+  accent = false,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
   return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
-      <p className="text-xs text-muted">{label}</p>
-      <p className="mt-1 font-semibold">{value}</p>
+    <div
+      className={`rounded-[22px] border p-3 ${
+        accent
+          ? "border-teal-100 bg-[linear-gradient(180deg,rgba(240,253,250,0.95)_0%,rgba(255,255,255,0.95)_100%)]"
+          : "border-slate-100 bg-white/76"
+      }`}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{label}</p>
+      <p className="mt-2 font-semibold text-slate-900">{value}</p>
     </div>
   );
 }
@@ -101,7 +139,7 @@ function FactorRow({
         : "bg-slate-100 text-slate-700 border-slate-200";
 
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-3">
+    <div className="rounded-[22px] border border-slate-100 bg-white p-3 shadow-[0_12px_30px_rgba(32,42,63,0.04)]">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-semibold">{name}</p>
         <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${tone}`}>

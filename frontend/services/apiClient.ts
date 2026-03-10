@@ -23,8 +23,18 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
+function buildApiUrl(path: string) {
+  const fallbackOrigin = typeof window !== "undefined" ? window.location.origin : "http://localhost";
+  const base = new URL(API_BASE_URL, fallbackOrigin);
+  const [pathname, search = ""] = path.split("?");
+  const url = new URL(base.toString());
+  url.pathname = `${url.pathname.replace(/\/$/, "")}${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
+  url.search = search;
+  return url;
+}
+
 async function request<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(buildApiUrl(path).toString(), {
     cache: "no-store",
   });
 
@@ -38,6 +48,12 @@ async function request<T>(path: string): Promise<T> {
   }
 
   return payload.data;
+}
+
+function buildWebSocketUrl(path: string) {
+  const url = buildApiUrl(path);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
 }
 
 export const marketApi = {
@@ -89,6 +105,12 @@ export const marketApi = {
     return request<MarketSnapshot>(
       `/market-snapshot?symbol=${symbol}&interval=${interval}&limit=${limit}${refresh ? "&refresh=1" : ""}`,
     );
+  },
+  createMarketSnapshotStreamUrl(symbol: string, interval: MarketInterval = "1m", limit = 48) {
+    return buildWebSocketUrl(`/market-snapshot/stream?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+  },
+  openMarketSnapshotStream(symbol: string, interval: MarketInterval = "1m", limit = 48) {
+    return new WebSocket(this.createMarketSnapshotStreamUrl(symbol, interval, limit));
   },
 };
 

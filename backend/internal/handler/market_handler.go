@@ -7,12 +7,14 @@ import (
 	"alpha-pulse/backend/internal/service"
 	"alpha-pulse/backend/pkg/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 // MarketHandler 处理行情相关 API。
 type MarketHandler struct {
 	marketService *service.MarketService
 	signalService *service.SignalService
+	upgrader      websocket.Upgrader
 }
 
 // NewMarketHandler 创建 MarketHandler。
@@ -20,6 +22,13 @@ func NewMarketHandler(marketService *service.MarketService, signalService *servi
 	return &MarketHandler{
 		marketService: marketService,
 		signalService: signalService,
+		upgrader: websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+			CheckOrigin: func(_ *http.Request) bool {
+				return true
+			},
+		},
 	}
 }
 

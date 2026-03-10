@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"alpha-pulse/backend/repository"
 	routerpkg "alpha-pulse/backend/router"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -161,6 +163,63 @@ func TestMarketSnapshotEndpointReturnsAggregatedPayload(t *testing.T) {
 	}
 	if snapshot.Signal.Confidence <= 0 {
 		t.Fatalf("signal confidence should be positive: got=%d", snapshot.Signal.Confidence)
+	}
+}
+
+func TestMarketSnapshotStreamEndpointPushesInitialSnapshot(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := newTestDB(t)
+	r := newTestRouter(t, db)
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	wsURL, err := buildWebSocketURL(server.URL, "/api/market-snapshot/stream?symbol=BTCUSDT&interval=5m&limit=18")
+	if err != nil {
+		t.Fatalf("build websocket url failed: %v", err)
+	}
+
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial websocket failed: %v", err)
+	}
+	defer conn.Close()
+
+	var payload struct {
+		Type     string                  `json:"type"`
+		Symbol   string                  `json:"symbol"`
+		Interval string                  `json:"interval"`
+		Limit    int                     `json:"limit"`
+		Data     *service.MarketSnapshot `json:"data"`
+		Error    string                  `json:"error"`
+	}
+	if err := conn.ReadJSON(&payload); err != nil {
+		t.Fatalf("read websocket payload failed: %v", err)
+	}
+
+	if payload.Type != "snapshot" {
+		t.Fatalf("unexpected stream message type: got=%s error=%s", payload.Type, payload.Error)
+	}
+	if payload.Symbol != "BTCUSDT" {
+		t.Fatalf("unexpected stream symbol: got=%s", payload.Symbol)
+	}
+	if payload.Interval != "5m" {
+		t.Fatalf("unexpected stream interval: got=%s", payload.Interval)
+	}
+	if payload.Limit != 18 {
+		t.Fatalf("unexpected stream limit: got=%d", payload.Limit)
+	}
+	if payload.Data == nil {
+		t.Fatal("stream payload should include market snapshot data")
+	}
+	if payload.Data.Price.Symbol != "BTCUSDT" {
+		t.Fatalf("unexpected snapshot symbol in stream data: got=%s", payload.Data.Price.Symbol)
+	}
+	if len(payload.Data.Klines) != 18 {
+		t.Fatalf("unexpected stream kline length: got=%d want=18", len(payload.Data.Klines))
+	}
+	if payload.Data.Signal.IntervalType != "5m" {
+		t.Fatalf("unexpected stream signal interval: got=%s", payload.Data.Signal.IntervalType)
 	}
 }
 
@@ -843,6 +902,23 @@ func newTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 		Market: marketHandler,
 		Signal: signalHandler,
 	})
+}
+
+func buildWebSocketURL(baseURL, path string) (string, error) {
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+	relative, err := url.Parse(path)
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme == "https" {
+		parsed.Scheme = "wss"
+	} else {
+		parsed.Scheme = "ws"
+	}
+	return parsed.ResolveReference(relative).String(), nil
 }
 
 func assertAscendingOpenTime(t *testing.T, klines []models.Kline) {
