@@ -45,7 +45,7 @@ export default function LiquidityPanel() {
             <Typography.Title level={3} className="!mb-0 !text-[24px] !tracking-[-0.03em]">
               Liquidity
             </Typography.Title>
-            <p className="mt-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Wall Map</p>
+            <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Wall Map</p>
           </div>
           <button
             onClick={() => {
@@ -222,7 +222,7 @@ function WallColumn({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-900">{wall.label}</p>
-                <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-slate-400">
                   {formatLayer(wall.layer)} layer
                 </p>
               </div>
@@ -299,7 +299,7 @@ function MetricCard({
           : "border-slate-100 bg-white/76"
       }`}
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</p>
       <p className="mt-2 text-lg font-semibold text-slate-900">{value}</p>
     </div>
   );
@@ -308,7 +308,7 @@ function MetricCard({
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[18px] border border-slate-100 bg-slate-50 px-3 py-2">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</p>
       <p className="mt-1 font-semibold text-slate-900">{value}</p>
     </div>
   );

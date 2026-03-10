@@ -659,7 +659,7 @@ export default function KlineChart() {
 
             <div className="flex flex-col gap-3 rounded-[24px] border border-slate-100 bg-white/82 px-4 py-3 shadow-[0_10px_24px_rgba(32,42,63,0.04)] md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Legend Focus</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Legend Focus</p>
                 <p className="mt-2 text-sm text-slate-700">
                   当前聚焦 <span className="font-semibold text-slate-950">{highlightedLegendLabel}</span>。点击 legend 可以隔离图层。
                 </p>
@@ -828,7 +828,7 @@ export default function KlineChart() {
               <div className="rounded-[24px] border border-slate-100 bg-white/82 p-4 shadow-[0_12px_24px_rgba(32,42,63,0.04)]">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Hover Lens</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Hover Lens</p>
                     <p className="mt-2 text-sm font-semibold text-slate-900">Hover a candle to inspect the local auction.</p>
                   </div>
                   <Tag color={hoveredKline ? "cyan" : "default"}>
@@ -855,7 +855,7 @@ export default function KlineChart() {
               <div className="rounded-[24px] border border-slate-100 bg-slate-950 p-4 text-slate-100 shadow-[0_16px_30px_rgba(15,23,42,0.16)]">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Active Marker</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Active Marker</p>
                     <p className="mt-2 text-sm font-semibold text-white">Click a micro marker to pin the detail card.</p>
                   </div>
                   <button

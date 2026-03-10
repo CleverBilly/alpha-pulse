@@ -143,7 +143,7 @@ function Metric({
 
   return (
     <div className={`rounded-[22px] border p-3 shadow-[0_10px_24px_rgba(32,42,63,0.04)] ${tone}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
       <p className="mt-2 font-semibold text-slate-900">{value.toFixed(digits)}</p>
     </div>
   );

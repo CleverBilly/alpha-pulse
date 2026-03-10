@@ -14,7 +14,7 @@ export default function SignalTape() {
     <section className="surface-panel surface-panel--dark text-slate-100">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-300">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-300">
             Signal Tape
           </p>
           <h3 className="mt-2 text-xl font-semibold">Recent Decisions</h3>
@@ -35,7 +35,7 @@ export default function SignalTape() {
 
         <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className={`text-[13px] font-semibold uppercase tracking-[0.18em] ${signalLabelTone(signal?.signal ?? "NEUTRAL")}`}>
+            <p className={`text-[13px] font-semibold uppercase tracking-[0.12em] ${signalLabelTone(signal?.signal ?? "NEUTRAL")}`}>
               {signal?.signal ?? "NEUTRAL"}
             </p>
             <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-white">
@@ -103,7 +103,7 @@ export default function SignalTape() {
 function TapeMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[18px] border border-white/10 bg-white/6 px-3 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</p>
       <p className="mt-2 text-base font-semibold text-white">{value}</p>
     </div>
   );

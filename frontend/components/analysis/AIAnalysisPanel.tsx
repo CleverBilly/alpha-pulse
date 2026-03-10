@@ -45,13 +45,13 @@ export default function AIAnalysisPanel() {
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.26em] text-amber-700">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
               AI Analysis
             </p>
             <Typography.Title level={3} className="!mb-0 !mt-3 !text-[28px] !tracking-[-0.04em]">
               Decision Memo
             </Typography.Title>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
               {signal?.explain ?? "当前还没有可用的 AI 分析结果。"}
             </p>
           </div>
@@ -165,7 +165,7 @@ function SummaryPill({
 }) {
   return (
     <div className={`rounded-2xl border px-4 py-3 ${tone}`}>
-      <p className="text-[11px] uppercase tracking-[0.18em]">{label}</p>
+      <p className="text-[11px] uppercase tracking-[0.12em]">{label}</p>
       <p className="mt-2 text-lg font-semibold">{value}</p>
     </div>
   );
@@ -222,11 +222,11 @@ function PlaybookStrip({
       {rows.map((row) => (
         <div
           key={row.label}
-          className="rounded-[24px] border border-slate-100 bg-white/82 px-4 py-4 shadow-[0_12px_30px_rgba(32,42,63,0.05)]"
+          className="rounded-[24px] border border-slate-100 bg-white/82 px-4 py-4"
         >
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{row.label}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{row.label}</p>
           <p className="mt-2 text-xl font-semibold tracking-[-0.03em] text-slate-900">{row.value}</p>
-          <p className="mt-2 text-xs leading-6 text-slate-600">{row.detail}</p>
+          <p className="mt-2 text-xs leading-5 text-slate-600">{row.detail}</p>
         </div>
       ))}
     </div>
@@ -249,7 +249,7 @@ function ContextPanel({
             key={`${row.label}-${row.value}`}
             className="flex items-start justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
           >
-            <span className="text-xs uppercase tracking-[0.18em] text-slate-400">{row.label}</span>
+            <span className="text-xs uppercase tracking-[0.12em] text-slate-400">{row.label}</span>
             <span className="max-w-[62%] text-right text-sm text-slate-100">{row.value}</span>
           </div>
         ))}

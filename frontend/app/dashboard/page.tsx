@@ -19,15 +19,21 @@ export default function DashboardPage() {
           { label: "Feed mode", value: "Live snapshot" },
         ]}
       />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-8">
           <KlineChart />
         </div>
-        <SignalCard />
+        <div className="lg:col-span-4">
+          <SignalCard />
+        </div>
       </div>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <OrderFlowPanel />
-        <LiquidityPanel />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-5">
+          <OrderFlowPanel />
+        </div>
+        <div className="lg:col-span-7">
+          <LiquidityPanel />
+        </div>
       </div>
     </div>
   );

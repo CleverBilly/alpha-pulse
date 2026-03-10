@@ -52,7 +52,7 @@ export default function SignalCard() {
                   </Tag>
                 </div>
                 <div className="text-right">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Confidence</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Confidence</p>
                   <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-slate-900">
                     {signal.confidence.toFixed(0)}%
                   </p>
@@ -116,7 +116,7 @@ function Data({
           : "border-slate-100 bg-white/76"
       }`}
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
       <p className="mt-2 font-semibold text-slate-900">{value}</p>
     </div>
   );

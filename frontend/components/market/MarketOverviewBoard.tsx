@@ -79,7 +79,7 @@ export default function MarketOverviewBoard() {
 
             <div className="min-w-[250px] rounded-[28px] border border-white/70 bg-white/76 p-5 shadow-[0_14px_36px_rgba(32,42,63,0.08)]">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Confidence</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Confidence</span>
                 <Tag color={signalTone(signal?.signal).tag}>{signal?.signal ?? "NEUTRAL"}</Tag>
               </div>
               <div className="mt-4 flex items-end justify-between gap-4">
@@ -132,7 +132,7 @@ function StatCard({
 }) {
   return (
     <div className="rounded-[24px] border border-white/70 bg-white/72 p-4 shadow-[0_12px_30px_rgba(32,42,63,0.05)] backdrop-blur">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className={`mt-2 text-lg font-semibold ${accent}`}>{value}</p>
     </div>
   );

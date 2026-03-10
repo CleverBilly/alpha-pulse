@@ -43,7 +43,7 @@ export default function PriceTicker() {
 
             <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[280px]">
               <div className="rounded-[24px] border border-white/60 bg-white/72 p-3 shadow-[0_12px_30px_rgba(32,42,63,0.07)] backdrop-blur">
-                <label htmlFor="symbol-select" className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <label htmlFor="symbol-select" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                   Symbol
                 </label>
                 <div className="mt-2 flex flex-col gap-3 sm:flex-row">
@@ -123,7 +123,7 @@ function TickerMetric({
           : "border-white/70 bg-white/72"
       }`}
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className="mt-3 text-2xl font-semibold tracking-[-0.02em] text-slate-900">{value}</p>
     </div>
   );

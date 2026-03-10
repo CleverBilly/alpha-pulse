@@ -60,7 +60,7 @@ export default function MicrostructureTimeline() {
     <section className="surface-panel surface-panel--warm">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
             Microstructure
           </p>
           <h3 className="mt-2 text-xl font-semibold text-slate-900">Microstructure Timeline</h3>
@@ -217,7 +217,7 @@ function SummaryCard({
           : "border-slate-100 bg-white"
       }`}
     >
-      <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{label}</p>
+      <p className="text-[11px] uppercase tracking-[0.12em] text-slate-400">{label}</p>
       <p className="mt-2 text-lg font-semibold text-slate-900">{value}</p>
     </div>
   );
@@ -226,7 +226,7 @@ function SummaryCard({
 function StatPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{label}</p>
+      <p className="text-[11px] uppercase tracking-[0.12em] text-slate-400">{label}</p>
       <p className="mt-1 font-semibold text-slate-900">{value}</p>
     </div>
   );

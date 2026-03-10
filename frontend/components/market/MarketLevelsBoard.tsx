@@ -38,7 +38,7 @@ export default function MarketLevelsBoard() {
       >
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
               Key Levels
             </p>
             <Typography.Title level={3} className="!mb-0 !mt-3 !text-[24px] !tracking-[-0.03em]">
