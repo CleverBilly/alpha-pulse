@@ -59,6 +59,295 @@ cp frontend/.env.example frontend/.env.local
 - `./scripts/dev.sh` 默认直接使用本地 MySQL / Redis，不依赖 Docker
 - 如果你仍想用 Docker 起本地依赖，可使用 `USE_DOCKER_DEPS=1 ./scripts/dev.sh`
 
+## 服务器部署
+
+下面这套流程面向 `单台 Linux 服务器 + 公网域名 + Docker + Nginx + HTTPS`。  
+推荐使用 `同一个域名` 对外提供服务，例如 `https://app.example.com`：
+
+- `https://app.example.com/` -> 前端 Next.js
+- `https://app.example.com/api/` -> 后端 Gin
+- `https://app.example.com/healthz` -> 后端健康检查
+
+这样前端、登录 Cookie、浏览器通知和飞书深链都最简单，不需要再拆前后端两个子域名。
+
+### 1. 服务器前置条件
+
+- 一台 Linux 服务器，建议 `2C4G` 起步
+- 已解析好的域名，例如 `app.example.com`
+- 已安装：
+  - `docker`
+  - `docker compose`
+  - `nginx`
+  - `certbot`
+- 防火墙只开放：
+  - `80`
+  - `443`
+
+说明：
+
+- 不建议把 `3000 / 8080 / 3306 / 6379` 直接暴露公网
+- 生产环境必须使用 HTTPS，否则登录 Cookie 安全性会下降
+
+### 2. 拉代码
+
+```bash
+git clone <your-repo-url> /opt/alpha-pulse
+cd /opt/alpha-pulse
+```
+
+### 3. 生成登录密码哈希
+
+如果你要继续使用单用户登录，先生成 `bcrypt` 哈希：
+
+```bash
+docker run --rm httpd:2.4-alpine htpasswd -nbBC 10 "" 'admin123' | tr -d ':\n'
+```
+
+说明：
+
+- 输出形如 `$2y$10$...`
+- 放进 `.env` 时，建议用单引号包起来
+- 否则像 `$2a$...` 这类 bcrypt 字符串可能会被 dotenv 当成变量展开
+
+### 4. 准备后端环境变量
+
+在服务器上创建 [backend/.env](/Users/billy/go/src/alpha-pulse/backend/.env)：
+
+```bash
+APP_MODE=prod
+GIN_MODE=release
+APP_PORT=8080
+
+MYSQL_DSN=root:change-me@tcp(mysql:3306)/alpha_pulse?charset=utf8mb4&parseTime=True&loc=Local
+
+REDIS_ADDR=redis:6379
+REDIS_PASSWORD=
+REDIS_DB=0
+MARKET_SNAPSHOT_CACHE_TTL=5
+ANALYSIS_VIEW_CACHE_TTL=15
+
+MARKET_SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT
+AUTO_MIGRATE=true
+ENABLE_REDIS_CACHE=true
+ENABLE_STREAM_COLLECTOR=true
+ENABLE_SCHEDULER=true
+ALLOW_MOCK_BINANCE_DATA=false
+SCHEDULER_INTERVAL_SECONDS=60
+
+ENABLE_SINGLE_USER_AUTH=true
+AUTH_USERNAME=admin
+AUTH_PASSWORD_HASH='<your-bcrypt-hash>'
+AUTH_SESSION_SECRET=<long-random-secret>
+AUTH_SESSION_TTL_HOURS=168
+AUTH_COOKIE_NAME=alpha_pulse_session
+AUTH_COOKIE_DOMAIN=
+AUTH_COOKIE_SECURE=true
+
+CORS_ALLOW_ORIGINS=https://app.example.com
+ALERT_HISTORY_LIMIT=40
+ALERT_PUBLIC_BASE_URL=https://app.example.com
+FEISHU_BOT_WEBHOOK_URL=
+FEISHU_BOT_SECRET=
+
+BINANCE_API_KEY=
+BINANCE_SECRET_KEY=
+```
+
+关键说明：
+
+- `APP_MODE=prod`
+- `ALLOW_MOCK_BINANCE_DATA=false`
+- `AUTO_MIGRATE=true`
+  - 第一次上线建议先开启，让系统自动建表
+  - 确认表结构稳定后，再改成 `false`
+- `AUTH_PASSWORD_HASH` 要用单引号包住
+- `AUTH_SESSION_SECRET` 建议使用下面命令生成：
+
+```bash
+openssl rand -hex 32
+```
+
+### 5. 准备前端生产环境变量
+
+在服务器上创建 `frontend/.env.production`：
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=https://app.example.com/api
+NEXT_PUBLIC_AUTH_ENABLED=true
+AUTH_COOKIE_NAME=alpha_pulse_session
+AUTH_SESSION_SECRET=<same-secret-as-backend>
+```
+
+说明：
+
+- 这是前端 `build` 时要读的配置，不是本地开发用的 `frontend/.env.local`
+- `AUTH_SESSION_SECRET` 必须和后端完全一致
+
+### 6. 准备生产版 Compose 文件
+
+建议在服务器上新建 `docker/docker-compose.prod.yml`：
+
+```yaml
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: change-me
+      MYSQL_DATABASE: alpha_pulse
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/backend.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../backend/.env
+    depends_on:
+      - mysql
+      - redis
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/frontend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  mysql_data:
+```
+
+说明：
+
+- 这里把 `3000 / 8080` 只绑定到 `127.0.0.1`，宿主机 Nginx 可以访问，但公网无法直接访问
+- 外部流量统一走 Nginx
+- `frontend` 镜像构建前，`frontend/.env.production` 必须已经存在
+
+### 7. 构建并启动
+
+```bash
+cd /opt/alpha-pulse/docker
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
+```
+
+查看状态：
+
+```bash
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml logs -f backend
+docker compose -f docker-compose.prod.yml logs -f frontend
+```
+
+### 8. 配置 Nginx 反向代理
+
+新建 `/etc/nginx/sites-available/alpha-pulse.conf`：
+
+```nginx
+server {
+    listen 80;
+    server_name app.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8080/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /healthz {
+        proxy_pass http://127.0.0.1:8080/healthz;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+启用站点：
+
+```bash
+ln -s /etc/nginx/sites-available/alpha-pulse.conf /etc/nginx/sites-enabled/alpha-pulse.conf
+nginx -t
+systemctl reload nginx
+```
+
+### 9. 申请 HTTPS 证书
+
+```bash
+certbot --nginx -d app.example.com
+```
+
+完成后确认：
+
+- 浏览器访问 `https://app.example.com/login`
+- 后端健康检查：
+
+```bash
+curl https://app.example.com/healthz
+```
+
+### 10. 上线后验证清单
+
+- 登录页可打开
+- 使用你配置的单用户账号可以成功登录
+- `/dashboard`、`/market`、`/review` 正常打开
+- 浏览器开发者工具里 `/api/auth/login` 返回 `200`
+- `docker compose -f docker-compose.prod.yml logs -f backend` 没有持续报错
+- 飞书机器人如果已配置，能收到测试提醒
+
+### 11. 常见问题
+
+`登录一直 401`
+
+- 先确认后端容器已经重启
+- 确认 `AUTH_PASSWORD_HASH` 是 bcrypt 哈希，不是明文
+- 确认 bcrypt 哈希在 `.env` 里使用了单引号
+- 确认 `AUTH_USERNAME` 和你登录时输入的一致
+
+`前端能打开，但请求 /api 失败`
+
+- 确认 `NEXT_PUBLIC_API_BASE_URL=https://app.example.com/api`
+- 确认 Nginx 的 `/api/` 反代已经生效
+- 确认后端容器健康，且 `CORS_ALLOW_ORIGINS=https://app.example.com`
+
+`浏览器登录成功后又被踢回 /login`
+
+- 确认前后端 `AUTH_SESSION_SECRET` 完全一致
+- 确认 `NEXT_PUBLIC_AUTH_ENABLED=true`
+- HTTPS 上确认 `AUTH_COOKIE_SECURE=true`
+
+`后台没有实时数据或告警`
+
+- 确认：
+  - `ENABLE_STREAM_COLLECTOR=true`
+  - `ENABLE_SCHEDULER=true`
+  - `ALLOW_MOCK_BINANCE_DATA=false`
+- 再检查 Binance 网络连通性和后端日志
+
 ## 运行模式
 
 后端当前支持三种运行模式，通过 `APP_MODE` 控制：
