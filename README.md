@@ -13,6 +13,8 @@ AI Crypto Trading Dashboard（BTC / ETH / SOL）
 - Dashboard / Chart / Signals / Market
 - 订单流、结构、流动性、信号、AI 解释统一快照分析
 - Futures 基础因子快照：mark / funding / open interest / long-short ratio
+- 多周期方向引擎：`4h / 1h / 15m`
+- Alert Center：浏览器通知 + 飞书机器人推送
 
 当前不包含：
 
@@ -124,6 +126,29 @@ AUTH_SESSION_SECRET=<same-long-random-secret>
 - 公网 HTTPS 部署时建议开启 `AUTH_COOKIE_SECURE=true`
 - `CORS_ALLOW_ORIGINS` 必须精确列出允许访问后端的前端域名
 
+## Alert Center / 飞书机器人
+
+当前告警链路由后端定时评估 `BTC / ETH / SOL` 的 `4h / 1h / 15m` 多周期方向状态，并在出现以下事件时生成 feed：
+
+- `A 级 setup 已就绪`
+- `方向切换`
+- `进入 No-Trade`
+
+后端可选接入飞书自定义机器人：
+
+```bash
+ALERT_HISTORY_LIMIT=40
+FEISHU_BOT_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/your-webhook
+FEISHU_BOT_SECRET=
+```
+
+说明：
+
+- `FEISHU_BOT_WEBHOOK_URL` 留空时，系统只保留站内 Alert Center 和浏览器通知，不推送飞书
+- 如果飞书机器人启用了签名校验，再填写 `FEISHU_BOT_SECRET`
+- 浏览器通知不需要额外环境变量，登录后在右上角 `Alerts` 抽屉里授权即可
+- 本地开发如果关闭了 `ENABLE_SCHEDULER`，仍可在 Alert Center 里点击 `立即检查`
+
 ## Binance 配置
 
 后端已接入 `github.com/adshao/go-binance/v2`。
@@ -190,3 +215,5 @@ ANALYSIS_VIEW_CACHE_TTL=15
 - `GET /api/market-snapshot`
 - `GET /api/signal`
 - `GET /api/signal-timeline`
+- `GET /api/alerts`
+- `POST /api/alerts/refresh`

@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { buildMockMarketSnapshot } from "../../test/fixtures/marketSnapshot";
+import { mockAlertApi } from "./support/mockAlertApi";
 import { mockMarketSnapshotApi } from "./support/mockMarketApi";
 
 test("dashboard shows api failure state", async ({ page }) => {
+  await mockAlertApi(page);
   await mockMarketSnapshotApi(page, {
     resolver: () => ({
       status: 500,
@@ -18,6 +20,7 @@ test("dashboard shows api failure state", async ({ page }) => {
 });
 
 test("dashboard shows loading state on weak network", async ({ page }) => {
+  await mockAlertApi(page);
   await mockMarketSnapshotApi(page, { delayMs: 1800 });
 
   await page.goto("/dashboard");
@@ -29,6 +32,7 @@ test("dashboard shows loading state on weak network", async ({ page }) => {
 });
 
 test("dashboard updates when switching symbol", async ({ page }) => {
+  await mockAlertApi(page);
   const controller = await mockMarketSnapshotApi(page);
 
   await page.goto("/dashboard");
@@ -42,6 +46,7 @@ test("dashboard updates when switching symbol", async ({ page }) => {
 });
 
 test("dashboard manual refresh triggers another snapshot request", async ({ page }) => {
+  await mockAlertApi(page);
   const controller = await mockMarketSnapshotApi(page);
 
   await page.goto("/dashboard");
@@ -53,6 +58,7 @@ test("dashboard manual refresh triggers another snapshot request", async ({ page
 });
 
 test("dashboard does not show fake setup when signal levels are missing", async ({ page }) => {
+  await mockAlertApi(page);
   await mockMarketSnapshotApi(page, {
     resolver: ({ symbol, interval, limit }) => {
       const snapshot = buildMockMarketSnapshot(symbol, interval, limit);

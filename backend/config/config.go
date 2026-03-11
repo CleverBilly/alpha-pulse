@@ -45,6 +45,9 @@ type Config struct {
 	AuthCookieDomain     string
 	AuthCookieSecure     bool
 	CORSAllowOrigins     []string
+	AlertHistoryLimit    int
+	FeishuBotWebhookURL  string
+	FeishuBotSecret      string
 }
 
 // Load 从环境变量加载配置。
@@ -87,6 +90,9 @@ func Load() Config {
 		AuthCookieDomain:         getEnv("AUTH_COOKIE_DOMAIN", ""),
 		AuthCookieSecure:         getEnvAsBool("AUTH_COOKIE_SECURE", mode == ModeProd),
 		CORSAllowOrigins:         getEnvAsTrimmedCSV("CORS_ALLOW_ORIGINS", []string{"http://localhost:3000", "http://127.0.0.1:3000"}),
+		AlertHistoryLimit:        getPositiveEnvAsInt("ALERT_HISTORY_LIMIT", 40),
+		FeishuBotWebhookURL:      getEnv("FEISHU_BOT_WEBHOOK_URL", ""),
+		FeishuBotSecret:          getEnv("FEISHU_BOT_SECRET", ""),
 	}
 }
 

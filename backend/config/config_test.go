@@ -154,6 +154,12 @@ func TestLoadAuthDefaults(t *testing.T) {
 	if cfg.AuthSessionTTLHours != 168 {
 		t.Fatalf("expected default auth session ttl 168h, got %d", cfg.AuthSessionTTLHours)
 	}
+	if cfg.AlertHistoryLimit != 40 {
+		t.Fatalf("expected default alert history limit 40, got %d", cfg.AlertHistoryLimit)
+	}
+	if cfg.FeishuBotWebhookURL != "" || cfg.FeishuBotSecret != "" {
+		t.Fatalf("expected feishu config to be empty by default: %+v", cfg)
+	}
 
 	expectedOrigins := []string{"http://localhost:3000", "http://127.0.0.1:3000"}
 	if !reflect.DeepEqual(cfg.CORSAllowOrigins, expectedOrigins) {
@@ -173,6 +179,9 @@ func TestLoadAuthOverrides(t *testing.T) {
 	t.Setenv("AUTH_COOKIE_DOMAIN", ".example.com")
 	t.Setenv("AUTH_COOKIE_SECURE", "false")
 	t.Setenv("CORS_ALLOW_ORIGINS", "https://app.example.com,https://alpha.example.com")
+	t.Setenv("ALERT_HISTORY_LIMIT", "88")
+	t.Setenv("FEISHU_BOT_WEBHOOK_URL", "https://open.feishu.cn/open-apis/bot/v2/hook/mock")
+	t.Setenv("FEISHU_BOT_SECRET", "bot-secret")
 
 	cfg := Load()
 
@@ -199,6 +208,12 @@ func TestLoadAuthOverrides(t *testing.T) {
 	}
 	if cfg.AuthCookieSecure {
 		t.Fatal("expected auth cookie secure override to disable secure cookie")
+	}
+	if cfg.AlertHistoryLimit != 88 {
+		t.Fatalf("unexpected alert history limit: %d", cfg.AlertHistoryLimit)
+	}
+	if cfg.FeishuBotWebhookURL == "" || cfg.FeishuBotSecret != "bot-secret" {
+		t.Fatalf("unexpected feishu config: webhook=%s secret=%s", cfg.FeishuBotWebhookURL, cfg.FeishuBotSecret)
 	}
 
 	expectedOrigins := []string{"https://app.example.com", "https://alpha.example.com"}
@@ -239,6 +254,9 @@ func clearConfigEnv(t *testing.T) {
 		"AUTH_COOKIE_DOMAIN",
 		"AUTH_COOKIE_SECURE",
 		"CORS_ALLOW_ORIGINS",
+		"ALERT_HISTORY_LIMIT",
+		"FEISHU_BOT_WEBHOOK_URL",
+		"FEISHU_BOT_SECRET",
 	}
 	for _, key := range keys {
 		t.Setenv(key, "")

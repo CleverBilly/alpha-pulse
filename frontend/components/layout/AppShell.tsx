@@ -13,6 +13,7 @@ import {
 import { Button, Drawer, Layout, Menu, Tag, Typography, Grid, type MenuProps } from "antd";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import AlertCenter from "@/components/alerts/AlertCenter";
 import { authApi } from "@/services/apiClient";
 import { useMarketStore } from "@/store/marketStore";
 
@@ -108,6 +109,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   {formatSnapshotMeta(lastRefreshMode, lastUpdatedAt, transportMode, streamStatus)}
                 </span>
               ) : null}
+              <AlertCenter />
               {authEnabled ? (
                 <Button
                   type="default"
@@ -128,13 +130,16 @@ export default function AppShell({ children }: { children: ReactNode }) {
               ) : null}
             </div>
           ) : (
-            <Button
-              type="default"
-              icon={<MenuOutlined />}
-              aria-label="Open navigation"
-              onClick={() => setDrawerOpen(true)}
-              className="!border-white/40 !bg-white/75 !backdrop-blur"
-            />
+            <div className="flex items-center gap-2">
+              <AlertCenter />
+              <Button
+                type="default"
+                icon={<MenuOutlined />}
+                aria-label="Open navigation"
+                onClick={() => setDrawerOpen(true)}
+                className="!border-white/40 !bg-white/75 !backdrop-blur"
+              />
+            </div>
           )}
         </div>
       </Layout.Header>

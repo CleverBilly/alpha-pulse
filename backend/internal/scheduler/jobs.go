@@ -13,6 +13,7 @@ import (
 type Jobs struct {
 	marketService *service.MarketService
 	signalService *service.SignalService
+	alertService  *service.AlertService
 	symbols       []string
 	interval      time.Duration
 }
@@ -21,6 +22,7 @@ type Jobs struct {
 func NewJobs(
 	marketService *service.MarketService,
 	signalService *service.SignalService,
+	alertService *service.AlertService,
 	symbols []string,
 	interval time.Duration,
 ) *Jobs {
@@ -35,6 +37,7 @@ func NewJobs(
 	return &Jobs{
 		marketService: marketService,
 		signalService: signalService,
+		alertService:  alertService,
 		symbols:       normalizedSymbols,
 		interval:      interval,
 	}
@@ -66,6 +69,12 @@ func (j *Jobs) runOnce() {
 		}
 		if _, err := j.signalService.GetSignal(symbol, "1m"); err != nil {
 			log.Printf("signal generation failed for %s: %v", symbol, err)
+		}
+	}
+
+	if j.alertService != nil {
+		if _, err := j.alertService.EvaluateAll(context.Background(), true); err != nil {
+			log.Printf("alert evaluation failed: %v", err)
 		}
 	}
 }

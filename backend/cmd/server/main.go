@@ -126,8 +126,21 @@ func main() {
 	)
 	signalService.SetViewCache(sharedCache, time.Duration(cfg.AnalysisCacheTTL)*time.Second)
 
+	feishuNotifier := service.NewFeishuNotifier(
+		cfg.FeishuBotWebhookURL,
+		cfg.FeishuBotSecret,
+		5*time.Second,
+	)
+	alertService := service.NewAlertService(
+		signalService,
+		cfg.MarketSymbols,
+		cfg.AlertHistoryLimit,
+		feishuNotifier,
+	)
+
 	marketHandler := handler.NewMarketHandler(marketService, signalService)
 	signalHandler := handler.NewSignalHandler(signalService)
+	alertHandler := handler.NewAlertHandler(alertService)
 
 	authService, err := authsvc.NewService(authsvc.Options{
 		Enabled:        cfg.EnableSingleUserAuth,
@@ -155,6 +168,7 @@ func main() {
 		Market:           marketHandler,
 		Signal:           signalHandler,
 		Auth:             authHandler,
+		Alert:            alertHandler,
 		AuthRequired:     authRequired,
 		CORSAllowOrigins: cfg.CORSAllowOrigins,
 	})
@@ -193,6 +207,7 @@ func main() {
 		jobs := scheduler.NewJobs(
 			marketService,
 			signalService,
+			alertService,
 			cfg.MarketSymbols,
 			time.Duration(cfg.SchedulerIntervalSeconds)*time.Second,
 		)

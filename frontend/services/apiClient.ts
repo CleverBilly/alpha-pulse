@@ -12,6 +12,7 @@ import {
   LiquiditySeriesResult,
   MicrostructureEventsResult,
 } from "@/types/market";
+import { AlertFeed } from "@/types/alert";
 import { MarketSnapshot } from "@/types/snapshot";
 import { SignalBundle, SignalTimelineResult } from "@/types/signal";
 
@@ -170,6 +171,17 @@ export const authApi = {
   getSession() {
     return request<AuthSessionState>("/auth/session", {
       redirectOnUnauthorized: false,
+    });
+  },
+};
+
+export const alertApi = {
+  getAlerts(limit = 20) {
+    return request<AlertFeed>(`/alerts?limit=${limit}`);
+  },
+  refreshAlerts(limit = 20) {
+    return request<AlertFeed>(`/alerts/refresh?limit=${limit}`, {
+      method: "POST",
     });
   },
 };

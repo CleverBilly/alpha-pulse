@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { mockAlertApi } from "./support/mockAlertApi";
 import { mockMarketSnapshotApi } from "./support/mockMarketApi";
 
 test("dashboard renders cockpit layers and supports 4h interval", async ({ page }) => {
+  await mockAlertApi(page);
   const controller = await mockMarketSnapshotApi(page);
   await page.goto("/dashboard");
   await expect.poll(() => controller.getRequestCount()).toBeGreaterThan(0);

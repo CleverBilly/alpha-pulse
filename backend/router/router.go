@@ -13,6 +13,7 @@ type HandlerSet struct {
 	Market           *handler.MarketHandler
 	Signal           *handler.SignalHandler
 	Auth             *handler.AuthHandler
+	Alert            *handler.AlertHandler
 	AuthRequired     gin.HandlerFunc
 	CORSAllowOrigins []string
 }
@@ -58,6 +59,10 @@ func SetupRouter(handlers HandlerSet) *gin.Engine {
 		protected.GET("/liquidity-series", handlers.Market.GetLiquiditySeries)
 		protected.GET("/signal", handlers.Signal.GetSignal)
 		protected.GET("/signal-timeline", handlers.Signal.GetSignalTimeline)
+		if handlers.Alert != nil {
+			protected.GET("/alerts", handlers.Alert.GetAlerts)
+			protected.POST("/alerts/refresh", handlers.Alert.RefreshAlerts)
+		}
 	}
 
 	return r

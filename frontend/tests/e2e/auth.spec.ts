@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { mockAuthApi } from "./support/mockAuthApi";
+import { mockAlertApi } from "./support/mockAlertApi";
 import { mockMarketSnapshotApi } from "./support/mockMarketApi";
 
 test("unauthenticated user is redirected to login", async ({ page }) => {
@@ -11,6 +12,7 @@ test("unauthenticated user is redirected to login", async ({ page }) => {
 
 test("user can log in and enter the dashboard", async ({ page }) => {
   await mockAuthApi(page);
+  await mockAlertApi(page);
   await mockMarketSnapshotApi(page);
 
   await page.goto("/login");
@@ -24,6 +26,7 @@ test("user can log in and enter the dashboard", async ({ page }) => {
 
 test("user can log out and returns to login", async ({ page }) => {
   await mockAuthApi(page);
+  await mockAlertApi(page);
   await mockMarketSnapshotApi(page);
 
   await page.goto("/login");

@@ -915,10 +915,13 @@ func newTestRouterWithAuth(
 
 	marketHandler := handler.NewMarketHandler(marketService, signalService)
 	signalHandler := handler.NewSignalHandler(signalService)
+	alertService := service.NewAlertService(signalService, []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}, 20)
+	alertHandler := handler.NewAlertHandler(alertService)
 
 	return routerpkg.SetupRouter(routerpkg.HandlerSet{
 		Market:           marketHandler,
 		Signal:           signalHandler,
+		Alert:            alertHandler,
 		Auth:             authHandler,
 		AuthRequired:     authMiddleware,
 		CORSAllowOrigins: []string{"http://localhost:3000", "http://127.0.0.1:3000"},
