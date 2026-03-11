@@ -220,6 +220,50 @@ func TestGetMarketSnapshotWithRefreshBypassesCacheAndRepopulatesCurrentKey(t *te
 	}
 }
 
+func TestGetSignalDoesNotEvictSnapshotCache(t *testing.T) {
+	db := newServiceTestDB(t)
+	cache := &memorySnapshotCache{
+		values: make(map[string][]byte),
+	}
+	svc := newTestSignalService(t, db, cache, 10*time.Second)
+	svc.SetViewCache(cache, 10*time.Second)
+
+	// 首次调用写入 snapshotCache
+	first, err := svc.GetMarketSnapshot("BTCUSDT", "1m", 24)
+	if err != nil {
+		t.Fatalf("GetMarketSnapshot failed: %v", err)
+	}
+
+	snapshotKey := marketSnapshotCacheKey("BTCUSDT", "1m", 24)
+	if _, exists := cache.values[snapshotKey]; !exists {
+		t.Fatal("expected snapshot key to exist after GetMarketSnapshot")
+	}
+	setCalls := cache.setCalls
+
+	// 模拟调度器调用 GetSignal（不通过 GetMarketSnapshotWithRefresh）
+	if _, err := svc.GetSignal("BTCUSDT", "1m"); err != nil {
+		t.Fatalf("GetSignal failed: %v", err)
+	}
+
+	// snapshotCache 不应被 GetSignal 清除
+	if _, exists := cache.values[snapshotKey]; !exists {
+		t.Fatal("GetSignal must not evict snapshotCache — subsequent frontend requests would always miss")
+	}
+
+	// 下一次 GetMarketSnapshot 应命中缓存，不触发新一轮构建和写入
+	second, err := svc.GetMarketSnapshot("BTCUSDT", "1m", 24)
+	if err != nil {
+		t.Fatalf("second GetMarketSnapshot failed: %v", err)
+	}
+	if first.Price.Time != second.Price.Time {
+		t.Fatalf("expected cache hit after GetSignal: Price.Time mismatch first=%d second=%d", first.Price.Time, second.Price.Time)
+	}
+	if cache.setCalls != setCalls {
+		t.Fatalf("expected no additional cache writes after GetSignal: setCalls got=%d want=%d", cache.setCalls, setCalls)
+	}
+}
+
+
 func TestGetMarketSnapshotEmitsUnifiedDurationLogs(t *testing.T) {
 	db := newServiceTestDB(t)
 	cache := &memorySnapshotCache{

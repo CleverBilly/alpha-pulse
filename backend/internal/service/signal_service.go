@@ -420,8 +420,10 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 			return MarketSnapshot{}, err
 		}
-		invalidateAllSymbolCacheScopes(s.viewCache, symbol, allCacheScopes()...)
-		invalidateAllSymbolCacheScopes(s.snapshotCache, symbol, allCacheScopes()...)
+		// 只清当前 interval 的 signal-timeline：新信号写入后该视图已过期。
+		// snapshotCache 由调用方（GetMarketSnapshotWithRefresh）负责写入，不在此处清除；
+		// GetSignal（调度器路径）不回写 snapshotCache，若在此清除会导致缓存持续为空。
+		invalidateCacheScopes(s.viewCache, symbol, interval, cacheScopeSignalTimeline)
 		logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "ok", "")
 	}
 

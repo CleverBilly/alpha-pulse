@@ -37,13 +37,19 @@ func loadAnalysisKlinesWithLimit(
 	symbol, interval string,
 	limit, minimumRequired int,
 ) ([]models.Kline, error) {
-	fetched, err := collector.GetKlines(symbol, interval, limit)
-	if err == nil && len(fetched) > 0 {
+	fetched, fetchErr := collector.GetKlines(symbol, interval, limit)
+	if fetchErr == nil && len(fetched) > 0 {
 		if err := repo.CreateBatch(fetched); err != nil {
 			return nil, err
 		}
+		// Binance 返回了完整窗口：数据刚写入 DB，直接用 fetched 省去冗余的 GetRecent 查询。
+		// fetched 已按 open_time 升序排列，满足指标引擎要求。
+		if len(fetched) >= minimumRequired {
+			return fetched, nil
+		}
 	}
 
+	// Binance 失败或返回不足最小样本：从 DB 读取（含更早的历史数据）。
 	klines, dbErr := repo.GetRecent(symbol, interval, limit)
 	if dbErr != nil {
 		return nil, dbErr
@@ -53,12 +59,8 @@ func loadAnalysisKlinesWithLimit(
 		return klines, nil
 	}
 
-	if err != nil {
-		return nil, err
-	}
-
-	if len(fetched) >= minimumRequired {
-		return fetched, nil
+	if fetchErr != nil {
+		return nil, fetchErr
 	}
 
 	return nil, indicatorInsufficientHistoryError(minimumRequired, len(klines))

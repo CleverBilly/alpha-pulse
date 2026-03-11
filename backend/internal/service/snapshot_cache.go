@@ -62,7 +62,8 @@ func (c *redisMarketSnapshotCache) DeletePrefix(ctx context.Context, prefix stri
 			return err
 		}
 		if len(keys) > 0 {
-			if err := c.client.Del(ctx, keys...).Err(); err != nil {
+			// Unlink 为非阻塞异步删除，等价于 DEL 但不阻塞 Redis 主线程。
+			if err := c.client.Unlink(ctx, keys...).Err(); err != nil {
 				return err
 			}
 		}

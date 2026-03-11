@@ -98,7 +98,8 @@ func (s *MarketService) GetKline(symbol, interval string) (models.Kline, error) 
 	if err := s.klineRepo.Create(&kline); err != nil {
 		return models.Kline{}, err
 	}
-	invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
+	// 新 K 线影响所有指标序列和流动性序列，清两个 scope。
+	invalidateAllSymbolCacheScopes(s.analysisCache, symbol, cacheScopeIndicatorSeries, cacheScopeLiquiditySeries)
 
 	return kline, nil
 }
@@ -120,7 +121,8 @@ func (s *MarketService) GetIndicators(symbol, interval string) (models.Indicator
 	if err := s.indicatorRepo.Create(&result); err != nil {
 		return models.Indicator{}, err
 	}
-	invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
+	// 新指标结果只影响指标序列视图。
+	invalidateAllSymbolCacheScopes(s.analysisCache, symbol, cacheScopeIndicatorSeries)
 
 	return result, nil
 }
@@ -138,7 +140,8 @@ func (s *MarketService) GetIndicatorSeriesWithRefresh(symbol, interval string, l
 
 	cacheStartedAt := time.Now()
 	if refresh {
-		invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
+		// 仅清当前 interval 的指标序列，不影响其他 interval 或不相关的 scope。
+		invalidateCacheScopes(s.analysisCache, symbol, interval, cacheScopeIndicatorSeries)
 		logServiceDuration("market_service", "indicator_series.cache_read", symbol, interval, limit, cacheStartedAt, "refresh", "", observability.Bool("refresh", true))
 	} else {
 		if cached, ok, err := s.getCachedIndicatorSeries(symbol, interval, limit); err == nil && ok {
@@ -226,7 +229,7 @@ func (s *MarketService) GetOrderFlow(symbol, interval string) (models.OrderFlow,
 	if err := persistMicrostructureEvents(s.microEventRepo, result); err != nil {
 		return models.OrderFlow{}, err
 	}
-	invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
+	// 订单流结果不影响 indicator-series 或 liquidity-series，无需清 analysisCache。
 	return result, nil
 }
 
@@ -273,7 +276,7 @@ func (s *MarketService) GetStructure(symbol, interval string) (models.Structure,
 	if err := s.db.Create(&result).Error; err != nil {
 		return models.Structure{}, err
 	}
-	invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
+	// 结构分析结果不影响 indicator-series 或 liquidity-series，无需清 analysisCache。
 	return result, nil
 }
 
@@ -361,7 +364,8 @@ func (s *MarketService) GetLiquidity(symbol, interval string) (models.Liquidity,
 	if err := s.db.Create(&result).Error; err != nil {
 		return models.Liquidity{}, err
 	}
-	invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
+	// 新流动性结果只影响流动性序列视图。
+	invalidateAllSymbolCacheScopes(s.analysisCache, symbol, cacheScopeLiquiditySeries)
 	return result, nil
 }
 
@@ -416,7 +420,8 @@ func (s *MarketService) GetLiquiditySeriesWithRefresh(symbol, interval string, l
 
 	cacheStartedAt := time.Now()
 	if refresh {
-		invalidateAllSymbolCacheScopes(s.analysisCache, symbol, allCacheScopes()...)
+		// 仅清当前 interval 的流动性序列，不影响其他 interval 或不相关的 scope。
+		invalidateCacheScopes(s.analysisCache, symbol, interval, cacheScopeLiquiditySeries)
 		logServiceDuration("market_service", "liquidity_series.cache_read", symbol, interval, limit, cacheStartedAt, "refresh", "", observability.Bool("refresh", true))
 	} else {
 		if cached, ok, err := s.getCachedLiquiditySeries(symbol, interval, limit); err == nil && ok {

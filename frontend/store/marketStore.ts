@@ -57,7 +57,11 @@ interface MarketState {
   refreshDashboard: (refresh?: boolean) => Promise<void>;
 }
 
-export const useMarketStore = create<MarketState>((set, get) => ({
+export const useMarketStore = create<MarketState>((set, get) => {
+  // 按 "symbol:interval" 键追踪进行中的 refreshDashboard 请求，防止并发重复触发。
+  const pendingRefreshMap = new Map<string, Promise<void>>();
+
+  return {
   symbol: "BTCUSDT",
   interval: "1m",
   lastUpdatedAt: null,
@@ -147,16 +151,37 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   },
 
   refreshDashboard: async (refresh = false) => {
-    try {
-      const { symbol, interval } = get();
-      set({ loading: true, error: null });
-      const snapshot = await marketApi.getMarketSnapshot(symbol, interval, 48, refresh);
-      get().applySnapshot(snapshot, { refresh });
-    } catch (error) {
-      set({ loading: false, error: formatError(error) });
+    const { symbol, interval } = get();
+    const key = `${symbol}:${interval}`;
+
+    const existing = pendingRefreshMap.get(key);
+    if (existing && !refresh) {
+      return existing;
     }
+
+    // 使用 let + 明确赋值断言，允许 finally 块通过闭包引用 promise 自身做幂等清理。
+    // finally 仅在异步完成后执行，此时 promise 已赋值，类型安全。
+    // eslint-disable-next-line prefer-const
+    let promise!: Promise<void>;
+    promise = (async () => {
+      try {
+        set({ loading: true, error: null });
+        const snapshot = await marketApi.getMarketSnapshot(symbol, interval, 48, refresh);
+        get().applySnapshot(snapshot, { refresh });
+      } catch (error) {
+        set({ loading: false, error: formatError(error) });
+      } finally {
+        if (pendingRefreshMap.get(key) === promise) {
+          pendingRefreshMap.delete(key);
+        }
+      }
+    })();
+
+    pendingRefreshMap.set(key, promise);
+    return promise;
   },
-}));
+  };
+});
 
 function formatError(error: unknown): string {
   if (error instanceof Error) {
