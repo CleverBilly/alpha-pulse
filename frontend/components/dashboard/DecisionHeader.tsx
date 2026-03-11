@@ -3,7 +3,7 @@
 import { Tag } from "antd";
 import { MARKET_INTERVALS, MARKET_SYMBOLS } from "@/types/market";
 import { useMarketStore } from "@/store/marketStore";
-import { buildDashboardDecision, type DashboardTone } from "./dashboardViewModel";
+import { buildDashboardDecision, buildDirectionCopilotDecision, type DashboardTone } from "./dashboardViewModel";
 
 export default function DecisionHeader() {
   const {
@@ -20,18 +20,30 @@ export default function DecisionHeader() {
     transportMode,
     streamStatus,
     streamError,
+    directionSnapshots,
+    directionLoading,
+    directionError,
+    lastDirectionUpdatedAt,
     refreshDashboard,
     setSymbol,
     setIntervalType,
   } = useMarketStore();
 
-  const decision = buildDashboardDecision({
+  const fallbackDecision = buildDashboardDecision({
     signal,
     structure,
     liquidity,
     orderFlow,
   });
-  const issue = error || streamError;
+  const hasDirectionSnapshots = Boolean(directionSnapshots.macro && directionSnapshots.bias && directionSnapshots.trigger);
+  const decision = hasDirectionSnapshots
+    ? buildDirectionCopilotDecision({
+        macroSnapshot: directionSnapshots.macro,
+        biasSnapshot: directionSnapshots.bias,
+        triggerSnapshot: directionSnapshots.trigger,
+      })
+    : fallbackDecision;
+  const issue = error || streamError || directionError;
 
   return (
     <section className="dashboard-decision surface-panel surface-panel--control" aria-label="Decision Header">
@@ -39,6 +51,7 @@ export default function DecisionHeader() {
         <div className="dashboard-decision__eyebrow-row">
           <p className="dashboard-decision__eyebrow">当前判断</p>
           <Tag color={resolveAntTone(decision.tone)}>{decision.verdict}</Tag>
+          <Tag color={decision.tradable ? "success" : "warning"}>{decision.tradeabilityLabel}</Tag>
           <Tag color={streamStatus === "live" ? "success" : streamStatus === "connecting" ? "processing" : "default"}>
             {formatFeed(streamStatus, transportMode)}
           </Tag>
@@ -57,14 +70,23 @@ export default function DecisionHeader() {
 
         <div className="dashboard-decision__chips">
           <MetaChip label="风险" value={decision.riskLabel} tone={decision.tone} />
+          <MetaChip label="执行" value={decision.tradeabilityLabel} tone={decision.tone} />
           <MetaChip label="连接" value={formatFeed(streamStatus, transportMode)} />
-          <MetaChip label="更新时间" value={formatUpdated(lastUpdatedAt)} />
+          <MetaChip label="更新时间" value={formatUpdated(hasDirectionSnapshots ? lastDirectionUpdatedAt : lastUpdatedAt)} />
         </div>
 
         <div className="dashboard-decision__reasons">
           {decision.reasons.map((reason) => (
             <span key={reason} className="dashboard-decision__reason">
               {reason}
+            </span>
+          ))}
+          {directionLoading && !hasDirectionSnapshots ? (
+            <span className="dashboard-decision__reason">方向引擎同步中</span>
+          ) : null}
+          {decision.timeframeLabels.map((label) => (
+            <span key={label} className="dashboard-decision__reason">
+              {label}
             </span>
           ))}
         </div>

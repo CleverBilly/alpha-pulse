@@ -9,11 +9,13 @@ const AUTO_REFRESH_INTERVAL_MS = 4000;
 const STREAM_RECONNECT_DELAY_MS = 5000;
 const STREAM_HANDSHAKE_TIMEOUT_MS = 1200;
 const STREAM_LIMIT = 48;
+const DIRECTION_REFRESH_INTERVAL_MS = 30000;
 
 export default function MarketSnapshotLoader() {
   const symbol = useMarketStore((state) => state.symbol);
   const interval = useMarketStore((state) => state.interval);
   const refreshDashboard = useMarketStore((state) => state.refreshDashboard);
+  const refreshDirectionCopilot = useMarketStore((state) => state.refreshDirectionCopilot);
   const applySnapshot = useMarketStore((state) => state.applySnapshot);
   const setStreamState = useMarketStore((state) => state.setStreamState);
 
@@ -23,6 +25,7 @@ export default function MarketSnapshotLoader() {
     let pollTimer: ReturnType<typeof setInterval> | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let handshakeTimer: ReturnType<typeof setTimeout> | null = null;
+    let directionTimer: ReturnType<typeof setInterval> | null = null;
     let hasStreamSnapshot = false;
     let usingPolling = false;
 
@@ -153,6 +156,10 @@ export default function MarketSnapshotLoader() {
     };
 
     void refreshDashboard();
+    void refreshDirectionCopilot();
+    directionTimer = setInterval(() => {
+      void refreshDirectionCopilot();
+    }, DIRECTION_REFRESH_INTERVAL_MS);
     connectStream();
 
     return () => {
@@ -162,6 +169,9 @@ export default function MarketSnapshotLoader() {
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
       }
+      if (directionTimer) {
+        clearInterval(directionTimer);
+      }
       if (socket) {
         socket.onclose = null;
         socket.onerror = null;
@@ -169,7 +179,7 @@ export default function MarketSnapshotLoader() {
         socket.close();
       }
     };
-  }, [applySnapshot, interval, refreshDashboard, setStreamState, symbol]);
+  }, [applySnapshot, interval, refreshDashboard, refreshDirectionCopilot, setStreamState, symbol]);
 
   return null;
 }

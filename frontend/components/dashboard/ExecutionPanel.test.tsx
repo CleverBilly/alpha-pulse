@@ -45,4 +45,34 @@ describe("ExecutionPanel", () => {
     expect(screen.getByText("等待更完整的入场、止损和目标位后再做执行判断。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "等待 setup 完整" })).toBeDisabled();
   });
+
+  it("falls back to no-trade when multi-timeframe direction is not aligned", () => {
+    const state = buildMockMarketStoreState();
+    mockedUseMarketStore.mockReturnValue(
+      {
+        ...state,
+        directionSnapshots: {
+          ...state.directionSnapshots,
+          macro: {
+            ...state.directionSnapshots.macro!,
+            signal: {
+              ...state.directionSnapshots.macro!.signal,
+              signal: "SELL",
+              score: -62,
+              confidence: 74,
+            },
+            structure: {
+              ...state.directionSnapshots.macro!.structure,
+              trend: "downtrend",
+            },
+          },
+        },
+      } as ReturnType<typeof useMarketStore>,
+    );
+
+    render(<ExecutionPanel />);
+
+    expect(screen.getByText("等待 4h / 1h / 15m 重新对齐后再看 setup。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "等待 setup 完整" })).toBeDisabled();
+  });
 });

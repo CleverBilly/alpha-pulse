@@ -22,10 +22,17 @@ import { Signal, SignalTimelinePoint } from "@/types/signal";
 export type MarketTransportMode = "idle" | "websocket" | "polling";
 export type MarketStreamStatus = "idle" | "connecting" | "live" | "fallback" | "error";
 
+export interface DirectionSnapshotSet {
+  macro: MarketSnapshot | null;
+  bias: MarketSnapshot | null;
+  trigger: MarketSnapshot | null;
+}
+
 interface MarketState {
   symbol: string;
   interval: MarketInterval;
   lastUpdatedAt: number | null;
+  lastDirectionUpdatedAt: number | null;
   lastRefreshMode: "cache" | "force" | null;
   transportMode: MarketTransportMode;
   streamStatus: MarketStreamStatus;
@@ -44,9 +51,13 @@ interface MarketState {
   liquiditySeries: LiquiditySeriesPoint[];
   signal: Signal | null;
   signalTimeline: SignalTimelinePoint[];
+  directionSnapshots: DirectionSnapshotSet;
+  directionLoading: boolean;
+  directionError: string | null;
   loading: boolean;
   error: string | null;
   applySnapshot: (snapshot: MarketSnapshot, options?: { refresh?: boolean; transport?: MarketTransportMode }) => void;
+  applyDirectionSnapshots: (snapshots: DirectionSnapshotSet) => void;
   setStreamState: (status: MarketStreamStatus, transport?: MarketTransportMode, error?: string | null) => void;
   setSymbol: (symbol: string) => void;
   setIntervalType: (interval: MarketInterval) => void;
@@ -56,17 +67,20 @@ interface MarketState {
   refreshOrderFlow: () => Promise<void>;
   refreshStructure: () => Promise<void>;
   refreshLiquidity: () => Promise<void>;
+  refreshDirectionCopilot: (refresh?: boolean) => Promise<void>;
   refreshDashboard: (refresh?: boolean) => Promise<void>;
 }
 
 export const useMarketStore = create<MarketState>((set, get) => {
   // 按 "symbol:interval" 键追踪进行中的 refreshDashboard 请求，防止并发重复触发。
   const pendingRefreshMap = new Map<string, Promise<void>>();
+  const pendingDirectionMap = new Map<string, Promise<void>>();
 
   return {
   symbol: "BTCUSDT",
   interval: "1m",
   lastUpdatedAt: null,
+  lastDirectionUpdatedAt: null,
   lastRefreshMode: null,
   transportMode: "idle",
   streamStatus: "idle",
@@ -85,6 +99,13 @@ export const useMarketStore = create<MarketState>((set, get) => {
   liquiditySeries: [],
   signal: null,
   signalTimeline: [],
+  directionSnapshots: {
+    macro: null,
+    bias: null,
+    trigger: null,
+  },
+  directionLoading: false,
+  directionError: null,
   loading: false,
   error: null,
 
@@ -112,6 +133,21 @@ export const useMarketStore = create<MarketState>((set, get) => {
       loading: false,
       error: null,
     }));
+  },
+
+  applyDirectionSnapshots: (snapshots) => {
+    const latestTimestamp = Math.max(
+      snapshots.macro?.price?.time ?? 0,
+      snapshots.bias?.price?.time ?? 0,
+      snapshots.trigger?.price?.time ?? 0,
+    );
+
+    set({
+      directionSnapshots: snapshots,
+      directionLoading: false,
+      directionError: null,
+      lastDirectionUpdatedAt: latestTimestamp > 0 ? latestTimestamp : Date.now(),
+    });
   },
 
   setStreamState: (status, transport, streamError = null) => {
@@ -152,6 +188,45 @@ export const useMarketStore = create<MarketState>((set, get) => {
 
   refreshLiquidity: async () => {
     await get().refreshDashboard(true);
+  },
+
+  refreshDirectionCopilot: async (refresh = false) => {
+    const { symbol } = get();
+    const key = symbol;
+
+    const existing = pendingDirectionMap.get(key);
+    if (existing && !refresh) {
+      return existing;
+    }
+
+    let promise!: Promise<void>;
+    promise = (async () => {
+      try {
+        set({ directionLoading: true, directionError: null });
+        const [macro, bias, trigger] = await Promise.all([
+          marketApi.getMarketSnapshot(symbol, "4h", 48, refresh),
+          marketApi.getMarketSnapshot(symbol, "1h", 48, refresh),
+          marketApi.getMarketSnapshot(symbol, "15m", 48, refresh),
+        ]);
+        get().applyDirectionSnapshots({
+          macro,
+          bias,
+          trigger,
+        });
+      } catch (error) {
+        set({
+          directionLoading: false,
+          directionError: formatError(error),
+        });
+      } finally {
+        if (pendingDirectionMap.get(key) === promise) {
+          pendingDirectionMap.delete(key);
+        }
+      }
+    })();
+
+    pendingDirectionMap.set(key, promise);
+    return promise;
   },
 
   refreshDashboard: async (refresh = false) => {

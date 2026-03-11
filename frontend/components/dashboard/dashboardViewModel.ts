@@ -1,10 +1,12 @@
 import type {
+  FuturesSnapshot,
   Liquidity,
   OrderFlow,
   OrderFlowMicrostructureEvent,
   PriceTicker,
   Structure,
 } from "@/types/market";
+import type { MarketSnapshot } from "@/types/snapshot";
 import type { Signal } from "@/types/signal";
 
 export type DashboardDecisionState =
@@ -25,6 +27,9 @@ export interface DashboardDecision {
   reasons: string[];
   confidence: number;
   riskLabel: string;
+  tradable: boolean;
+  tradeabilityLabel: string;
+  timeframeLabels: string[];
 }
 
 export interface ExecutionSetup {
@@ -76,6 +81,12 @@ type EvidenceInput = {
   microstructureEvents?: OrderFlowMicrostructureEvent[] | null;
 };
 
+type DirectionCopilotInput = {
+  macroSnapshot?: MarketSnapshot | null;
+  biasSnapshot?: MarketSnapshot | null;
+  triggerSnapshot?: MarketSnapshot | null;
+};
+
 export function buildDashboardDecision({
   signal,
   structure,
@@ -91,6 +102,9 @@ export function buildDashboardDecision({
       reasons: ["等待快照同步完成", "当前结论可信度不足"],
       confidence: 0,
       riskLabel: "高风险",
+      tradable: false,
+      tradeabilityLabel: "等待同步",
+      timeframeLabels: [],
     };
   }
 
@@ -106,6 +120,102 @@ export function buildDashboardDecision({
     reasons,
     confidence,
     riskLabel: resolveRiskLabel(state, confidence, signal.risk_reward),
+    tradable: state !== "invalid" && confidence >= 45,
+    tradeabilityLabel: state !== "invalid" && confidence >= 45 ? "可继续观察" : "等待同步",
+    timeframeLabels: [],
+  };
+}
+
+export function buildDirectionCopilotDecision({
+  macroSnapshot,
+  biasSnapshot,
+  triggerSnapshot,
+}: DirectionCopilotInput): DashboardDecision {
+  if (!macroSnapshot || !biasSnapshot || !triggerSnapshot) {
+    return {
+      state: "invalid",
+      tone: "warning",
+      verdict: "当前禁止交易",
+      summary: "方向引擎还没拿齐 4h / 1h / 15m 快照，先等待同步完成。",
+      reasons: ["等待 4h / 1h / 15m 同步", "当前多周期证据不足"],
+      confidence: 0,
+      riskLabel: "高风险",
+      tradable: false,
+      tradeabilityLabel: "No-Trade",
+      timeframeLabels: [],
+    };
+  }
+
+  const macroDecision = buildDashboardDecision(fromSnapshot(macroSnapshot));
+  const biasDecision = buildDashboardDecision(fromSnapshot(biasSnapshot));
+  const triggerDecision = buildDashboardDecision(fromSnapshot(triggerSnapshot));
+  const macroBias = directionToNumeric(macroDecision.state);
+  const biasBias = directionToNumeric(biasDecision.state);
+  const triggerBias = directionToNumeric(triggerDecision.state);
+  const timeframeLabels = [
+    `4h ${macroDecision.verdict}`,
+    `1h ${biasDecision.verdict}`,
+    `15m ${triggerDecision.verdict}`,
+  ];
+
+  if (Math.abs(biasBias) === 0 || biasDecision.confidence < 55) {
+    return buildNoTradeDecision({
+      summary: "1h 主判断还不够明确，先等主周期把方向走出来。",
+      reasons: ["1h 主周期置信度不足", ...takeTopReasons(biasDecision.reasons)],
+      confidence: biasDecision.confidence,
+      timeframeLabels,
+    });
+  }
+
+  if (macroBias !== 0 && macroBias !== biasBias) {
+    return buildNoTradeDecision({
+      summary: "4h 与 1h 方向互相打架，当前属于逆大级别风险区。",
+      reasons: ["4h 与 1h 方向冲突", ...takeTopReasons([macroDecision.reasons[0], biasDecision.reasons[0]])],
+      confidence: weightedConfidence(macroDecision.confidence, biasDecision.confidence, triggerDecision.confidence),
+      timeframeLabels,
+    });
+  }
+
+  if (triggerBias !== 0 && triggerBias !== biasBias) {
+    return buildNoTradeDecision({
+      summary: "15m 触发还没和 1h 主方向对齐，先不要提前动手。",
+      reasons: ["15m 触发未确认", ...takeTopReasons([triggerDecision.reasons[0], biasDecision.reasons[0]])],
+      confidence: weightedConfidence(macroDecision.confidence, biasDecision.confidence, triggerDecision.confidence),
+      timeframeLabels,
+    });
+  }
+
+  const crowdingReason = resolveCrowdingReason(biasSnapshot.futures, biasBias);
+  if (crowdingReason) {
+    return buildNoTradeDecision({
+      summary: crowdingReason,
+      reasons: ["Futures 因子过度拥挤", ...takeTopReasons([formatFuturesReason(biasSnapshot.futures, biasBias), biasDecision.reasons[0]])],
+      confidence: weightedConfidence(macroDecision.confidence, biasDecision.confidence, triggerDecision.confidence),
+      timeframeLabels,
+    });
+  }
+
+  const weightedBias = biasBias * 1.35 + macroBias * 0.8 + triggerBias * 0.55 + futuresSupportScore(biasSnapshot.futures, biasBias);
+  const confidence = weightedConfidence(macroDecision.confidence, biasDecision.confidence, triggerDecision.confidence);
+  const state = resolveDirectionalState(weightedBias, confidence);
+  const reasons = takeTopReasons([
+    macroDecision.reasons[0],
+    biasDecision.reasons[0],
+    triggerDecision.reasons[0],
+    formatFuturesReason(biasSnapshot.futures, biasBias),
+  ]);
+
+  return {
+    state,
+    tone: resolveTone(state),
+    verdict: resolveVerdict(state),
+    summary: buildAlignedSummary(state, biasBias, macroDecision, triggerDecision, biasSnapshot.futures),
+    reasons,
+    confidence,
+    riskLabel: confidence >= 72 && Math.abs(weightedBias) >= 2.7 ? "可控风险" : "中风险",
+    tradable: true,
+    tradeabilityLabel: "A 级可跟踪",
+    timeframeLabels,
   };
 }
 
@@ -173,6 +283,28 @@ export function buildExecutionSetup({
     trigger,
     caution: resolveCaution(signal, liquidity, microstructureEvents, longBias),
   };
+}
+
+export function buildDirectionAwareExecutionSetup(
+  input: SetupInput & { decision?: DashboardDecision | null },
+): ExecutionSetup {
+  if (input.decision && !input.decision.tradable) {
+    return {
+      status: "unavailable",
+      tone: "warning",
+      biasLabel: "No-Trade",
+      reason: input.decision.summary,
+      entryLow: 0,
+      entryHigh: 0,
+      stopLoss: 0,
+      target: 0,
+      riskReward: 0,
+      trigger: "等待 4h / 1h / 15m 重新对齐后再看 setup。",
+      caution: "当前不展示伪造点位。",
+    };
+  }
+
+  return buildExecutionSetup(input);
 }
 
 export function buildEvidenceSummary({
@@ -406,6 +538,158 @@ function resolveCaution(
   const eventHint = lastEvent ? `留意 ${formatEventName(lastEvent.type)} 是否失效。` : "";
   const confidenceHint = signal.confidence < 65 ? "仓位宜保守。" : longBias ? "若回踩不守支撑，立即退出。" : "若反抽强穿阻力，立即退出。";
   return [sweepHint, eventHint, confidenceHint].filter(Boolean).join(" ");
+}
+
+function fromSnapshot(snapshot: MarketSnapshot): DecisionInput {
+  return {
+    signal: snapshot.signal,
+    structure: snapshot.structure,
+    liquidity: snapshot.liquidity,
+    orderFlow: snapshot.orderflow,
+  };
+}
+
+function buildNoTradeDecision({
+  summary,
+  reasons,
+  confidence,
+  timeframeLabels,
+}: {
+  summary: string;
+  reasons: string[];
+  confidence: number;
+  timeframeLabels: string[];
+}): DashboardDecision {
+  return {
+    state: "invalid",
+    tone: "warning",
+    verdict: "当前禁止交易",
+    summary,
+    reasons: takeTopReasons(reasons),
+    confidence: clamp(confidence, 0, 100),
+    riskLabel: "高风险",
+    tradable: false,
+    tradeabilityLabel: "No-Trade",
+    timeframeLabels,
+  };
+}
+
+function directionToNumeric(state: DashboardDecisionState) {
+  switch (state) {
+    case "strong-bullish":
+      return 2;
+    case "bullish":
+      return 1;
+    case "strong-bearish":
+      return -2;
+    case "bearish":
+      return -1;
+    default:
+      return 0;
+  }
+}
+
+function resolveDirectionalState(weightedBias: number, confidence: number): DashboardDecisionState {
+  if (confidence < 55 || Math.abs(weightedBias) < 0.8) {
+    return "neutral";
+  }
+  if (weightedBias >= 2.6) {
+    return "strong-bullish";
+  }
+  if (weightedBias >= 1.1) {
+    return "bullish";
+  }
+  if (weightedBias <= -2.6) {
+    return "strong-bearish";
+  }
+  if (weightedBias <= -1.1) {
+    return "bearish";
+  }
+  return "neutral";
+}
+
+function weightedConfidence(macro: number, bias: number, trigger: number) {
+  return round(clamp(macro * 0.25 + bias * 0.5 + trigger * 0.25, 0, 100), 0);
+}
+
+function resolveCrowdingReason(futures: FuturesSnapshot | undefined, direction: number) {
+  if (!futures?.available || direction === 0) {
+    return "";
+  }
+
+  if (direction > 0 && futures.funding_rate >= 0.00025 && futures.long_short_ratio >= 1.12 && futures.basis_bps >= 6) {
+    return "虽然方向仍偏多，但 funding、basis 和 long-short ratio 同时拥挤，先别追多。";
+  }
+
+  if (direction < 0 && futures.funding_rate <= -0.00025 && futures.long_short_ratio <= 0.88 && futures.basis_bps <= -6) {
+    return "虽然方向仍偏空，但 funding、basis 和 long-short ratio 同时拥挤，先别追空。";
+  }
+
+  return "";
+}
+
+function futuresSupportScore(futures: FuturesSnapshot | undefined, direction: number) {
+  if (!futures?.available || direction === 0) {
+    return 0;
+  }
+
+  if (direction > 0) {
+    let score = 0;
+    if (futures.long_short_ratio >= 1.02) {
+      score += 0.2;
+    }
+    if (futures.basis_bps >= 0) {
+      score += 0.15;
+    }
+    if (futures.funding_rate >= -0.00005) {
+      score += 0.1;
+    }
+    return score;
+  }
+
+  let score = 0;
+  if (futures.long_short_ratio <= 0.98) {
+    score += 0.2;
+  }
+  if (futures.basis_bps <= 0) {
+    score += 0.15;
+  }
+  if (futures.funding_rate <= 0.00005) {
+    score += 0.1;
+  }
+  return -score;
+}
+
+function formatFuturesReason(futures: FuturesSnapshot | undefined, direction: number) {
+  if (!futures?.available || direction === 0) {
+    return "";
+  }
+
+  const basis = formatSigned(futures.basis_bps, 1);
+  const funding = `${(futures.funding_rate * 100).toFixed(3)}%`;
+  if (direction > 0) {
+    return `Futures 支持偏多，basis ${basis} bps，funding ${funding}，L/S ${round(futures.long_short_ratio, 2)}。`;
+  }
+  return `Futures 支持偏空，basis ${basis} bps，funding ${funding}，L/S ${round(futures.long_short_ratio, 2)}。`;
+}
+
+function buildAlignedSummary(
+  state: DashboardDecisionState,
+  biasDirection: number,
+  macroDecision: DashboardDecision,
+  triggerDecision: DashboardDecision,
+  futures: FuturesSnapshot | undefined,
+) {
+  const directionLabel = state === "strong-bullish" || state === "bullish" ? "做多" : "做空";
+  const futuresHint = futures?.available
+    ? `Futures 因子 ${biasDirection > 0 ? "没有明显逆风" : "没有明显反向挤压"}。`
+    : "Futures 因子暂时缺失。";
+  return `4h 与 1h 已经对齐，15m 触发也站在同一边，当前优先考虑${directionLabel}。${macroDecision.verdict} / ${triggerDecision.verdict}，${futuresHint}`;
+}
+
+function takeTopReasons(reasons: Array<string | undefined>) {
+  const normalized = reasons.filter((reason): reason is string => Boolean(reason && reason.trim()));
+  return [...new Set(normalized)].slice(0, 3);
 }
 
 function formatSweep(value: string) {

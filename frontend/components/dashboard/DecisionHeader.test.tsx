@@ -20,10 +20,11 @@ describe("DecisionHeader", () => {
     render(<DecisionHeader />);
 
     expect(screen.getByText("当前判断")).toBeInTheDocument();
-    expect(screen.getAllByText("强偏多")).toHaveLength(2);
+    expect(screen.getAllByText("强偏多").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("A 级可跟踪").length).toBeGreaterThan(0);
     expect(screen.getByText("可控风险")).toBeInTheDocument();
-    expect(screen.getByText("EMA20 高于 EMA50，价格位于 VWAP 上方")).toBeInTheDocument();
-    expect(screen.getByText("Delta 为正，大单净流入持续扩张")).toBeInTheDocument();
+    expect(screen.getByText("4h 强偏多")).toBeInTheDocument();
+    expect(screen.getByText("1h 强偏多")).toBeInTheDocument();
   });
 
   it("triggers refresh and symbol or interval changes", async () => {

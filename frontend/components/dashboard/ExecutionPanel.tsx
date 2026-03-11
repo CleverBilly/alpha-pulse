@@ -1,17 +1,41 @@
 "use client";
 
 import { useMarketStore } from "@/store/marketStore";
-import { buildExecutionSetup } from "./dashboardViewModel";
+import { buildDashboardDecision, buildDirectionAwareExecutionSetup, buildDirectionCopilotDecision } from "./dashboardViewModel";
 
 export default function ExecutionPanel() {
-  const { signal, structure, liquidity, orderFlow, microstructureEvents, price } = useMarketStore();
-  const setup = buildExecutionSetup({
+  const {
     signal,
     structure,
     liquidity,
     orderFlow,
     microstructureEvents,
     price,
+    directionSnapshots,
+  } = useMarketStore();
+
+  const decision =
+    directionSnapshots.macro && directionSnapshots.bias && directionSnapshots.trigger
+      ? buildDirectionCopilotDecision({
+          macroSnapshot: directionSnapshots.macro,
+          biasSnapshot: directionSnapshots.bias,
+          triggerSnapshot: directionSnapshots.trigger,
+        })
+      : buildDashboardDecision({
+          signal,
+          structure,
+          liquidity,
+          orderFlow,
+        });
+
+  const setup = buildDirectionAwareExecutionSetup({
+    signal,
+    structure,
+    liquidity,
+    orderFlow,
+    microstructureEvents,
+    price,
+    decision,
   });
 
   return (
