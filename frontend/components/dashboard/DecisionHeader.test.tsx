@@ -25,6 +25,7 @@ describe("DecisionHeader", () => {
     expect(screen.getByText("可控风险")).toBeInTheDocument();
     expect(screen.getByText("4h 强偏多")).toBeInTheDocument();
     expect(screen.getByText("1h 强偏多")).toBeInTheDocument();
+    expect(screen.getByText("5m 强偏多")).toBeInTheDocument();
   });
 
   it("triggers refresh and symbol or interval changes", async () => {

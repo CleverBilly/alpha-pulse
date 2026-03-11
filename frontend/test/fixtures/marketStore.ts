@@ -31,6 +31,7 @@ export function buildMockMarketStoreState(overrides: Record<string, unknown> = {
       macro: buildMockMarketSnapshot(snapshot.price.symbol, "4h", 48),
       bias: buildMockMarketSnapshot(snapshot.price.symbol, "1h", 48),
       trigger: buildMockMarketSnapshot(snapshot.price.symbol, "15m", 48),
+      execution: buildMockMarketSnapshot(snapshot.price.symbol, "5m", 48),
     },
     directionLoading: false,
     directionError: null,

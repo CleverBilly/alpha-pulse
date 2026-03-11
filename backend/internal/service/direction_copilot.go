@@ -68,11 +68,11 @@ func BuildDashboardDecision(snapshot MarketSnapshot) DirectionDecision {
 	}
 }
 
-func BuildDirectionCopilotDecision(macroSnapshot, biasSnapshot, triggerSnapshot *MarketSnapshot) DirectionDecision {
-	if macroSnapshot == nil || biasSnapshot == nil || triggerSnapshot == nil {
+func BuildDirectionCopilotDecision(macroSnapshot, biasSnapshot, triggerSnapshot, executionSnapshot *MarketSnapshot) DirectionDecision {
+	if macroSnapshot == nil || biasSnapshot == nil || triggerSnapshot == nil || executionSnapshot == nil {
 		return buildNoTradeDecision(
-			"方向引擎还没拿齐 4h / 1h / 15m 快照，先等待同步完成。",
-			[]string{"等待 4h / 1h / 15m 同步", "当前多周期证据不足"},
+			"方向引擎还没拿齐 4h / 1h / 15m / 5m 快照，先等待同步完成。",
+			[]string{"等待 4h / 1h / 15m / 5m 同步", "当前多周期证据不足"},
 			0,
 			[]string{},
 		)
@@ -81,13 +81,16 @@ func BuildDirectionCopilotDecision(macroSnapshot, biasSnapshot, triggerSnapshot 
 	macroDecision := BuildDashboardDecision(*macroSnapshot)
 	biasDecision := BuildDashboardDecision(*biasSnapshot)
 	triggerDecision := BuildDashboardDecision(*triggerSnapshot)
+	executionDecision := BuildDashboardDecision(*executionSnapshot)
 	macroBias := directionToNumeric(macroDecision.State)
 	biasBias := directionToNumeric(biasDecision.State)
 	triggerBias := directionToNumeric(triggerDecision.State)
+	executionBias := directionToNumeric(executionDecision.State)
 	timeframeLabels := []string{
 		fmt.Sprintf("4h %s", macroDecision.Verdict),
 		fmt.Sprintf("1h %s", biasDecision.Verdict),
 		fmt.Sprintf("15m %s", triggerDecision.Verdict),
+		fmt.Sprintf("5m %s", executionDecision.Verdict),
 	}
 
 	if math.Abs(float64(biasBias)) == 0 || biasDecision.Confidence < 55 {
@@ -99,20 +102,29 @@ func BuildDirectionCopilotDecision(macroSnapshot, biasSnapshot, triggerSnapshot 
 		)
 	}
 
-	if macroBias != 0 && macroBias != biasBias {
+	if directionsConflict(macroBias, biasBias) {
 		return buildNoTradeDecision(
 			"4h 与 1h 方向互相打架，当前属于逆大级别风险区。",
 			append([]string{"4h 与 1h 方向冲突"}, takeTopReasons([]string{firstReason(macroDecision.Reasons), firstReason(biasDecision.Reasons)})...),
-			weightedConfidence(macroDecision.Confidence, biasDecision.Confidence, triggerDecision.Confidence),
+			weightedConfidence(macroDecision.Confidence, biasDecision.Confidence, triggerDecision.Confidence, executionDecision.Confidence),
 			timeframeLabels,
 		)
 	}
 
-	if triggerBias != 0 && triggerBias != biasBias {
+	if directionsConflict(triggerBias, biasBias) {
 		return buildNoTradeDecision(
 			"15m 触发还没和 1h 主方向对齐，先不要提前动手。",
 			append([]string{"15m 触发未确认"}, takeTopReasons([]string{firstReason(triggerDecision.Reasons), firstReason(biasDecision.Reasons)})...),
-			weightedConfidence(macroDecision.Confidence, biasDecision.Confidence, triggerDecision.Confidence),
+			weightedConfidence(macroDecision.Confidence, biasDecision.Confidence, triggerDecision.Confidence, executionDecision.Confidence),
+			timeframeLabels,
+		)
+	}
+
+	if directionsConflict(executionBias, triggerBias) {
+		return buildNoTradeDecision(
+			"5m 执行触发开始反着 15m 走，先别抢最后一脚。",
+			append([]string{"5m 执行触发逆着 15m"}, takeTopReasons([]string{firstReason(executionDecision.Reasons), firstReason(triggerDecision.Reasons)})...),
+			weightedConfidence(macroDecision.Confidence, biasDecision.Confidence, triggerDecision.Confidence, executionDecision.Confidence),
 			timeframeLabels,
 		)
 	}
@@ -121,18 +133,23 @@ func BuildDirectionCopilotDecision(macroSnapshot, biasSnapshot, triggerSnapshot 
 		return buildNoTradeDecision(
 			crowdingReason,
 			append([]string{"Futures 因子过度拥挤"}, takeTopReasons([]string{formatFuturesReason(biasSnapshot.Futures, biasBias), firstReason(biasDecision.Reasons)})...),
-			weightedConfidence(macroDecision.Confidence, biasDecision.Confidence, triggerDecision.Confidence),
+			weightedConfidence(macroDecision.Confidence, biasDecision.Confidence, triggerDecision.Confidence, executionDecision.Confidence),
 			timeframeLabels,
 		)
 	}
 
-	weightedBias := float64(biasBias)*1.35 + float64(macroBias)*0.8 + float64(triggerBias)*0.55 + futuresSupportScore(biasSnapshot.Futures, biasBias)
-	confidence := weightedConfidence(macroDecision.Confidence, biasDecision.Confidence, triggerDecision.Confidence)
+	weightedBias := float64(biasBias)*1.35 +
+		float64(macroBias)*0.85 +
+		float64(triggerBias)*0.55 +
+		float64(executionBias)*0.35 +
+		futuresSupportScore(biasSnapshot.Futures, biasBias)
+	confidence := weightedConfidence(macroDecision.Confidence, biasDecision.Confidence, triggerDecision.Confidence, executionDecision.Confidence)
 	state := resolveDirectionalState(weightedBias, confidence)
 	reasons := takeTopReasons([]string{
 		firstReason(macroDecision.Reasons),
 		firstReason(biasDecision.Reasons),
 		firstReason(triggerDecision.Reasons),
+		firstReason(executionDecision.Reasons),
 		formatFuturesReason(biasSnapshot.Futures, biasBias),
 	})
 
@@ -144,7 +161,7 @@ func BuildDirectionCopilotDecision(macroSnapshot, biasSnapshot, triggerSnapshot 
 	return DirectionDecision{
 		State:             state,
 		Verdict:           resolveDecisionVerdict(state),
-		Summary:           buildAlignedSummary(state, biasBias, macroDecision, triggerDecision, biasSnapshot.Futures),
+		Summary:           buildAlignedSummary(state, biasBias, macroDecision, triggerDecision, executionDecision, biasSnapshot.Futures),
 		Reasons:           reasons,
 		Confidence:        confidence,
 		RiskLabel:         riskLabel,
@@ -307,13 +324,23 @@ func resolveDirectionalState(weightedBias float64, confidence int) DirectionDeci
 	return DirectionStateNeutral
 }
 
-func weightedConfidence(macro int, bias int, trigger int) int {
-	return roundFloatToInt(clampFloat(float64(macro)*0.25+float64(bias)*0.5+float64(trigger)*0.25, 0, 100))
+func directionsConflict(left int, right int) bool {
+	return left != 0 && right != 0 && left*right < 0
+}
+
+func weightedConfidence(macro int, bias int, trigger int, execution int) int {
+	return roundFloatToInt(clampFloat(float64(macro)*0.23+float64(bias)*0.42+float64(trigger)*0.22+float64(execution)*0.13, 0, 100))
 }
 
 func resolveCrowdingReason(futures FuturesSnapshot, direction int) string {
 	if !futures.Available || direction == 0 {
 		return ""
+	}
+	if direction > 0 && futures.LiquidationPressure == "long-squeeze" {
+		return "虽然大方向仍偏多，但多头清算压力已经挤在下方，先别追高。"
+	}
+	if direction < 0 && futures.LiquidationPressure == "short-squeeze" {
+		return "虽然大方向仍偏空，但空头清算压力已经挤在上方，先别追空。"
 	}
 	if direction > 0 && futures.FundingRate >= 0.00025 && futures.LongShortRatio >= 1.12 && futures.BasisBps >= 6 {
 		return "虽然方向仍偏多，但 funding、basis 和 long-short ratio 同时拥挤，先别追多。"
@@ -339,6 +366,9 @@ func futuresSupportScore(futures FuturesSnapshot, direction int) float64 {
 		if futures.FundingRate >= -0.00005 {
 			score += 0.1
 		}
+		if futures.LiquidationPressure == "short-squeeze" {
+			score += 0.12
+		}
 		return score
 	}
 	score := 0.0
@@ -351,6 +381,9 @@ func futuresSupportScore(futures FuturesSnapshot, direction int) float64 {
 	if futures.FundingRate <= 0.00005 {
 		score += 0.1
 	}
+	if futures.LiquidationPressure == "long-squeeze" {
+		score += 0.12
+	}
 	return -score
 }
 
@@ -361,9 +394,21 @@ func formatFuturesReason(futures FuturesSnapshot, direction int) string {
 	basis := formatSignedNumber(futures.BasisBps, 1)
 	funding := fmt.Sprintf("%.3f%%", futures.FundingRate*100)
 	if direction > 0 {
-		return fmt.Sprintf("Futures 支持偏多，basis %s bps，funding %s，L/S %.2f。", basis, funding, roundFloat(futures.LongShortRatio, 2))
+		return fmt.Sprintf(
+			"Futures 支持偏多，basis %s bps，funding %s，L/S %.2f。%s",
+			basis,
+			funding,
+			roundFloat(futures.LongShortRatio, 2),
+			strings.TrimSpace(futures.LiquidationSummary),
+		)
 	}
-	return fmt.Sprintf("Futures 支持偏空，basis %s bps，funding %s，L/S %.2f。", basis, funding, roundFloat(futures.LongShortRatio, 2))
+	return fmt.Sprintf(
+		"Futures 支持偏空，basis %s bps，funding %s，L/S %.2f。%s",
+		basis,
+		funding,
+		roundFloat(futures.LongShortRatio, 2),
+		strings.TrimSpace(futures.LiquidationSummary),
+	)
 }
 
 func buildAlignedSummary(
@@ -371,6 +416,7 @@ func buildAlignedSummary(
 	biasDirection int,
 	macroDecision DirectionDecision,
 	triggerDecision DirectionDecision,
+	executionDecision DirectionDecision,
 	futures FuturesSnapshot,
 ) string {
 	directionLabel := "做空"
@@ -386,10 +432,11 @@ func buildAlignedSummary(
 		}
 	}
 	return fmt.Sprintf(
-		"4h 与 1h 已经对齐，15m 触发也站在同一边，当前优先考虑%s。%s / %s，%s",
+		"4h 与 1h 已经对齐，15m 触发和 5m 执行也站在同一边，当前优先考虑%s。%s / %s / %s，%s",
 		directionLabel,
 		macroDecision.Verdict,
 		triggerDecision.Verdict,
+		executionDecision.Verdict,
 		futuresHint,
 	)
 }

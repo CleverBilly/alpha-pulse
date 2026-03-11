@@ -15,13 +15,15 @@ func TestAlertServiceGeneratesSetupReadyAlertOnce(t *testing.T) {
 			"BTCUSDT:4h":  buildDirectionTestSnapshot("BTCUSDT", "4h", 62, 78, "BUY", "uptrend"),
 			"BTCUSDT:1h":  buildDirectionTestSnapshot("BTCUSDT", "1h", 58, 74, "BUY", "uptrend"),
 			"BTCUSDT:15m": buildDirectionTestSnapshot("BTCUSDT", "15m", 56, 70, "BUY", "uptrend"),
+			"BTCUSDT:5m":  buildDirectionTestSnapshot("BTCUSDT", "5m", 54, 68, "BUY", "uptrend"),
 		},
 	}
 	service := NewAlertService(fetcher, nil, nil, []string{"BTCUSDT"}, 10)
 	macro := fetcher.snapshots["BTCUSDT:4h"]
 	bias := fetcher.snapshots["BTCUSDT:1h"]
 	trigger := fetcher.snapshots["BTCUSDT:15m"]
-	decision := BuildDirectionCopilotDecision(&macro, &bias, &trigger)
+	execution := fetcher.snapshots["BTCUSDT:5m"]
+	decision := BuildDirectionCopilotDecision(&macro, &bias, &trigger, &execution)
 	if !decision.Tradable {
 		t.Fatalf("expected seeded decision to be tradable, got=%+v", decision)
 	}
@@ -55,6 +57,7 @@ func TestAlertServiceGeneratesNoTradeAfterTradableState(t *testing.T) {
 			"BTCUSDT:4h":  buildDirectionTestSnapshot("BTCUSDT", "4h", 62, 78, "BUY", "uptrend"),
 			"BTCUSDT:1h":  buildDirectionTestSnapshot("BTCUSDT", "1h", 58, 74, "BUY", "uptrend"),
 			"BTCUSDT:15m": buildDirectionTestSnapshot("BTCUSDT", "15m", 56, 70, "BUY", "uptrend"),
+			"BTCUSDT:5m":  buildDirectionTestSnapshot("BTCUSDT", "5m", 54, 68, "BUY", "uptrend"),
 		},
 	}
 	service := NewAlertService(fetcher, nil, nil, []string{"BTCUSDT"}, 10)
@@ -168,6 +171,7 @@ func TestAlertServicePersistsAndReloadsHistoryState(t *testing.T) {
 			"BTCUSDT:4h":  buildDirectionTestSnapshot("BTCUSDT", "4h", 62, 78, "BUY", "uptrend"),
 			"BTCUSDT:1h":  buildDirectionTestSnapshot("BTCUSDT", "1h", 58, 74, "BUY", "uptrend"),
 			"BTCUSDT:15m": buildDirectionTestSnapshot("BTCUSDT", "15m", 56, 70, "BUY", "uptrend"),
+			"BTCUSDT:5m":  buildDirectionTestSnapshot("BTCUSDT", "5m", 54, 68, "BUY", "uptrend"),
 		},
 	}
 
@@ -208,6 +212,7 @@ func TestAlertServiceAppliesPreferencesAndQuietHours(t *testing.T) {
 			"BTCUSDT:4h":  buildDirectionTestSnapshot("BTCUSDT", "4h", 62, 78, "BUY", "uptrend"),
 			"BTCUSDT:1h":  buildDirectionTestSnapshot("BTCUSDT", "1h", 58, 74, "BUY", "uptrend"),
 			"BTCUSDT:15m": buildDirectionTestSnapshot("BTCUSDT", "15m", 56, 70, "BUY", "uptrend"),
+			"BTCUSDT:5m":  buildDirectionTestSnapshot("BTCUSDT", "5m", 54, 68, "BUY", "uptrend"),
 		},
 	}
 	notifier := &stubAlertNotifier{channel: "feishu"}

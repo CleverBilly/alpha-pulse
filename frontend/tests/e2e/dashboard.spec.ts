@@ -17,6 +17,7 @@ test("dashboard renders cockpit layers and supports 4h interval", async ({ page 
   await expect(page.getByRole("link", { name: "查看信号深页" })).toBeVisible();
   await expect(page.getByRole("link", { name: "查看市场深页" })).toBeVisible();
   await expect(page.getByRole("link", { name: "查看图表深页" })).toBeVisible();
+  await expect(page.getByText("5m 强偏多").first()).toBeVisible();
 
   await page.getByRole("button", { name: "4h" }).click();
   await expect(page.getByRole("button", { name: "4h" })).toHaveAttribute("aria-pressed", "true");

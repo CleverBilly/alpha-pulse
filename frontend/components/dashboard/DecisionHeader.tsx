@@ -35,12 +35,15 @@ export default function DecisionHeader() {
     liquidity,
     orderFlow,
   });
-  const hasDirectionSnapshots = Boolean(directionSnapshots.macro && directionSnapshots.bias && directionSnapshots.trigger);
+  const hasDirectionSnapshots = Boolean(
+    directionSnapshots.macro && directionSnapshots.bias && directionSnapshots.trigger && directionSnapshots.execution,
+  );
   const decision = hasDirectionSnapshots
     ? buildDirectionCopilotDecision({
         macroSnapshot: directionSnapshots.macro,
         biasSnapshot: directionSnapshots.bias,
         triggerSnapshot: directionSnapshots.trigger,
+        executionSnapshot: directionSnapshots.execution,
       })
     : fallbackDecision;
   const issue = error || streamError || directionError;

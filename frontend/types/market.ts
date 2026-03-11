@@ -25,6 +25,12 @@ export interface FuturesSnapshot {
   long_short_ratio: number;
   long_account_ratio: number;
   short_account_ratio: number;
+  liquidation_pressure: "long-squeeze" | "short-squeeze" | "balanced" | "unavailable" | string;
+  liquidation_summary: string;
+  long_liquidation_zone_low: number;
+  long_liquidation_zone_high: number;
+  short_liquidation_zone_low: number;
+  short_liquidation_zone_high: number;
   time: number;
   source: string;
   reason: string;

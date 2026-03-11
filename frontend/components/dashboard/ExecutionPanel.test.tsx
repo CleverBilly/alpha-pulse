@@ -72,7 +72,7 @@ describe("ExecutionPanel", () => {
 
     render(<ExecutionPanel />);
 
-    expect(screen.getByText("等待 4h / 1h / 15m 重新对齐后再看 setup。")).toBeInTheDocument();
+    expect(screen.getByText("等待 4h / 1h / 15m / 5m 重新对齐后再看 setup。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "等待 setup 完整" })).toBeDisabled();
   });
 });

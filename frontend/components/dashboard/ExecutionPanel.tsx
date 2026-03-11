@@ -15,11 +15,12 @@ export default function ExecutionPanel() {
   } = useMarketStore();
 
   const decision =
-    directionSnapshots.macro && directionSnapshots.bias && directionSnapshots.trigger
+    directionSnapshots.macro && directionSnapshots.bias && directionSnapshots.trigger && directionSnapshots.execution
       ? buildDirectionCopilotDecision({
           macroSnapshot: directionSnapshots.macro,
           biasSnapshot: directionSnapshots.bias,
           triggerSnapshot: directionSnapshots.trigger,
+          executionSnapshot: directionSnapshots.execution,
         })
       : buildDashboardDecision({
           signal,

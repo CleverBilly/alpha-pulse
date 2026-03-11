@@ -5,7 +5,7 @@ import { verifySessionToken } from "@/lib/auth/session";
 const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
 const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME ?? "alpha_pulse_session";
 const AUTH_SESSION_SECRET = process.env.AUTH_SESSION_SECRET ?? "";
-const PROTECTED_PREFIXES = ["/dashboard", "/chart", "/signals", "/market"];
+const PROTECTED_PREFIXES = ["/dashboard", "/chart", "/signals", "/review", "/market"];
 
 export async function middleware(request: NextRequest) {
   if (!AUTH_ENABLED) {
@@ -37,5 +37,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/login", "/dashboard/:path*", "/chart/:path*", "/signals/:path*", "/market/:path*"],
+  matcher: ["/", "/login", "/dashboard/:path*", "/chart/:path*", "/signals/:path*", "/review/:path*", "/market/:path*"],
 };

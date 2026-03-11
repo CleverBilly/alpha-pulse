@@ -85,6 +85,7 @@ type DirectionCopilotInput = {
   macroSnapshot?: MarketSnapshot | null;
   biasSnapshot?: MarketSnapshot | null;
   triggerSnapshot?: MarketSnapshot | null;
+  executionSnapshot?: MarketSnapshot | null;
 };
 
 export function buildDashboardDecision({
@@ -130,14 +131,15 @@ export function buildDirectionCopilotDecision({
   macroSnapshot,
   biasSnapshot,
   triggerSnapshot,
+  executionSnapshot,
 }: DirectionCopilotInput): DashboardDecision {
-  if (!macroSnapshot || !biasSnapshot || !triggerSnapshot) {
+  if (!macroSnapshot || !biasSnapshot || !triggerSnapshot || !executionSnapshot) {
     return {
       state: "invalid",
       tone: "warning",
       verdict: "当前禁止交易",
-      summary: "方向引擎还没拿齐 4h / 1h / 15m 快照，先等待同步完成。",
-      reasons: ["等待 4h / 1h / 15m 同步", "当前多周期证据不足"],
+      summary: "方向引擎还没拿齐 4h / 1h / 15m / 5m 快照，先等待同步完成。",
+      reasons: ["等待 4h / 1h / 15m / 5m 同步", "当前多周期证据不足"],
       confidence: 0,
       riskLabel: "高风险",
       tradable: false,
@@ -149,13 +151,16 @@ export function buildDirectionCopilotDecision({
   const macroDecision = buildDashboardDecision(fromSnapshot(macroSnapshot));
   const biasDecision = buildDashboardDecision(fromSnapshot(biasSnapshot));
   const triggerDecision = buildDashboardDecision(fromSnapshot(triggerSnapshot));
+  const executionDecision = buildDashboardDecision(fromSnapshot(executionSnapshot));
   const macroBias = directionToNumeric(macroDecision.state);
   const biasBias = directionToNumeric(biasDecision.state);
   const triggerBias = directionToNumeric(triggerDecision.state);
+  const executionBias = directionToNumeric(executionDecision.state);
   const timeframeLabels = [
     `4h ${macroDecision.verdict}`,
     `1h ${biasDecision.verdict}`,
     `15m ${triggerDecision.verdict}`,
+    `5m ${executionDecision.verdict}`,
   ];
 
   if (Math.abs(biasBias) === 0 || biasDecision.confidence < 55) {
@@ -167,20 +172,44 @@ export function buildDirectionCopilotDecision({
     });
   }
 
-  if (macroBias !== 0 && macroBias !== biasBias) {
+  if (directionsConflict(macroBias, biasBias)) {
     return buildNoTradeDecision({
       summary: "4h 与 1h 方向互相打架，当前属于逆大级别风险区。",
       reasons: ["4h 与 1h 方向冲突", ...takeTopReasons([macroDecision.reasons[0], biasDecision.reasons[0]])],
-      confidence: weightedConfidence(macroDecision.confidence, biasDecision.confidence, triggerDecision.confidence),
+      confidence: weightedConfidence(
+        macroDecision.confidence,
+        biasDecision.confidence,
+        triggerDecision.confidence,
+        executionDecision.confidence,
+      ),
       timeframeLabels,
     });
   }
 
-  if (triggerBias !== 0 && triggerBias !== biasBias) {
+  if (directionsConflict(triggerBias, biasBias)) {
     return buildNoTradeDecision({
       summary: "15m 触发还没和 1h 主方向对齐，先不要提前动手。",
       reasons: ["15m 触发未确认", ...takeTopReasons([triggerDecision.reasons[0], biasDecision.reasons[0]])],
-      confidence: weightedConfidence(macroDecision.confidence, biasDecision.confidence, triggerDecision.confidence),
+      confidence: weightedConfidence(
+        macroDecision.confidence,
+        biasDecision.confidence,
+        triggerDecision.confidence,
+        executionDecision.confidence,
+      ),
+      timeframeLabels,
+    });
+  }
+
+  if (directionsConflict(executionBias, triggerBias)) {
+    return buildNoTradeDecision({
+      summary: "5m 执行触发开始反着 15m 走，先别抢最后一脚。",
+      reasons: ["5m 执行触发逆着 15m", ...takeTopReasons([executionDecision.reasons[0], triggerDecision.reasons[0]])],
+      confidence: weightedConfidence(
+        macroDecision.confidence,
+        biasDecision.confidence,
+        triggerDecision.confidence,
+        executionDecision.confidence,
+      ),
       timeframeLabels,
     });
   }
@@ -190,18 +219,34 @@ export function buildDirectionCopilotDecision({
     return buildNoTradeDecision({
       summary: crowdingReason,
       reasons: ["Futures 因子过度拥挤", ...takeTopReasons([formatFuturesReason(biasSnapshot.futures, biasBias), biasDecision.reasons[0]])],
-      confidence: weightedConfidence(macroDecision.confidence, biasDecision.confidence, triggerDecision.confidence),
+      confidence: weightedConfidence(
+        macroDecision.confidence,
+        biasDecision.confidence,
+        triggerDecision.confidence,
+        executionDecision.confidence,
+      ),
       timeframeLabels,
     });
   }
 
-  const weightedBias = biasBias * 1.35 + macroBias * 0.8 + triggerBias * 0.55 + futuresSupportScore(biasSnapshot.futures, biasBias);
-  const confidence = weightedConfidence(macroDecision.confidence, biasDecision.confidence, triggerDecision.confidence);
+  const weightedBias =
+    biasBias * 1.35 +
+    macroBias * 0.85 +
+    triggerBias * 0.55 +
+    executionBias * 0.35 +
+    futuresSupportScore(biasSnapshot.futures, biasBias);
+  const confidence = weightedConfidence(
+    macroDecision.confidence,
+    biasDecision.confidence,
+    triggerDecision.confidence,
+    executionDecision.confidence,
+  );
   const state = resolveDirectionalState(weightedBias, confidence);
   const reasons = takeTopReasons([
     macroDecision.reasons[0],
     biasDecision.reasons[0],
     triggerDecision.reasons[0],
+    executionDecision.reasons[0],
     formatFuturesReason(biasSnapshot.futures, biasBias),
   ]);
 
@@ -209,7 +254,7 @@ export function buildDirectionCopilotDecision({
     state,
     tone: resolveTone(state),
     verdict: resolveVerdict(state),
-    summary: buildAlignedSummary(state, biasBias, macroDecision, triggerDecision, biasSnapshot.futures),
+    summary: buildAlignedSummary(state, biasBias, macroDecision, triggerDecision, executionDecision, biasSnapshot.futures),
     reasons,
     confidence,
     riskLabel: confidence >= 72 && Math.abs(weightedBias) >= 2.7 ? "可控风险" : "中风险",
@@ -299,7 +344,7 @@ export function buildDirectionAwareExecutionSetup(
       stopLoss: 0,
       target: 0,
       riskReward: 0,
-      trigger: "等待 4h / 1h / 15m 重新对齐后再看 setup。",
+      trigger: "等待 4h / 1h / 15m / 5m 重新对齐后再看 setup。",
       caution: "当前不展示伪造点位。",
     };
   }
@@ -608,13 +653,25 @@ function resolveDirectionalState(weightedBias: number, confidence: number): Dash
   return "neutral";
 }
 
-function weightedConfidence(macro: number, bias: number, trigger: number) {
-  return round(clamp(macro * 0.25 + bias * 0.5 + trigger * 0.25, 0, 100), 0);
+function directionsConflict(left: number, right: number) {
+  return left !== 0 && right !== 0 && left * right < 0;
+}
+
+function weightedConfidence(macro: number, bias: number, trigger: number, execution: number) {
+  return round(clamp(macro * 0.23 + bias * 0.42 + trigger * 0.22 + execution * 0.13, 0, 100), 0);
 }
 
 function resolveCrowdingReason(futures: FuturesSnapshot | undefined, direction: number) {
   if (!futures?.available || direction === 0) {
     return "";
+  }
+
+  if (direction > 0 && futures.liquidation_pressure === "long-squeeze") {
+    return "虽然大方向仍偏多，但多头清算压力已经挤在下方，先别追高。";
+  }
+
+  if (direction < 0 && futures.liquidation_pressure === "short-squeeze") {
+    return "虽然大方向仍偏空，但空头清算压力已经挤在上方，先别追空。";
   }
 
   if (direction > 0 && futures.funding_rate >= 0.00025 && futures.long_short_ratio >= 1.12 && futures.basis_bps >= 6) {
@@ -644,6 +701,9 @@ function futuresSupportScore(futures: FuturesSnapshot | undefined, direction: nu
     if (futures.funding_rate >= -0.00005) {
       score += 0.1;
     }
+    if (futures.liquidation_pressure === "short-squeeze") {
+      score += 0.12;
+    }
     return score;
   }
 
@@ -657,6 +717,9 @@ function futuresSupportScore(futures: FuturesSnapshot | undefined, direction: nu
   if (futures.funding_rate <= 0.00005) {
     score += 0.1;
   }
+  if (futures.liquidation_pressure === "long-squeeze") {
+    score += 0.12;
+  }
   return -score;
 }
 
@@ -668,9 +731,9 @@ function formatFuturesReason(futures: FuturesSnapshot | undefined, direction: nu
   const basis = formatSigned(futures.basis_bps, 1);
   const funding = `${(futures.funding_rate * 100).toFixed(3)}%`;
   if (direction > 0) {
-    return `Futures 支持偏多，basis ${basis} bps，funding ${funding}，L/S ${round(futures.long_short_ratio, 2)}。`;
+    return `Futures 支持偏多，basis ${basis} bps，funding ${funding}，L/S ${round(futures.long_short_ratio, 2)}。${futures.liquidation_summary?.trim() ?? ""}`;
   }
-  return `Futures 支持偏空，basis ${basis} bps，funding ${funding}，L/S ${round(futures.long_short_ratio, 2)}。`;
+  return `Futures 支持偏空，basis ${basis} bps，funding ${funding}，L/S ${round(futures.long_short_ratio, 2)}。${futures.liquidation_summary?.trim() ?? ""}`;
 }
 
 function buildAlignedSummary(
@@ -678,13 +741,14 @@ function buildAlignedSummary(
   biasDirection: number,
   macroDecision: DashboardDecision,
   triggerDecision: DashboardDecision,
+  executionDecision: DashboardDecision,
   futures: FuturesSnapshot | undefined,
 ) {
   const directionLabel = state === "strong-bullish" || state === "bullish" ? "做多" : "做空";
   const futuresHint = futures?.available
     ? `Futures 因子 ${biasDirection > 0 ? "没有明显逆风" : "没有明显反向挤压"}。`
     : "Futures 因子暂时缺失。";
-  return `4h 与 1h 已经对齐，15m 触发也站在同一边，当前优先考虑${directionLabel}。${macroDecision.verdict} / ${triggerDecision.verdict}，${futuresHint}`;
+  return `4h 与 1h 已经对齐，15m 触发和 5m 执行也站在同一边，当前优先考虑${directionLabel}。${macroDecision.verdict} / ${triggerDecision.verdict} / ${executionDecision.verdict}，${futuresHint}`;
 }
 
 function takeTopReasons(reasons: Array<string | undefined>) {

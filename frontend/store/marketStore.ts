@@ -26,6 +26,7 @@ export interface DirectionSnapshotSet {
   macro: MarketSnapshot | null;
   bias: MarketSnapshot | null;
   trigger: MarketSnapshot | null;
+  execution: MarketSnapshot | null;
 }
 
 interface MarketState {
@@ -103,6 +104,7 @@ export const useMarketStore = create<MarketState>((set, get) => {
     macro: null,
     bias: null,
     trigger: null,
+    execution: null,
   },
   directionLoading: false,
   directionError: null,
@@ -140,6 +142,7 @@ export const useMarketStore = create<MarketState>((set, get) => {
       snapshots.macro?.price?.time ?? 0,
       snapshots.bias?.price?.time ?? 0,
       snapshots.trigger?.price?.time ?? 0,
+      snapshots.execution?.price?.time ?? 0,
     );
 
     set({
@@ -203,15 +206,17 @@ export const useMarketStore = create<MarketState>((set, get) => {
     promise = (async () => {
       try {
         set({ directionLoading: true, directionError: null });
-        const [macro, bias, trigger] = await Promise.all([
+        const [macro, bias, trigger, execution] = await Promise.all([
           marketApi.getMarketSnapshot(symbol, "4h", 48, refresh),
           marketApi.getMarketSnapshot(symbol, "1h", 48, refresh),
           marketApi.getMarketSnapshot(symbol, "15m", 48, refresh),
+          marketApi.getMarketSnapshot(symbol, "5m", 48, refresh),
         ]);
         get().applyDirectionSnapshots({
           macro,
           bias,
           trigger,
+          execution,
         });
       } catch (error) {
         set({

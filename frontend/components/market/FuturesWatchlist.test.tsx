@@ -42,23 +42,27 @@ describe("FuturesWatchlist", () => {
       expect(screen.getByText("SOLUSDT")).toBeInTheDocument();
     });
 
-    expect(mockedMarketApi.getMarketSnapshot).toHaveBeenCalledTimes(9);
+    expect(mockedMarketApi.getMarketSnapshot).toHaveBeenCalledTimes(12);
     expect(mockedMarketApi.getMarketSnapshot.mock.calls).toEqual(
       expect.arrayContaining([
         ["BTCUSDT", "4h", 24],
         ["BTCUSDT", "1h", 24],
         ["BTCUSDT", "15m", 24],
+        ["BTCUSDT", "5m", 24],
         ["ETHUSDT", "4h", 24],
         ["ETHUSDT", "1h", 24],
         ["ETHUSDT", "15m", 24],
+        ["ETHUSDT", "5m", 24],
         ["SOLUSDT", "4h", 24],
         ["SOLUSDT", "1h", 24],
         ["SOLUSDT", "15m", 24],
+        ["SOLUSDT", "5m", 24],
       ]),
     );
     expect(screen.getAllByText("A 级可跟踪").length).toBeGreaterThan(0);
     expect(screen.getAllByText("4h 强偏多").length).toBeGreaterThan(0);
     expect(screen.getAllByText("1h 强偏多").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("5m 强偏多").length).toBeGreaterThan(0);
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "切换到 SOLUSDT" }));
@@ -93,7 +97,7 @@ describe("FuturesWatchlist", () => {
       expect(screen.getByText("ETHUSDT")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("当前禁止交易")).toBeInTheDocument();
+    expect(screen.getAllByText("当前禁止交易").length).toBeGreaterThan(0);
     expect(screen.getByText("4h 与 1h 方向互相打架，当前属于逆大级别风险区。")).toBeInTheDocument();
     expect(screen.getAllByText("No-Trade").length).toBeGreaterThan(0);
   });

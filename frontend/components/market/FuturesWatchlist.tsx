@@ -12,6 +12,7 @@ const WATCHLIST_INTERVALS = {
   macro: "4h",
   bias: "1h",
   trigger: "15m",
+  execution: "5m",
 } as const;
 const WATCHLIST_LIMIT = 24;
 const WATCHLIST_REFRESH_INTERVAL_MS = 15_000;
@@ -22,6 +23,7 @@ type WatchlistSnapshots = {
   macro: MarketSnapshot | null;
   bias: MarketSnapshot | null;
   trigger: MarketSnapshot | null;
+  execution: MarketSnapshot | null;
 };
 
 type WatchlistItem = {
@@ -37,11 +39,12 @@ export default function FuturesWatchlist() {
     MARKET_SYMBOLS.map((symbol) => ({
       symbol,
       status: "loading",
-      snapshots: {
-        macro: null,
-        bias: null,
-        trigger: null,
-      },
+        snapshots: {
+          macro: null,
+          bias: null,
+          trigger: null,
+          execution: null,
+        },
       error: null,
     })),
   );
@@ -53,10 +56,11 @@ export default function FuturesWatchlist() {
       const nextItems = await Promise.all(
         MARKET_SYMBOLS.map(async (symbol) => {
           try {
-            const [macro, bias, trigger] = await Promise.all([
+            const [macro, bias, trigger, execution] = await Promise.all([
               marketApi.getMarketSnapshot(symbol, WATCHLIST_INTERVALS.macro, WATCHLIST_LIMIT),
               marketApi.getMarketSnapshot(symbol, WATCHLIST_INTERVALS.bias, WATCHLIST_LIMIT),
               marketApi.getMarketSnapshot(symbol, WATCHLIST_INTERVALS.trigger, WATCHLIST_LIMIT),
+              marketApi.getMarketSnapshot(symbol, WATCHLIST_INTERVALS.execution, WATCHLIST_LIMIT),
             ]);
             return {
               symbol,
@@ -65,6 +69,7 @@ export default function FuturesWatchlist() {
                 macro,
                 bias,
                 trigger,
+                execution,
               },
               error: null,
             };
@@ -76,6 +81,7 @@ export default function FuturesWatchlist() {
                 macro: null,
                 bias: null,
                 trigger: null,
+                execution: null,
               },
               error: formatError(error),
             };
@@ -105,13 +111,13 @@ export default function FuturesWatchlist() {
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">Futures Watchlist</p>
           <h2 className="mt-3 text-[30px] font-semibold leading-tight tracking-[-0.04em] text-slate-950">
-            BTC / ETH / SOL 的 4h / 1h / 15m 多周期方向雷达
+            BTC / ETH / SOL 的 4h / 1h / 15m / 5m 多周期方向雷达
           </h2>
           <p className="mt-3 text-[15px] leading-7 text-slate-600">
-            这条 watchlist 会先看 4h 大方向，再用 1h 判断主 bias，用 15m 检查触发是否跟上，优先告诉你哪个标的能跟，哪个标的该直接 No-Trade。
+            这条 watchlist 会先看 4h 大方向，再用 1h 判断主 bias，用 15m 检查触发是否跟上，最后再用 5m 判断执行是否已经拧回去，优先告诉你哪个标的能跟，哪个标的该直接 No-Trade。
           </p>
         </div>
-        <Tag color="geekblue">4h / 1h / 15m Copilot</Tag>
+        <Tag color="geekblue">4h / 1h / 15m / 5m Copilot</Tag>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -141,6 +147,7 @@ function WatchlistCard({
     macroSnapshot: item.snapshots.macro,
     biasSnapshot: item.snapshots.bias,
     triggerSnapshot: item.snapshots.trigger,
+    executionSnapshot: item.snapshots.execution,
   });
   const biasSnapshot = item.snapshots.bias;
   const futures = biasSnapshot?.futures;
@@ -198,10 +205,9 @@ function WatchlistCard({
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Futures Signal</p>
           <p className="mt-2 text-sm leading-6 text-slate-700">
             {futures?.available
-              ? `OI ${formatCompact(futures.open_interest)}，名义价值 ${formatCompactCurrency(futures.open_interest_value)}，多头账户占比 ${formatPercent(
-                  futures.long_account_ratio,
-                  1,
-                )}。`
+              ? `${futures.liquidation_summary || "清算压力代理保持均衡。"} OI ${formatCompact(futures.open_interest)}，名义价值 ${formatCompactCurrency(
+                  futures.open_interest_value,
+                )}，多头账户占比 ${formatPercent(futures.long_account_ratio, 1)}。`
               : futures?.reason || "Futures metrics unavailable"}
           </p>
         </div>

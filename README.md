@@ -1,26 +1,26 @@
 # alpha-pulse
 
-AI Crypto Trading Dashboard（BTC / ETH / SOL）
+AI Crypto Futures Direction Copilot（BTC / ETH / SOL）
 
 ## 当前状态
 
-当前仓库对应的版本已经完成 `Spot Analysis MVP` 主线开发，可作为现货研究型分析终端部署。
+当前仓库对应的版本已经完成 `V2.0 Futures Direction Copilot` 主线开发，可作为单用户公网部署的合约方向判断与告警终端使用。
 
 当前上线范围：
 
 - `BTCUSDT / ETHUSDT / SOLUSDT`
 - `1m / 5m / 15m / 1h / 4h`
-- Dashboard / Chart / Signals / Market
+- Dashboard / Chart / Review（`/review`，`/signals` 兼容） / Market
 - 订单流、结构、流动性、信号、AI 解释统一快照分析
-- Futures 基础因子快照：mark / funding / open interest / long-short ratio
-- 多周期方向引擎：`4h / 1h / 15m`
+- Futures 基础因子快照：mark / funding / open interest / long-short ratio / liquidation pressure proxy
+- 完整 Futures Direction Engine：`4h / 1h / 15m / 5m`
+- No-Trade 过滤与 A 级可跟踪判断
 - Alert Center：浏览器通知 + 飞书机器人推送
 - 告警配置中心：事件开关、最小置信度、静默时段、标的过滤
-- 告警历史回放：recent feed + `/signals` 复盘
+- 告警历史回放：recent feed + `/review` 复盘
 
 当前不包含：
 
-- 完整 `Futures Direction Engine`
 - 自动下单
 - 回测平台
 - 多交易所接入
@@ -97,7 +97,7 @@ SCHEDULER_INTERVAL_SECONDS=60
 
 ## 单用户登录拦截
 
-当前支持单用户登录模式，用于公网域名部署时保护 Dashboard、Chart、Signals、Market 等业务页。
+当前支持单用户登录模式，用于公网域名部署时保护 Dashboard、Chart、Review、Market 等业务页。
 
 后端需要配置：
 
@@ -130,7 +130,7 @@ AUTH_SESSION_SECRET=<same-long-random-secret>
 
 ## Alert Center / 飞书机器人
 
-当前告警链路由后端定时评估 `BTC / ETH / SOL` 的 `4h / 1h / 15m` 多周期方向状态，并在出现以下事件时生成 feed：
+当前告警链路由后端定时评估 `BTC / ETH / SOL` 的 `4h / 1h / 15m / 5m` 多周期方向状态，并在出现以下事件时生成 feed：
 
 - `A 级 setup 已就绪`
 - `方向切换`
@@ -149,7 +149,7 @@ FEISHU_BOT_SECRET=
 
 - `FEISHU_BOT_WEBHOOK_URL` 留空时，系统只保留站内 Alert Center 和浏览器通知，不推送飞书
 - 如果飞书机器人启用了签名校验，再填写 `FEISHU_BOT_SECRET`
-- `ALERT_PUBLIC_BASE_URL` 会写进飞书消息深链，指向 `/dashboard`、`/market`、`/signals`
+- `ALERT_PUBLIC_BASE_URL` 会写进飞书消息深链，指向 `/dashboard`、`/market`、`/review`
 - 浏览器通知不需要额外环境变量，登录后在右上角 `Alerts` 抽屉里授权即可
 - 本地开发如果关闭了 `ENABLE_SCHEDULER`，仍可在 Alert Center 里点击 `立即检查`
 

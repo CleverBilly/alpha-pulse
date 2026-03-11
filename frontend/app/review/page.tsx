@@ -1,5 +1,5 @@
 import ReviewWorkspace from "@/components/review/ReviewWorkspace";
 
-export default function SignalsPage() {
+export default function ReviewPage() {
   return <ReviewWorkspace />;
 }

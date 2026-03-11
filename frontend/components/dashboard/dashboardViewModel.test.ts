@@ -155,22 +155,24 @@ describe("dashboardViewModel", () => {
     expect(decision.riskLabel).toBe("高风险");
   });
 
-  it("builds a tradable multi-timeframe futures direction decision when 4h / 1h / 15m align", () => {
+  it("builds a tradable multi-timeframe futures direction decision when 4h / 1h / 15m / 5m align", () => {
     const macro = buildMockMarketSnapshot("BTCUSDT", "4h", 48);
     const bias = buildMockMarketSnapshot("BTCUSDT", "1h", 48);
     const trigger = buildMockMarketSnapshot("BTCUSDT", "15m", 48);
+    const execution = buildMockMarketSnapshot("BTCUSDT", "5m", 48);
 
     const decision = buildDirectionCopilotDecision({
       macroSnapshot: macro,
       biasSnapshot: bias,
       triggerSnapshot: trigger,
+      executionSnapshot: execution,
     });
 
     expect(decision.state).toBe("strong-bullish");
     expect(decision.verdict).toBe("强偏多");
     expect(decision.tradable).toBe(true);
     expect(decision.tradeabilityLabel).toBe("A 级可跟踪");
-    expect(decision.timeframeLabels).toEqual(["4h 强偏多", "1h 强偏多", "15m 强偏多"]);
+    expect(decision.timeframeLabels).toEqual(["4h 强偏多", "1h 强偏多", "15m 强偏多", "5m 强偏多"]);
   });
 
   it("returns no-trade when 4h and 1h conflict or futures are overcrowded", () => {
@@ -186,11 +188,13 @@ describe("dashboardViewModel", () => {
     bias.futures.basis_bps = 8.4;
 
     const trigger = buildMockMarketSnapshot("BTCUSDT", "15m", 48);
+    const execution = buildMockMarketSnapshot("BTCUSDT", "5m", 48);
 
     const decision = buildDirectionCopilotDecision({
       macroSnapshot: macro,
       biasSnapshot: bias,
       triggerSnapshot: trigger,
+      executionSnapshot: execution,
     });
     const setup = buildDirectionAwareExecutionSetup({
       signal: bias.signal,
@@ -208,6 +212,31 @@ describe("dashboardViewModel", () => {
     expect(decision.tradeabilityLabel).toBe("No-Trade");
     expect(setup.status).toBe("unavailable");
     expect(setup.reason).toContain("4h 与 1h");
+  });
+
+  it("returns no-trade when 5m execution conflicts with the 15m trigger", () => {
+    const macro = buildMockMarketSnapshot("BTCUSDT", "4h", 48);
+    const bias = buildMockMarketSnapshot("BTCUSDT", "1h", 48);
+    const trigger = buildMockMarketSnapshot("BTCUSDT", "15m", 48);
+    const execution = structuredClone(buildMockMarketSnapshot("BTCUSDT", "5m", 48));
+    execution.signal.signal = "SELL";
+    execution.signal.score = -46;
+    execution.signal.confidence = 68;
+    execution.signal.trend_bias = "bearish";
+    execution.signal.explain = "5m 出现反向执行回落，先别追单。";
+    execution.structure.trend = "downtrend";
+
+    const decision = buildDirectionCopilotDecision({
+      macroSnapshot: macro,
+      biasSnapshot: bias,
+      triggerSnapshot: trigger,
+      executionSnapshot: execution,
+    });
+
+    expect(decision.state).toBe("invalid");
+    expect(decision.tradeabilityLabel).toBe("No-Trade");
+    expect(decision.summary).toContain("5m 执行触发开始反着 15m 走");
+    expect(decision.timeframeLabels).toEqual(["4h 强偏多", "1h 强偏多", "15m 强偏多", "5m 偏空"]);
   });
 
   it("returns invalid execution when critical trade levels are missing", () => {

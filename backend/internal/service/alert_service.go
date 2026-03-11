@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	alertMacroInterval   = "4h"
-	alertBiasInterval    = "1h"
-	alertTriggerInterval = "15m"
-	alertSnapshotLimit   = 48
+	alertMacroInterval     = "4h"
+	alertBiasInterval      = "1h"
+	alertTriggerInterval   = "15m"
+	alertExecutionInterval = "5m"
+	alertSnapshotLimit     = 48
 )
 
 type DirectionSnapshotFetcher interface {
@@ -210,8 +211,12 @@ func (s *AlertService) evaluateSymbol(ctx context.Context, symbol string, refres
 	if err != nil {
 		return nil, err
 	}
+	executionSnapshot, err := s.fetcher.GetMarketSnapshotWithRefresh(symbol, alertExecutionInterval, alertSnapshotLimit, refresh)
+	if err != nil {
+		return nil, err
+	}
 
-	decision := BuildDirectionCopilotDecision(&macroSnapshot, &biasSnapshot, &triggerSnapshot)
+	decision := BuildDirectionCopilotDecision(&macroSnapshot, &biasSnapshot, &triggerSnapshot, &executionSnapshot)
 	setupReady := decision.Tradable && HasExecutableSetup(biasSnapshot)
 
 	s.mu.Lock()

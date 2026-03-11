@@ -29,9 +29,9 @@ const NAV_ITEMS = [
     label: "Chart",
   },
   {
-    key: "/signals",
+    key: "/review",
     icon: <ThunderboltOutlined />,
-    label: "Signals",
+    label: "Review",
   },
   {
     key: "/market",
@@ -86,7 +86,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <span className="app-shell__brand-mark">AP</span>
             <span>
               <strong>Alpha Pulse</strong>
-              <small>Spot Analysis MVP</small>
+              <small>Futures Direction Copilot</small>
             </span>
           </Link>
 
@@ -178,7 +178,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       >
         <div className="app-shell__drawer-head">
           <Typography.Text className="!font-semibold !text-slate-900">Navigate</Typography.Text>
-          <Tag color="cyan">MVP</Tag>
+          <Tag color="cyan">V2.0</Tag>
         </div>
         {menu}
       </Drawer>
@@ -189,6 +189,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
 function resolveSelectedKey(pathname: string | null) {
   if (!pathname || pathname === "/") {
     return "/dashboard";
+  }
+
+  if (pathname === "/signals" || pathname.startsWith("/signals/")) {
+    return "/review";
   }
 
   const match = NAV_ITEMS?.find((item) => {

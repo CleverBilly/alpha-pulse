@@ -383,6 +383,15 @@ export function buildMockMarketSnapshot(
       long_short_ratio: symbol === "SOLUSDT" ? 1.12 : symbol === "ETHUSDT" ? 1.03 : 1.08,
       long_account_ratio: symbol === "SOLUSDT" ? 0.529 : symbol === "ETHUSDT" ? 0.508 : 0.519,
       short_account_ratio: symbol === "SOLUSDT" ? 0.471 : symbol === "ETHUSDT" ? 0.492 : 0.481,
+      liquidation_pressure: symbol === "SOLUSDT" ? "long-squeeze" : "balanced",
+      liquidation_summary:
+        symbol === "SOLUSDT"
+          ? `多头仓位更拥挤，下方 ${round(latestKline.close_price * 0.982, 2)} - ${round(latestKline.close_price * 0.991, 2)} 是潜在多头清算代理带。`
+          : "当前多空挤压相对均衡，暂未形成明显单边清算代理带。",
+      long_liquidation_zone_low: round(latestKline.close_price * 0.982, 2),
+      long_liquidation_zone_high: round(latestKline.close_price * 0.991, 2),
+      short_liquidation_zone_low: round(latestKline.close_price * 1.009, 2),
+      short_liquidation_zone_high: round(latestKline.close_price * 1.018, 2),
       time: latestKline.open_time + intervalMs / 2,
       source: "mock",
       reason: "",
