@@ -44,11 +44,13 @@ docker compose up --build
 
 ```bash
 cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
 ./scripts/bootstrap.sh
 ./scripts/dev.sh
 ```
 
 - `backend/.env` 会在后端启动时自动加载，适合本地直接调试 MySQL 8
+- `frontend/.env.local` 用于配置 API 地址和登录拦截开关
 - `./scripts/dev.sh` 默认直接使用本地 MySQL / Redis，不依赖 Docker
 - 如果你仍想用 Docker 起本地依赖，可使用 `USE_DOCKER_DEPS=1 ./scripts/dev.sh`
 
@@ -87,6 +89,39 @@ SCHEDULER_INTERVAL_SECONDS=60
 - `GIN_MODE` 默认随 `APP_MODE` 推导：`dev -> debug`，`test -> test`，`prod -> release`
 - 所有 mode 默认值都可以被显式环境变量覆盖
 - 本地 `docker compose` 当前默认按 `dev` 模式启动
+
+## 单用户登录拦截
+
+当前支持单用户登录模式，用于公网域名部署时保护 Dashboard、Chart、Signals、Market 等业务页。
+
+后端需要配置：
+
+```bash
+ENABLE_SINGLE_USER_AUTH=true
+AUTH_USERNAME=alpha-admin
+AUTH_PASSWORD_HASH=<bcrypt-hash>
+AUTH_SESSION_SECRET=<same-long-random-secret>
+AUTH_COOKIE_NAME=alpha_pulse_session
+AUTH_COOKIE_DOMAIN=
+AUTH_COOKIE_SECURE=true
+CORS_ALLOW_ORIGINS=https://your-frontend-domain.example.com
+```
+
+前端需要配置：
+
+```bash
+NEXT_PUBLIC_AUTH_ENABLED=true
+NEXT_PUBLIC_API_BASE_URL=https://your-backend-domain.example.com/api
+AUTH_COOKIE_NAME=alpha_pulse_session
+AUTH_SESSION_SECRET=<same-long-random-secret>
+```
+
+说明：
+
+- `AUTH_PASSWORD_HASH` 必须使用 `bcrypt` 哈希，后端不会接受明文密码
+- `AUTH_SESSION_SECRET` 前后端必须一致，供后端签发和前端 middleware 校验登录态
+- 公网 HTTPS 部署时建议开启 `AUTH_COOKIE_SECURE=true`
+- `CORS_ALLOW_ORIGINS` 必须精确列出允许访问后端的前端域名
 
 ## Binance 配置
 

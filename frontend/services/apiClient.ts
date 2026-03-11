@@ -16,11 +16,22 @@ import { MarketSnapshot } from "@/types/snapshot";
 import { SignalBundle, SignalTimelineResult } from "@/types/signal";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api";
+const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
 
 interface ApiEnvelope<T> {
   code: number;
   message: string;
   data: T;
+}
+
+interface RequestOptions extends RequestInit {
+  redirectOnUnauthorized?: boolean;
+}
+
+export interface AuthSessionState {
+  enabled: boolean;
+  authenticated: boolean;
+  username?: string;
 }
 
 function buildApiUrl(path: string) {
@@ -33,10 +44,21 @@ function buildApiUrl(path: string) {
   return url;
 }
 
-async function request<T>(path: string): Promise<T> {
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { redirectOnUnauthorized = true, headers, ...init } = options;
   const response = await fetch(buildApiUrl(path).toString(), {
     cache: "no-store",
+    credentials: "include",
+    headers,
+    ...init,
   });
+
+  if (response.status === 401) {
+    if (redirectOnUnauthorized && AUTH_ENABLED && typeof window !== "undefined" && window.location.pathname !== "/login") {
+      window.location.assign("/login");
+    }
+    throw new Error("authentication required");
+  }
 
   if (!response.ok) {
     throw new Error(`API request failed: ${response.status}`);
@@ -122,5 +144,32 @@ export const signalApi = {
     return request<SignalTimelineResult>(
       `/signal-timeline?symbol=${symbol}&interval=${interval}&limit=${limit}${refresh ? "&refresh=1" : ""}`,
     );
+  },
+};
+
+export const authApi = {
+  login(username: string, password: string) {
+    return request<AuthSessionState>("/auth/login", {
+      method: "POST",
+      redirectOnUnauthorized: false,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        username,
+        password,
+      }),
+    });
+  },
+  logout() {
+    return request<AuthSessionState>("/auth/logout", {
+      method: "POST",
+      redirectOnUnauthorized: false,
+    });
+  },
+  getSession() {
+    return request<AuthSessionState>("/auth/session", {
+      redirectOnUnauthorized: false,
+    });
   },
 };

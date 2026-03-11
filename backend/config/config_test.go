@@ -140,6 +140,73 @@ func TestLoadReadsDotEnvFile(t *testing.T) {
 	}
 }
 
+func TestLoadAuthDefaults(t *testing.T) {
+	clearConfigEnv(t)
+
+	cfg := Load()
+
+	if cfg.EnableSingleUserAuth {
+		t.Fatal("expected single user auth to be disabled by default")
+	}
+	if cfg.AuthCookieName != "alpha_pulse_session" {
+		t.Fatalf("unexpected default auth cookie name: %s", cfg.AuthCookieName)
+	}
+	if cfg.AuthSessionTTLHours != 168 {
+		t.Fatalf("expected default auth session ttl 168h, got %d", cfg.AuthSessionTTLHours)
+	}
+
+	expectedOrigins := []string{"http://localhost:3000", "http://127.0.0.1:3000"}
+	if !reflect.DeepEqual(cfg.CORSAllowOrigins, expectedOrigins) {
+		t.Fatalf("unexpected default cors origins: got=%#v want=%#v", cfg.CORSAllowOrigins, expectedOrigins)
+	}
+}
+
+func TestLoadAuthOverrides(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("APP_MODE", "prod")
+	t.Setenv("ENABLE_SINGLE_USER_AUTH", "true")
+	t.Setenv("AUTH_USERNAME", "alpha-admin")
+	t.Setenv("AUTH_PASSWORD_HASH", "$2a$10$mockedhashvalue")
+	t.Setenv("AUTH_SESSION_SECRET", "super-secret")
+	t.Setenv("AUTH_SESSION_TTL_HOURS", "24")
+	t.Setenv("AUTH_COOKIE_NAME", "alpha_session")
+	t.Setenv("AUTH_COOKIE_DOMAIN", ".example.com")
+	t.Setenv("AUTH_COOKIE_SECURE", "false")
+	t.Setenv("CORS_ALLOW_ORIGINS", "https://app.example.com,https://alpha.example.com")
+
+	cfg := Load()
+
+	if !cfg.EnableSingleUserAuth {
+		t.Fatal("expected single user auth override to be enabled")
+	}
+	if cfg.AuthUsername != "alpha-admin" {
+		t.Fatalf("unexpected auth username: %s", cfg.AuthUsername)
+	}
+	if cfg.AuthPasswordHash != "$2a$10$mockedhashvalue" {
+		t.Fatalf("unexpected auth password hash: %s", cfg.AuthPasswordHash)
+	}
+	if cfg.AuthSessionSecret != "super-secret" {
+		t.Fatalf("unexpected auth session secret: %s", cfg.AuthSessionSecret)
+	}
+	if cfg.AuthSessionTTLHours != 24 {
+		t.Fatalf("unexpected auth session ttl hours: %d", cfg.AuthSessionTTLHours)
+	}
+	if cfg.AuthCookieName != "alpha_session" {
+		t.Fatalf("unexpected auth cookie name: %s", cfg.AuthCookieName)
+	}
+	if cfg.AuthCookieDomain != ".example.com" {
+		t.Fatalf("unexpected auth cookie domain: %s", cfg.AuthCookieDomain)
+	}
+	if cfg.AuthCookieSecure {
+		t.Fatal("expected auth cookie secure override to disable secure cookie")
+	}
+
+	expectedOrigins := []string{"https://app.example.com", "https://alpha.example.com"}
+	if !reflect.DeepEqual(cfg.CORSAllowOrigins, expectedOrigins) {
+		t.Fatalf("unexpected cors allow origins: got=%#v want=%#v", cfg.CORSAllowOrigins, expectedOrigins)
+	}
+}
+
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
 
@@ -163,6 +230,15 @@ func clearConfigEnv(t *testing.T) {
 		"ENABLE_SCHEDULER",
 		"ALLOW_MOCK_BINANCE_DATA",
 		"SCHEDULER_INTERVAL_SECONDS",
+		"ENABLE_SINGLE_USER_AUTH",
+		"AUTH_USERNAME",
+		"AUTH_PASSWORD_HASH",
+		"AUTH_SESSION_SECRET",
+		"AUTH_SESSION_TTL_HOURS",
+		"AUTH_COOKIE_NAME",
+		"AUTH_COOKIE_DOMAIN",
+		"AUTH_COOKIE_SECURE",
+		"CORS_ALLOW_ORIGINS",
 	}
 	for _, key := range keys {
 		t.Setenv(key, "")

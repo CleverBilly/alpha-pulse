@@ -13,6 +13,7 @@ import {
 import { Button, Drawer, Layout, Menu, Tag, Typography, Grid, type MenuProps } from "antd";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { authApi } from "@/services/apiClient";
 import { useMarketStore } from "@/store/marketStore";
 
 const NAV_ITEMS = [
@@ -43,7 +44,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const screens = Grid.useBreakpoint();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const selectedKey = resolveSelectedKey(pathname);
+  const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
+  const isAuthRoute = pathname === "/login";
   const { symbol, interval, signal, loading, lastRefreshMode, lastUpdatedAt, transportMode, streamStatus } =
     useMarketStore();
   const selectedItem = useMemo(
@@ -55,6 +59,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
     icon: item.icon,
     label: item.label,
   }));
+
+  if (isAuthRoute) {
+    return <>{children}</>;
+  }
 
   const menu = (
     <Menu
@@ -99,6 +107,24 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   {loading ? <SyncOutlined spin /> : null}
                   {formatSnapshotMeta(lastRefreshMode, lastUpdatedAt, transportMode, streamStatus)}
                 </span>
+              ) : null}
+              {authEnabled ? (
+                <Button
+                  type="default"
+                  onClick={async () => {
+                    setLoggingOut(true);
+                    try {
+                      await authApi.logout();
+                    } finally {
+                      setLoggingOut(false);
+                      router.push("/login");
+                      router.refresh();
+                    }
+                  }}
+                  className="!rounded-full !border-slate-200 !bg-white/85"
+                >
+                  {loggingOut ? "退出中..." : "退出登录"}
+                </Button>
               ) : null}
             </div>
           ) : (

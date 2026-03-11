@@ -11,6 +11,7 @@ import (
 
 	"alpha-pulse/backend/config"
 	"alpha-pulse/backend/internal/ai"
+	authsvc "alpha-pulse/backend/internal/auth"
 	"alpha-pulse/backend/internal/collector"
 	"alpha-pulse/backend/internal/handler"
 	"alpha-pulse/backend/internal/indicator"
@@ -128,9 +129,34 @@ func main() {
 	marketHandler := handler.NewMarketHandler(marketService, signalService)
 	signalHandler := handler.NewSignalHandler(signalService)
 
+	authService, err := authsvc.NewService(authsvc.Options{
+		Enabled:        cfg.EnableSingleUserAuth,
+		Username:       cfg.AuthUsername,
+		PasswordHash:   cfg.AuthPasswordHash,
+		SessionSecret:  cfg.AuthSessionSecret,
+		SessionTTL:     time.Duration(cfg.AuthSessionTTLHours) * time.Hour,
+		CookieName:     cfg.AuthCookieName,
+		CookieDomain:   cfg.AuthCookieDomain,
+		CookieSecure:   cfg.AuthCookieSecure,
+		AllowedOrigins: cfg.CORSAllowOrigins,
+	})
+	if err != nil {
+		log.Fatalf("init auth service failed: %v", err)
+	}
+
+	var authHandler *handler.AuthHandler
+	var authRequired gin.HandlerFunc
+	if authService.Enabled() {
+		authHandler = handler.NewAuthHandler(authService)
+		authRequired = handler.RequireAuth(authService)
+	}
+
 	r := router.SetupRouter(router.HandlerSet{
-		Market: marketHandler,
-		Signal: signalHandler,
+		Market:           marketHandler,
+		Signal:           signalHandler,
+		Auth:             authHandler,
+		AuthRequired:     authRequired,
+		CORSAllowOrigins: cfg.CORSAllowOrigins,
 	})
 
 	log.Printf(

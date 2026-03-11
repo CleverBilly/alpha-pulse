@@ -839,6 +839,15 @@ func newTestDB(t *testing.T) *gorm.DB {
 }
 
 func newTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
+	return newTestRouterWithAuth(t, db, nil, nil)
+}
+
+func newTestRouterWithAuth(
+	t *testing.T,
+	db *gorm.DB,
+	authHandler *handler.AuthHandler,
+	authMiddleware gin.HandlerFunc,
+) *gin.Engine {
 	t.Helper()
 
 	binanceClient := binance.NewClient("", "", 20*time.Millisecond)
@@ -899,8 +908,11 @@ func newTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 	signalHandler := handler.NewSignalHandler(signalService)
 
 	return routerpkg.SetupRouter(routerpkg.HandlerSet{
-		Market: marketHandler,
-		Signal: signalHandler,
+		Market:           marketHandler,
+		Signal:           signalHandler,
+		Auth:             authHandler,
+		AuthRequired:     authMiddleware,
+		CORSAllowOrigins: []string{"http://localhost:3000", "http://127.0.0.1:3000"},
 	})
 }
 

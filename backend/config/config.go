@@ -35,6 +35,16 @@ type Config struct {
 	EnableScheduler          bool
 	AllowMockBinanceData     bool
 	SchedulerIntervalSeconds int
+
+	EnableSingleUserAuth bool
+	AuthUsername         string
+	AuthPasswordHash     string
+	AuthSessionSecret    string
+	AuthSessionTTLHours  int
+	AuthCookieName       string
+	AuthCookieDomain     string
+	AuthCookieSecure     bool
+	CORSAllowOrigins     []string
 }
 
 // Load 从环境变量加载配置。
@@ -68,6 +78,15 @@ func Load() Config {
 		EnableScheduler:          getEnvAsBool("ENABLE_SCHEDULER", defaults.enableScheduler),
 		AllowMockBinanceData:     getEnvAsBool("ALLOW_MOCK_BINANCE_DATA", defaults.allowMockBinanceData),
 		SchedulerIntervalSeconds: schedulerInterval,
+		EnableSingleUserAuth:     getEnvAsBool("ENABLE_SINGLE_USER_AUTH", false),
+		AuthUsername:             getEnv("AUTH_USERNAME", ""),
+		AuthPasswordHash:         getEnv("AUTH_PASSWORD_HASH", ""),
+		AuthSessionSecret:        getEnv("AUTH_SESSION_SECRET", ""),
+		AuthSessionTTLHours:      getPositiveEnvAsInt("AUTH_SESSION_TTL_HOURS", 168),
+		AuthCookieName:           getEnv("AUTH_COOKIE_NAME", "alpha_pulse_session"),
+		AuthCookieDomain:         getEnv("AUTH_COOKIE_DOMAIN", ""),
+		AuthCookieSecure:         getEnvAsBool("AUTH_COOKIE_SECURE", mode == ModeProd),
+		CORSAllowOrigins:         getEnvAsTrimmedCSV("CORS_ALLOW_ORIGINS", []string{"http://localhost:3000", "http://127.0.0.1:3000"}),
 	}
 }
 
@@ -156,6 +175,14 @@ func getEnvAsInt(key string, defaultValue int) int {
 	return parsed
 }
 
+func getPositiveEnvAsInt(key string, defaultValue int) int {
+	value := getEnvAsInt(key, defaultValue)
+	if value <= 0 {
+		return defaultValue
+	}
+	return value
+}
+
 func getEnvAsBool(key string, defaultValue bool) bool {
 	value := strings.TrimSpace(strings.ToLower(getEnv(key, "")))
 	if value == "" {
@@ -183,6 +210,32 @@ func getEnvAsCSV(key string, defaultValue []string) []string {
 	seen := make(map[string]struct{}, len(parts))
 	for _, part := range parts {
 		normalized := strings.ToUpper(strings.TrimSpace(part))
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+	if len(result) == 0 {
+		return append([]string(nil), defaultValue...)
+	}
+	return result
+}
+
+func getEnvAsTrimmedCSV(key string, defaultValue []string) []string {
+	value := getEnv(key, "")
+	if strings.TrimSpace(value) == "" {
+		return append([]string(nil), defaultValue...)
+	}
+
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		normalized := strings.TrimSpace(part)
 		if normalized == "" {
 			continue
 		}
