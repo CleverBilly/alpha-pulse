@@ -21,7 +21,7 @@ const mockedUseMarketStore = vi.mocked(useMarketStore);
 const mockedMarketApi = vi.mocked(marketApi);
 
 describe("FuturesWatchlist", () => {
-  it("renders BTC/ETH/SOL watchlist cards and allows switching symbol", async () => {
+  it("renders BTC/ETH/SOL multi-timeframe cards and allows switching symbol", async () => {
     const setSymbol = vi.fn();
     mockedUseMarketStore.mockReturnValue(
       buildMockMarketStoreState({
@@ -42,26 +42,47 @@ describe("FuturesWatchlist", () => {
       expect(screen.getByText("SOLUSDT")).toBeInTheDocument();
     });
 
-    expect(mockedMarketApi.getMarketSnapshot).toHaveBeenCalledTimes(3);
-    expect(mockedMarketApi.getMarketSnapshot).toHaveBeenNthCalledWith(1, "BTCUSDT", "1h", 24);
-    expect(mockedMarketApi.getMarketSnapshot).toHaveBeenNthCalledWith(2, "ETHUSDT", "1h", 24);
-    expect(mockedMarketApi.getMarketSnapshot).toHaveBeenNthCalledWith(3, "SOLUSDT", "1h", 24);
+    expect(mockedMarketApi.getMarketSnapshot).toHaveBeenCalledTimes(9);
+    expect(mockedMarketApi.getMarketSnapshot.mock.calls).toEqual(
+      expect.arrayContaining([
+        ["BTCUSDT", "4h", 24],
+        ["BTCUSDT", "1h", 24],
+        ["BTCUSDT", "15m", 24],
+        ["ETHUSDT", "4h", 24],
+        ["ETHUSDT", "1h", 24],
+        ["ETHUSDT", "15m", 24],
+        ["SOLUSDT", "4h", 24],
+        ["SOLUSDT", "1h", 24],
+        ["SOLUSDT", "15m", 24],
+      ]),
+    );
+    expect(screen.getAllByText("A 级可跟踪").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("4h 强偏多").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("1h 强偏多").length).toBeGreaterThan(0);
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "切换到 SOLUSDT" }));
     expect(setSymbol).toHaveBeenCalledWith("SOLUSDT");
   });
 
-  it("shows unavailable futures state when futures metrics are missing", async () => {
+  it("shows no-trade when higher timeframe conflicts with the 1h bias", async () => {
     mockedUseMarketStore.mockReturnValue(buildMockMarketStoreState() as ReturnType<typeof useMarketStore>);
-    mockedMarketApi.getMarketSnapshot.mockImplementation(async (symbol) => {
-      const snapshot = buildMockMarketSnapshot(symbol, "1h", 24);
-      if (symbol === "ETHUSDT") {
-        snapshot.futures = {
-          ...snapshot.futures,
-          available: false,
-          reason: "Futures metrics unavailable",
-        };
+
+    mockedMarketApi.getMarketSnapshot.mockImplementation(async (symbol, interval) => {
+      const snapshot = buildMockMarketSnapshot(symbol, interval, 24);
+      if (symbol === "ETHUSDT" && interval === "4h") {
+        snapshot.signal.signal = "SELL";
+        snapshot.signal.score = -62;
+        snapshot.signal.confidence = 71;
+        snapshot.signal.trend_bias = "bearish";
+        snapshot.signal.explain = "4h 仍在下行段，尚未完成反转";
+        snapshot.signal.factors = snapshot.signal.factors.map((factor, index) => ({
+          ...factor,
+          bias: "bearish",
+          score: index === 0 ? -16 : -Math.abs(factor.score),
+          reason: index === 0 ? "4h 高一级别仍在压制反弹" : factor.reason,
+        }));
+        snapshot.structure.trend = "downtrend";
       }
       return snapshot;
     });
@@ -72,6 +93,8 @@ describe("FuturesWatchlist", () => {
       expect(screen.getByText("ETHUSDT")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Futures metrics unavailable")).toBeInTheDocument();
+    expect(screen.getByText("当前禁止交易")).toBeInTheDocument();
+    expect(screen.getByText("4h 与 1h 方向互相打架，当前属于逆大级别风险区。")).toBeInTheDocument();
+    expect(screen.getAllByText("No-Trade").length).toBeGreaterThan(0);
   });
 });
