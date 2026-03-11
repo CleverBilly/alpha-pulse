@@ -8,16 +8,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        bg: "#f4f7fb",
+        bg: "#f8fafc",
         panel: "#ffffff",
         text: "#0f172a",
         muted: "#64748b",
         accent: "#0ea5e9",
-        positive: "#16a34a",
-        negative: "#dc2626"
+        positive: "#10b981",
+        negative: "#ef4444",
+        teal: {
+          50: '#f0fdfa',
+          100: '#ccfbf1',
+          500: '#14b8a6',
+          600: '#0d9488',
+          700: '#0f766e',
+          900: '#134e4a',
+        }
       },
       boxShadow: {
-        panel: "0 10px 30px rgba(15, 23, 42, 0.08)",
+        panel: "0 20px 40px rgba(15, 23, 42, 0.04)",
+        glass: "0 8px 32px 0 rgba(31, 38, 135, 0.05)",
       },
     },
   },
