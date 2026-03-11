@@ -27,6 +27,14 @@ func (h *AlertHandler) GetAlerts(c *gin.Context) {
 	}))
 }
 
+func (h *AlertHandler) GetAlertHistory(c *gin.Context) {
+	limit := parseLimit(c.DefaultQuery("limit", "60"), 60)
+	c.JSON(http.StatusOK, utils.Success(service.AlertFeed{
+		Items:     h.alertService.ListHistory(limit),
+		Generated: 0,
+	}))
+}
+
 func (h *AlertHandler) RefreshAlerts(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 12*time.Second)
 	defer cancel()

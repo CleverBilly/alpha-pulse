@@ -7,6 +7,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"alpha-pulse/backend/models"
+	"alpha-pulse/backend/repository"
+	"gorm.io/gorm"
 )
 
 const (
@@ -59,13 +63,14 @@ type AlertNotifier interface {
 
 type AlertService struct {
 	fetcher      DirectionSnapshotFetcher
+	repo         *repository.AlertRecordRepository
 	symbols      []string
 	historyLimit int
 	notifiers    []AlertNotifier
 	now          func() time.Time
 
-	mu          sync.RWMutex
-	recent      []AlertEvent
+	mu            sync.RWMutex
+	recent        []AlertEvent
 	stateBySymbol map[string]alertState
 }
 
@@ -75,7 +80,7 @@ type alertState struct {
 	SetupReady bool
 }
 
-func NewAlertService(fetcher DirectionSnapshotFetcher, symbols []string, historyLimit int, notifiers ...AlertNotifier) *AlertService {
+func NewAlertService(fetcher DirectionSnapshotFetcher, repo *repository.AlertRecordRepository, symbols []string, historyLimit int, notifiers ...AlertNotifier) *AlertService {
 	normalized := normalizeAlertSymbols(symbols)
 	if len(normalized) == 0 {
 		normalized = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}
@@ -85,13 +90,14 @@ func NewAlertService(fetcher DirectionSnapshotFetcher, symbols []string, history
 	}
 
 	return &AlertService{
-		fetcher:        fetcher,
-		symbols:        normalized,
-		historyLimit:   historyLimit,
-		notifiers:      notifiers,
-		now:            time.Now,
-		recent:         make([]AlertEvent, 0, historyLimit),
-		stateBySymbol:  make(map[string]alertState, len(normalized)),
+		fetcher:       fetcher,
+		repo:          repo,
+		symbols:       normalized,
+		historyLimit:  historyLimit,
+		notifiers:     notifiers,
+		now:           time.Now,
+		recent:        make([]AlertEvent, 0, historyLimit),
+		stateBySymbol: make(map[string]alertState, len(normalized)),
 	}
 }
 
@@ -121,6 +127,14 @@ func (s *AlertService) ListRecent(limit int) []AlertEvent {
 		limit = 20
 	}
 
+	if s.repo != nil {
+		records, err := s.repo.ListRecent(limit)
+		if err == nil {
+			return hydrateAlertEvents(records)
+		}
+		log.Printf("alert recent history query failed: %v", err)
+	}
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -130,6 +144,10 @@ func (s *AlertService) ListRecent(limit int) []AlertEvent {
 	result := make([]AlertEvent, limit)
 	copy(result, s.recent[:limit])
 	return result
+}
+
+func (s *AlertService) ListHistory(limit int) []AlertEvent {
+	return s.ListRecent(limit)
 }
 
 func (s *AlertService) EvaluateAll(ctx context.Context, refresh bool) ([]AlertEvent, error) {
@@ -181,6 +199,9 @@ func (s *AlertService) evaluateSymbol(ctx context.Context, symbol string, refres
 	defer s.mu.Unlock()
 
 	previous, hasPrevious := s.stateBySymbol[symbol]
+	if !hasPrevious {
+		previous, hasPrevious = s.loadPersistedState(symbol)
+	}
 	current := alertState{
 		State:      decision.State,
 		Tradable:   decision.Tradable,
@@ -194,6 +215,9 @@ func (s *AlertService) evaluateSymbol(ctx context.Context, symbol string, refres
 	}
 
 	event.Deliveries = s.deliver(ctx, *event)
+	if err := s.persistAlert(*event, current); err != nil {
+		return nil, err
+	}
 	s.recent = append([]AlertEvent{*event}, s.recent...)
 	if len(s.recent) > s.historyLimit {
 		s.recent = s.recent[:s.historyLimit]
@@ -235,6 +259,50 @@ func (s *AlertService) deliver(ctx context.Context, event AlertEvent) []AlertDel
 		deliveries = append(deliveries, notifier.Notify(ctx, event))
 	}
 	return deliveries
+}
+
+func (s *AlertService) loadPersistedState(symbol string) (alertState, bool) {
+	if s.repo == nil {
+		return alertState{}, false
+	}
+
+	record, err := s.repo.GetLatestBySymbol(symbol)
+	if err != nil {
+		if err != gorm.ErrRecordNotFound {
+			log.Printf("load persisted alert state failed for %s: %v", symbol, err)
+		}
+		return alertState{}, false
+	}
+
+	state := alertState{
+		State:      DirectionDecisionState(strings.TrimSpace(record.DirectionState)),
+		Tradable:   record.Tradable,
+		SetupReady: record.SetupReady,
+	}
+	if state.State == "" {
+		state.State = DirectionStateInvalid
+	}
+	return state, true
+}
+
+func (s *AlertService) persistAlert(event AlertEvent, state alertState) error {
+	if s.repo == nil {
+		return nil
+	}
+
+	record, err := projectAlertRecord(event, state)
+	if err != nil {
+		return err
+	}
+	return s.repo.Create(&record)
+}
+
+func hydrateAlertEvents(records []models.AlertRecord) []AlertEvent {
+	items := make([]AlertEvent, 0, len(records))
+	for _, record := range records {
+		items = append(items, hydrateAlertEvent(record))
+	}
+	return items
 }
 
 func buildAlertEvent(now time.Time, symbol string, kind string, severity string, decision DirectionDecision, biasSnapshot MarketSnapshot, titleSuffix string) *AlertEvent {

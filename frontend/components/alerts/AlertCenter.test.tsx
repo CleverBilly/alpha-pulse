@@ -7,6 +7,7 @@ import AlertCenter from "./AlertCenter";
 vi.mock("@/services/apiClient", () => ({
   alertApi: {
     getAlerts: vi.fn(),
+    getAlertHistory: vi.fn(),
     refreshAlerts: vi.fn(),
   },
 }));

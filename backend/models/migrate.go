@@ -16,6 +16,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&Liquidity{},
 		&Signal{},
 		&FeatureSnapshot{},
+		&AlertRecord{},
 	}
 
 	for _, model := range models {

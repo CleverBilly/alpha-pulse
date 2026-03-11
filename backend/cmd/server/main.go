@@ -86,6 +86,7 @@ func main() {
 	largeTradeRepo := repository.NewLargeTradeEventRepository(db)
 	microEventRepo := repository.NewMicrostructureEventRepository(db)
 	featureSnapshotRepo := repository.NewFeatureSnapshotRepository(db)
+	alertRecordRepo := repository.NewAlertRecordRepository(db)
 
 	marketService := service.NewMarketService(
 		db,
@@ -133,6 +134,7 @@ func main() {
 	)
 	alertService := service.NewAlertService(
 		signalService,
+		alertRecordRepo,
 		cfg.MarketSymbols,
 		cfg.AlertHistoryLimit,
 		feishuNotifier,

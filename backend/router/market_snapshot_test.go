@@ -877,6 +877,7 @@ func newTestRouterWithAuth(
 	largeTradeRepo := repository.NewLargeTradeEventRepository(db)
 	microEventRepo := repository.NewMicrostructureEventRepository(db)
 	featureSnapshotRepo := repository.NewFeatureSnapshotRepository(db)
+	alertRecordRepo := repository.NewAlertRecordRepository(db)
 
 	marketService := service.NewMarketService(
 		db,
@@ -915,7 +916,7 @@ func newTestRouterWithAuth(
 
 	marketHandler := handler.NewMarketHandler(marketService, signalService)
 	signalHandler := handler.NewSignalHandler(signalService)
-	alertService := service.NewAlertService(signalService, []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}, 20)
+	alertService := service.NewAlertService(signalService, alertRecordRepo, []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}, 20)
 	alertHandler := handler.NewAlertHandler(alertService)
 
 	return routerpkg.SetupRouter(routerpkg.HandlerSet{

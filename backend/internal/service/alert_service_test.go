@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"alpha-pulse/backend/models"
+	"alpha-pulse/backend/repository"
 )
 
 func TestAlertServiceGeneratesSetupReadyAlertOnce(t *testing.T) {
@@ -15,7 +16,7 @@ func TestAlertServiceGeneratesSetupReadyAlertOnce(t *testing.T) {
 			"BTCUSDT:15m": buildDirectionTestSnapshot("BTCUSDT", "15m", 56, 70, "BUY", "uptrend"),
 		},
 	}
-	service := NewAlertService(fetcher, []string{"BTCUSDT"}, 10)
+	service := NewAlertService(fetcher, nil, []string{"BTCUSDT"}, 10)
 	macro := fetcher.snapshots["BTCUSDT:4h"]
 	bias := fetcher.snapshots["BTCUSDT:1h"]
 	trigger := fetcher.snapshots["BTCUSDT:15m"]
@@ -55,7 +56,7 @@ func TestAlertServiceGeneratesNoTradeAfterTradableState(t *testing.T) {
 			"BTCUSDT:15m": buildDirectionTestSnapshot("BTCUSDT", "15m", 56, 70, "BUY", "uptrend"),
 		},
 	}
-	service := NewAlertService(fetcher, []string{"BTCUSDT"}, 10)
+	service := NewAlertService(fetcher, nil, []string{"BTCUSDT"}, 10)
 
 	if _, err := service.EvaluateAll(context.Background(), false); err != nil {
 		t.Fatalf("seed evaluate failed: %v", err)
@@ -156,4 +157,44 @@ func ternaryFloat(condition bool, left float64, right float64) float64 {
 		return left
 	}
 	return right
+}
+
+func TestAlertServicePersistsAndReloadsHistoryState(t *testing.T) {
+	db := newServiceTestDB(t)
+	repo := repository.NewAlertRecordRepository(db)
+	fetcher := &stubDirectionFetcher{
+		snapshots: map[string]MarketSnapshot{
+			"BTCUSDT:4h":  buildDirectionTestSnapshot("BTCUSDT", "4h", 62, 78, "BUY", "uptrend"),
+			"BTCUSDT:1h":  buildDirectionTestSnapshot("BTCUSDT", "1h", 58, 74, "BUY", "uptrend"),
+			"BTCUSDT:15m": buildDirectionTestSnapshot("BTCUSDT", "15m", 56, 70, "BUY", "uptrend"),
+		},
+	}
+
+	first := NewAlertService(fetcher, repo, []string{"BTCUSDT"}, 10)
+	generated, err := first.EvaluateAll(context.Background(), false)
+	if err != nil {
+		t.Fatalf("seed evaluate failed: %v", err)
+	}
+	if len(generated) != 1 {
+		t.Fatalf("expected 1 persisted alert, got=%d", len(generated))
+	}
+
+	assertServiceCount(t, db, &models.AlertRecord{}, "symbol = ?", 1, "BTCUSDT")
+
+	second := NewAlertService(fetcher, repo, []string{"BTCUSDT"}, 10)
+	repeated, err := second.EvaluateAll(context.Background(), false)
+	if err != nil {
+		t.Fatalf("repeat evaluate failed: %v", err)
+	}
+	if len(repeated) != 0 {
+		t.Fatalf("expected persisted state to suppress duplicate alert, got=%d", len(repeated))
+	}
+
+	history := second.ListRecent(5)
+	if len(history) != 1 {
+		t.Fatalf("expected persisted history to be readable, got=%d", len(history))
+	}
+	if history[0].Kind != "setup_ready" {
+		t.Fatalf("unexpected persisted history item: %+v", history[0])
+	}
 }

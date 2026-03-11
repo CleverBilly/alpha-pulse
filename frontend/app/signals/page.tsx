@@ -1,4 +1,5 @@
 import AIAnalysisPanel from "@/components/analysis/AIAnalysisPanel";
+import AlertHistoryBoard from "@/components/alerts/AlertHistoryBoard";
 import TradingWorkspaceHero from "@/components/layout/TradingWorkspaceHero";
 import MarketSnapshotLoader from "@/components/market/MarketSnapshotLoader";
 import SignalCard from "@/components/signal/SignalCard";
@@ -8,16 +9,17 @@ export default function SignalsPage() {
     <div className="space-y-6">
       <MarketSnapshotLoader />
       <TradingWorkspaceHero
-        eyebrow="Signals"
-        title="Execution bias workspace"
-        description="把模型输出、因子拆解和 AI 解释集中到一个更适合阅读的信号工作区。"
+        eyebrow="Review"
+        title="Signal review workspace"
+        description="这里先看 A 级 setup、No-Trade 和方向切换的历史，再往下看当前 live signal 与 AI context，避免只盯最新一根 K 线。"
         metrics={[
-          { label: "Signal card", value: "Primary" },
-          { label: "AI memo", value: "Contextual" },
-          { label: "Output", value: "Execution-ready" },
+          { label: "Alert replay", value: "Persistent" },
+          { label: "Live signal", value: "Contextual" },
+          { label: "Output", value: "Review-ready" },
         ]}
       />
-      <h2 className="text-2xl font-semibold">Trading Signals</h2>
+      <AlertHistoryBoard />
+      <h2 className="text-2xl font-semibold">Live Signal Context</h2>
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <SignalCard />
         <AIAnalysisPanel />

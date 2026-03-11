@@ -61,6 +61,7 @@ func SetupRouter(handlers HandlerSet) *gin.Engine {
 		protected.GET("/signal-timeline", handlers.Signal.GetSignalTimeline)
 		if handlers.Alert != nil {
 			protected.GET("/alerts", handlers.Alert.GetAlerts)
+			protected.GET("/alerts/history", handlers.Alert.GetAlertHistory)
 			protected.POST("/alerts/refresh", handlers.Alert.RefreshAlerts)
 		}
 	}

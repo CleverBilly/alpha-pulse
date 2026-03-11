@@ -179,6 +179,9 @@ export const alertApi = {
   getAlerts(limit = 20) {
     return request<AlertFeed>(`/alerts?limit=${limit}`);
   },
+  getAlertHistory(limit = 60) {
+    return request<AlertFeed>(`/alerts/history?limit=${limit}`);
+  },
   refreshAlerts(limit = 20) {
     return request<AlertFeed>(`/alerts/refresh?limit=${limit}`, {
       method: "POST",
