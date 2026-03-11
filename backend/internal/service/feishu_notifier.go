@@ -15,10 +15,11 @@ import (
 )
 
 type FeishuNotifier struct {
-	webhookURL string
-	secret     string
-	client     *http.Client
-	now        func() time.Time
+	webhookURL    string
+	secret        string
+	publicBaseURL string
+	client        *http.Client
+	now           func() time.Time
 }
 
 func NewFeishuNotifier(webhookURL string, secret string, timeout time.Duration) *FeishuNotifier {
@@ -27,13 +28,22 @@ func NewFeishuNotifier(webhookURL string, secret string, timeout time.Duration) 
 	}
 
 	return &FeishuNotifier{
-		webhookURL: strings.TrimSpace(webhookURL),
-		secret:     strings.TrimSpace(secret),
+		webhookURL:    strings.TrimSpace(webhookURL),
+		secret:        strings.TrimSpace(secret),
+		publicBaseURL: "",
 		client: &http.Client{
 			Timeout: timeout,
 		},
 		now: time.Now,
 	}
+}
+
+func (n *FeishuNotifier) SetPublicBaseURL(value string) {
+	n.publicBaseURL = strings.TrimRight(strings.TrimSpace(value), "/")
+}
+
+func (n *FeishuNotifier) Channel() string {
+	return "feishu"
 }
 
 func (n *FeishuNotifier) Notify(ctx context.Context, event AlertEvent) AlertDelivery {
@@ -90,12 +100,7 @@ func (n *FeishuNotifier) Notify(ctx context.Context, event AlertEvent) AlertDeli
 }
 
 func (n *FeishuNotifier) buildPayload(event AlertEvent) ([]byte, error) {
-	body := feishuTextMessage{
-		MsgType: "text",
-		Content: feishuTextContent{
-			Text: formatFeishuAlertText(event),
-		},
-	}
+	body := n.buildPostMessage(event)
 
 	if n.secret != "" {
 		timestamp := strconv.FormatInt(n.now().Unix(), 10)
@@ -110,33 +115,71 @@ func (n *FeishuNotifier) buildPayload(event AlertEvent) ([]byte, error) {
 	return json.Marshal(body)
 }
 
-func formatFeishuAlertText(event AlertEvent) string {
-	lines := []string{
-		fmt.Sprintf("[Alpha Pulse] %s", event.Title),
-		fmt.Sprintf("方向: %s · %s", event.Verdict, event.TradeabilityLabel),
-		fmt.Sprintf("置信度: %d%% · 风险: %s", event.Confidence, event.RiskLabel),
-		fmt.Sprintf("摘要: %s", event.Summary),
+func (n *FeishuNotifier) buildPostMessage(event AlertEvent) feishuPostMessage {
+	content := [][]feishuPostTag{
+		{
+			{Tag: "text", Text: fmt.Sprintf("方向 %s · %s", event.Verdict, event.TradeabilityLabel)},
+		},
+		{
+			{Tag: "text", Text: fmt.Sprintf("置信度 %d%% · 风险 %s", event.Confidence, event.RiskLabel)},
+		},
+		{
+			{Tag: "text", Text: fmt.Sprintf("摘要：%s", event.Summary)},
+		},
 	}
 
 	if len(event.TimeframeLabels) > 0 {
-		lines = append(lines, fmt.Sprintf("周期: %s", strings.Join(event.TimeframeLabels, " / ")))
+		content = append(content, []feishuPostTag{
+			{Tag: "text", Text: fmt.Sprintf("周期：%s", strings.Join(event.TimeframeLabels, " / "))},
+		})
 	}
 	if len(event.Reasons) > 0 {
-		lines = append(lines, fmt.Sprintf("原因: %s", strings.Join(event.Reasons, "；")))
+		content = append(content, []feishuPostTag{
+			{Tag: "text", Text: fmt.Sprintf("原因：%s", strings.Join(event.Reasons, "；"))},
+		})
 	}
 	if isFinitePositive(event.EntryPrice) && isFinitePositive(event.StopLoss) && isFinitePositive(event.TargetPrice) {
-		lines = append(
-			lines,
-			fmt.Sprintf(
-				"计划: Entry %.2f | Stop %.2f | Target %.2f | R/R %.2f",
-				event.EntryPrice,
-				event.StopLoss,
-				event.TargetPrice,
-				roundFloat(event.RiskReward, 2),
-			),
-		)
+		content = append(content, []feishuPostTag{
+			{
+				Tag: "text",
+				Text: fmt.Sprintf(
+					"计划：Entry %.2f | Stop %.2f | Target %.2f | R/R %.2f",
+					event.EntryPrice,
+					event.StopLoss,
+					event.TargetPrice,
+					roundFloat(event.RiskReward, 2),
+				),
+			},
+		})
 	}
-	return strings.Join(lines, "\n")
+
+	linkRow := buildFeishuLinks(n.publicBaseURL)
+	if len(linkRow) > 0 {
+		content = append(content, linkRow)
+	}
+
+	return feishuPostMessage{
+		MsgType: "post",
+		Content: feishuPostContent{
+			Post: map[string]feishuLocalePost{
+				"zh_cn": {
+					Title:   fmt.Sprintf("[Alpha Pulse] %s", event.Title),
+					Content: content,
+				},
+			},
+		},
+	}
+}
+
+func buildFeishuLinks(publicBaseURL string) []feishuPostTag {
+	if strings.TrimSpace(publicBaseURL) == "" {
+		return nil
+	}
+
+	return []feishuPostTag{
+		{Tag: "a", Text: "Dashboard", Href: publicBaseURL + "/dashboard"},
+		{Tag: "a", Text: "Signals Review", Href: publicBaseURL + "/signals"},
+	}
 }
 
 func buildFeishuSignature(timestamp string, secret string) (string, error) {
@@ -148,13 +191,24 @@ func buildFeishuSignature(timestamp string, secret string) (string, error) {
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil)), nil
 }
 
-type feishuTextMessage struct {
-	Timestamp string             `json:"timestamp,omitempty"`
-	Sign      string             `json:"sign,omitempty"`
-	MsgType   string             `json:"msg_type"`
-	Content   feishuTextContent  `json:"content"`
+type feishuPostMessage struct {
+	Timestamp string            `json:"timestamp,omitempty"`
+	Sign      string            `json:"sign,omitempty"`
+	MsgType   string            `json:"msg_type"`
+	Content   feishuPostContent `json:"content"`
 }
 
-type feishuTextContent struct {
-	Text string `json:"text"`
+type feishuPostContent struct {
+	Post map[string]feishuLocalePost `json:"post"`
+}
+
+type feishuLocalePost struct {
+	Title   string            `json:"title"`
+	Content [][]feishuPostTag `json:"content"`
+}
+
+type feishuPostTag struct {
+	Tag  string `json:"tag"`
+	Text string `json:"text,omitempty"`
+	Href string `json:"href,omitempty"`
 }

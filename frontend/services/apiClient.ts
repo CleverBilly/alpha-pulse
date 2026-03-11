@@ -12,7 +12,7 @@ import {
   LiquiditySeriesResult,
   MicrostructureEventsResult,
 } from "@/types/market";
-import { AlertFeed } from "@/types/alert";
+import { AlertFeed, AlertPreferences } from "@/types/alert";
 import { MarketSnapshot } from "@/types/snapshot";
 import { SignalBundle, SignalTimelineResult } from "@/types/signal";
 
@@ -181,6 +181,18 @@ export const alertApi = {
   },
   getAlertHistory(limit = 60) {
     return request<AlertFeed>(`/alerts/history?limit=${limit}`);
+  },
+  getAlertPreferences() {
+    return request<AlertPreferences>("/alerts/preferences");
+  },
+  updateAlertPreferences(payload: AlertPreferences) {
+    return request<AlertPreferences>("/alerts/preferences", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
   },
   refreshAlerts(limit = 20) {
     return request<AlertFeed>(`/alerts/refresh?limit=${limit}`, {

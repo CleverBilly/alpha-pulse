@@ -46,6 +46,7 @@ type Config struct {
 	AuthCookieSecure     bool
 	CORSAllowOrigins     []string
 	AlertHistoryLimit    int
+	AlertPublicBaseURL   string
 	FeishuBotWebhookURL  string
 	FeishuBotSecret      string
 }
@@ -91,6 +92,7 @@ func Load() Config {
 		AuthCookieSecure:         getEnvAsBool("AUTH_COOKIE_SECURE", mode == ModeProd),
 		CORSAllowOrigins:         getEnvAsTrimmedCSV("CORS_ALLOW_ORIGINS", []string{"http://localhost:3000", "http://127.0.0.1:3000"}),
 		AlertHistoryLimit:        getPositiveEnvAsInt("ALERT_HISTORY_LIMIT", 40),
+		AlertPublicBaseURL:       getEnv("ALERT_PUBLIC_BASE_URL", ""),
 		FeishuBotWebhookURL:      getEnv("FEISHU_BOT_WEBHOOK_URL", ""),
 		FeishuBotSecret:          getEnv("FEISHU_BOT_SECRET", ""),
 	}

@@ -157,6 +157,9 @@ func TestLoadAuthDefaults(t *testing.T) {
 	if cfg.AlertHistoryLimit != 40 {
 		t.Fatalf("expected default alert history limit 40, got %d", cfg.AlertHistoryLimit)
 	}
+	if cfg.AlertPublicBaseURL != "" {
+		t.Fatalf("expected alert public base url to be empty by default, got %s", cfg.AlertPublicBaseURL)
+	}
 	if cfg.FeishuBotWebhookURL != "" || cfg.FeishuBotSecret != "" {
 		t.Fatalf("expected feishu config to be empty by default: %+v", cfg)
 	}
@@ -180,6 +183,7 @@ func TestLoadAuthOverrides(t *testing.T) {
 	t.Setenv("AUTH_COOKIE_SECURE", "false")
 	t.Setenv("CORS_ALLOW_ORIGINS", "https://app.example.com,https://alpha.example.com")
 	t.Setenv("ALERT_HISTORY_LIMIT", "88")
+	t.Setenv("ALERT_PUBLIC_BASE_URL", "https://alpha.example.com")
 	t.Setenv("FEISHU_BOT_WEBHOOK_URL", "https://open.feishu.cn/open-apis/bot/v2/hook/mock")
 	t.Setenv("FEISHU_BOT_SECRET", "bot-secret")
 
@@ -211,6 +215,9 @@ func TestLoadAuthOverrides(t *testing.T) {
 	}
 	if cfg.AlertHistoryLimit != 88 {
 		t.Fatalf("unexpected alert history limit: %d", cfg.AlertHistoryLimit)
+	}
+	if cfg.AlertPublicBaseURL != "https://alpha.example.com" {
+		t.Fatalf("unexpected alert public base url: %s", cfg.AlertPublicBaseURL)
 	}
 	if cfg.FeishuBotWebhookURL == "" || cfg.FeishuBotSecret != "bot-secret" {
 		t.Fatalf("unexpected feishu config: webhook=%s secret=%s", cfg.FeishuBotWebhookURL, cfg.FeishuBotSecret)
@@ -255,6 +262,7 @@ func clearConfigEnv(t *testing.T) {
 		"AUTH_COOKIE_SECURE",
 		"CORS_ALLOW_ORIGINS",
 		"ALERT_HISTORY_LIMIT",
+		"ALERT_PUBLIC_BASE_URL",
 		"FEISHU_BOT_WEBHOOK_URL",
 		"FEISHU_BOT_SECRET",
 	}

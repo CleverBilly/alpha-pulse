@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func TestFeishuNotifierSendsSignedTextMessage(t *testing.T) {
+func TestFeishuNotifierSendsSignedStructuredMessage(t *testing.T) {
 	var payload map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
@@ -22,6 +22,7 @@ func TestFeishuNotifierSendsSignedTextMessage(t *testing.T) {
 	defer server.Close()
 
 	notifier := NewFeishuNotifier(server.URL, "secret-value", 2*time.Second)
+	notifier.SetPublicBaseURL("https://alpha-pulse.example.com")
 	notifier.now = func() time.Time {
 		return time.Unix(1710000000, 0)
 	}
@@ -44,7 +45,7 @@ func TestFeishuNotifierSendsSignedTextMessage(t *testing.T) {
 	if result.Status != "sent" {
 		t.Fatalf("expected sent status, got=%s detail=%s", result.Status, result.Detail)
 	}
-	if payload["msg_type"] != "text" {
+	if payload["msg_type"] != "post" {
 		t.Fatalf("unexpected msg_type: %#v", payload["msg_type"])
 	}
 	if payload["timestamp"] != "1710000000" {
@@ -58,12 +59,20 @@ func TestFeishuNotifierSendsSignedTextMessage(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected content to be object, got=%T", payload["content"])
 	}
-	text, ok := content["text"].(string)
+	post, ok := content["post"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected text content to be string, got=%T", content["text"])
+		t.Fatalf("expected post content to be object, got=%T", content["post"])
 	}
-	if text == "" || text[:13] != "[Alpha Pulse]" {
-		t.Fatalf("unexpected text content: %s", text)
+	zhCN, ok := post["zh_cn"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected zh_cn block, got=%T", post["zh_cn"])
+	}
+	if zhCN["title"] == "" {
+		t.Fatalf("expected post title, got=%#v", zhCN["title"])
+	}
+	rawContent, ok := zhCN["content"].([]any)
+	if !ok || len(rawContent) == 0 {
+		t.Fatalf("expected structured content rows, got=%T", zhCN["content"])
 	}
 }
 

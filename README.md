@@ -15,6 +15,8 @@ AI Crypto Trading Dashboard（BTC / ETH / SOL）
 - Futures 基础因子快照：mark / funding / open interest / long-short ratio
 - 多周期方向引擎：`4h / 1h / 15m`
 - Alert Center：浏览器通知 + 飞书机器人推送
+- 告警配置中心：事件开关、最小置信度、静默时段、标的过滤
+- 告警历史回放：recent feed + `/signals` 复盘
 
 当前不包含：
 
@@ -138,6 +140,7 @@ AUTH_SESSION_SECRET=<same-long-random-secret>
 
 ```bash
 ALERT_HISTORY_LIMIT=40
+ALERT_PUBLIC_BASE_URL=https://your-frontend-domain.example.com
 FEISHU_BOT_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/your-webhook
 FEISHU_BOT_SECRET=
 ```
@@ -146,8 +149,25 @@ FEISHU_BOT_SECRET=
 
 - `FEISHU_BOT_WEBHOOK_URL` 留空时，系统只保留站内 Alert Center 和浏览器通知，不推送飞书
 - 如果飞书机器人启用了签名校验，再填写 `FEISHU_BOT_SECRET`
+- `ALERT_PUBLIC_BASE_URL` 会写进飞书消息深链，指向 `/dashboard`、`/market`、`/signals`
 - 浏览器通知不需要额外环境变量，登录后在右上角 `Alerts` 抽屉里授权即可
 - 本地开发如果关闭了 `ENABLE_SCHEDULER`，仍可在 Alert Center 里点击 `立即检查`
+
+Alert 配置中心当前支持：
+
+- 飞书 / 浏览器推送开关
+- `setup_ready / direction_shift / no_trade` 事件开关
+- 最小置信度阈值
+- `BTCUSDT / ETHUSDT / SOLUSDT` 标的过滤
+- 飞书静默时段
+
+相关接口：
+
+- `GET /api/alerts`
+- `POST /api/alerts/refresh`
+- `GET /api/alerts/history`
+- `GET /api/alerts/preferences`
+- `PUT /api/alerts/preferences`
 
 ## Binance 配置
 
@@ -216,4 +236,7 @@ ANALYSIS_VIEW_CACHE_TTL=15
 - `GET /api/signal`
 - `GET /api/signal-timeline`
 - `GET /api/alerts`
+- `GET /api/alerts/history`
+- `GET /api/alerts/preferences`
 - `POST /api/alerts/refresh`
+- `PUT /api/alerts/preferences`

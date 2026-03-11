@@ -8,6 +8,8 @@ vi.mock("@/services/apiClient", () => ({
   alertApi: {
     getAlerts: vi.fn(),
     getAlertHistory: vi.fn(),
+    getAlertPreferences: vi.fn(),
+    updateAlertPreferences: vi.fn(),
     refreshAlerts: vi.fn(),
   },
 }));
@@ -32,6 +34,7 @@ describe("AlertCenter", () => {
 
   it("renders alert feed in the drawer", async () => {
     stubNotification("default");
+    mockedAlertApi.getAlertPreferences.mockResolvedValue(buildPreferences());
     mockedAlertApi.getAlerts.mockResolvedValue({
       items: [buildMockAlert()],
       generated: 0,
@@ -59,6 +62,7 @@ describe("AlertCenter", () => {
     const requestPermission = vi.fn().mockResolvedValue("granted");
     const notificationSpy = stubNotification("granted", requestPermission);
 
+    mockedAlertApi.getAlertPreferences.mockResolvedValue(buildPreferences());
     mockedAlertApi.getAlerts.mockResolvedValue({
       items: [],
       generated: 0,
@@ -88,6 +92,36 @@ describe("AlertCenter", () => {
     });
 
     expect(requestPermission).not.toHaveBeenCalled();
+  });
+
+  it("opens config center and saves alert preferences", async () => {
+    mockedAlertApi.getAlertPreferences.mockResolvedValue(buildPreferences());
+    mockedAlertApi.updateAlertPreferences.mockImplementation(async (payload) => payload);
+    mockedAlertApi.getAlerts.mockResolvedValue({
+      items: [],
+      generated: 0,
+    });
+    mockedAlertApi.refreshAlerts.mockResolvedValue({
+      items: [],
+      generated: 0,
+    });
+
+    render(<AlertCenter />);
+    await waitFor(() => {
+      expect(mockedAlertApi.getAlertPreferences).toHaveBeenCalled();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Open alert center" }));
+    await user.click(screen.getByRole("button", { name: /配置中心/ }));
+
+    expect(screen.getByText("推送渠道")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("switch")[0]);
+    await user.click(screen.getByRole("button", { name: "保存配置" }));
+
+    await waitFor(() => {
+      expect(mockedAlertApi.updateAlertPreferences).toHaveBeenCalled();
+    });
   });
 });
 
@@ -135,4 +169,20 @@ function stubNotification(permission: NotificationPermission, requestPermission 
 
   vi.stubGlobal("Notification", MockNotification);
   return notificationSpy;
+}
+
+function buildPreferences() {
+  return {
+    feishu_enabled: true,
+    browser_enabled: true,
+    setup_ready_enabled: true,
+    direction_shift_enabled: true,
+    no_trade_enabled: true,
+    minimum_confidence: 55,
+    quiet_hours_enabled: false,
+    quiet_hours_start: 0,
+    quiet_hours_end: 8,
+    symbols: ["BTCUSDT", "ETHUSDT"],
+    available_symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+  };
 }

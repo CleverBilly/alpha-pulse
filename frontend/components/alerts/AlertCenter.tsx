@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BellOutlined, NotificationOutlined, SyncOutlined } from "@ant-design/icons";
+import { BellOutlined, NotificationOutlined, SettingOutlined, SyncOutlined } from "@ant-design/icons";
 import { Badge, Button, Drawer, Empty, Spin, Tag } from "antd";
+import AlertConfigPanel from "@/components/alerts/AlertConfigPanel";
 import AlertEventCard from "@/components/alerts/AlertEventCard";
 import { alertApi } from "@/services/apiClient";
-import type { AlertEvent } from "@/types/alert";
+import type { AlertEvent, AlertPreferences } from "@/types/alert";
 
 const ALERT_POLL_INTERVAL_MS = 15_000;
 const ALERT_LIMIT = 20;
@@ -21,8 +22,17 @@ export default function AlertCenter() {
   const [error, setError] = useState<string | null>(null);
   const [permission, setPermission] = useState<BrowserPermissionState>("unsupported");
   const [lastSeenAt, setLastSeenAt] = useState(0);
+  const [preferences, setPreferences] = useState<AlertPreferences | null>(null);
+  const [preferencesLoading, setPreferencesLoading] = useState(true);
+  const [preferencesSaving, setPreferencesSaving] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
   const initializedRef = useRef(false);
   const notifiedIdsRef = useRef<Set<string>>(new Set());
+  const browserEnabledRef = useRef(true);
+
+  useEffect(() => {
+    browserEnabledRef.current = preferences?.browser_enabled ?? true;
+  }, [preferences?.browser_enabled]);
 
   useEffect(() => {
     setPermission(readBrowserPermission());
@@ -34,6 +44,25 @@ export default function AlertCenter() {
     }
 
     let active = true;
+
+    const loadPreferences = async () => {
+      try {
+        const nextPreferences = await alertApi.getAlertPreferences();
+        if (!active) {
+          return;
+        }
+        setPreferences(nextPreferences);
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setError(formatError(loadError));
+      } finally {
+        if (active) {
+          setPreferencesLoading(false);
+        }
+      }
+    };
 
     const loadAlerts = async (mode: "initial" | "poll" | "manual") => {
       try {
@@ -63,7 +92,7 @@ export default function AlertCenter() {
         const newItems = feed.items.filter((item) => !notifiedIdsRef.current.has(item.id));
         newItems.forEach((item) => {
           notifiedIdsRef.current.add(item.id);
-          notifyBrowser(item, permission);
+          notifyBrowser(item, permission, browserEnabledRef.current);
         });
       } catch (loadError) {
         if (!active) {
@@ -79,6 +108,7 @@ export default function AlertCenter() {
       }
     };
 
+    void loadPreferences();
     void loadAlerts("initial");
     const timer = window.setInterval(() => {
       void loadAlerts("poll");
@@ -134,6 +164,16 @@ export default function AlertCenter() {
           <div className="flex flex-wrap items-center gap-2">
             <Tag color="gold">A 级 setup</Tag>
             <Tag color={permissionTagColor(permission)}>{permissionLabel(permission)}</Tag>
+            {preferences ? (
+              <>
+                <Tag color={preferences.feishu_enabled ? "processing" : "default"}>
+                  飞书{preferences.feishu_enabled ? "开启" : "关闭"}
+                </Tag>
+                <Tag color={preferences.browser_enabled ? "success" : "default"}>
+                  浏览器{preferences.browser_enabled ? "开启" : "关闭"}
+                </Tag>
+              </>
+            ) : null}
             {error ? <Tag color="error">{error}</Tag> : null}
           </div>
 
@@ -149,7 +189,7 @@ export default function AlertCenter() {
                   feed.items.forEach((item) => {
                     if (!notifiedIdsRef.current.has(item.id)) {
                       notifiedIdsRef.current.add(item.id);
-                      notifyBrowser(item, permission);
+                      notifyBrowser(item, permission, browserEnabledRef.current);
                     }
                   });
                 } catch (refreshError) {
@@ -161,7 +201,10 @@ export default function AlertCenter() {
             >
               立即检查
             </Button>
-            {permission !== "granted" && permission !== "unsupported" ? (
+            <Button icon={<SettingOutlined />} onClick={() => setConfigOpen(true)}>
+              配置中心
+            </Button>
+            {preferences?.browser_enabled !== false && permission !== "granted" && permission !== "unsupported" ? (
               <Button
                 icon={<NotificationOutlined />}
                 onClick={async () => {
@@ -191,12 +234,34 @@ export default function AlertCenter() {
           )}
         </div>
       </Drawer>
+
+      <AlertConfigPanel
+        open={configOpen}
+        loading={preferencesLoading}
+        saving={preferencesSaving}
+        preferences={preferences}
+        browserPermission={permission}
+        onClose={() => setConfigOpen(false)}
+        onSave={async (next) => {
+          setPreferencesSaving(true);
+          try {
+            const saved = await alertApi.updateAlertPreferences(next);
+            setPreferences(saved);
+            setError(null);
+            setConfigOpen(false);
+          } catch (saveError) {
+            setError(formatError(saveError));
+          } finally {
+            setPreferencesSaving(false);
+          }
+        }}
+      />
     </>
   );
 }
 
-function notifyBrowser(item: AlertEvent, permission: BrowserPermissionState) {
-  if (permission !== "granted" || typeof window === "undefined" || typeof Notification !== "function") {
+function notifyBrowser(item: AlertEvent, permission: BrowserPermissionState, browserEnabled: boolean) {
+  if (!browserEnabled || permission !== "granted" || typeof window === "undefined" || typeof Notification !== "function") {
     return;
   }
 

@@ -87,6 +87,7 @@ func main() {
 	microEventRepo := repository.NewMicrostructureEventRepository(db)
 	featureSnapshotRepo := repository.NewFeatureSnapshotRepository(db)
 	alertRecordRepo := repository.NewAlertRecordRepository(db)
+	alertPreferenceRepo := repository.NewAlertPreferenceRepository(db)
 
 	marketService := service.NewMarketService(
 		db,
@@ -132,9 +133,11 @@ func main() {
 		cfg.FeishuBotSecret,
 		5*time.Second,
 	)
+	feishuNotifier.SetPublicBaseURL(cfg.AlertPublicBaseURL)
 	alertService := service.NewAlertService(
 		signalService,
 		alertRecordRepo,
+		alertPreferenceRepo,
 		cfg.MarketSymbols,
 		cfg.AlertHistoryLimit,
 		feishuNotifier,

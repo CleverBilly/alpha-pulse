@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"alpha-pulse/backend/models"
 	"alpha-pulse/backend/repository"
@@ -16,7 +17,7 @@ func TestAlertServiceGeneratesSetupReadyAlertOnce(t *testing.T) {
 			"BTCUSDT:15m": buildDirectionTestSnapshot("BTCUSDT", "15m", 56, 70, "BUY", "uptrend"),
 		},
 	}
-	service := NewAlertService(fetcher, nil, []string{"BTCUSDT"}, 10)
+	service := NewAlertService(fetcher, nil, nil, []string{"BTCUSDT"}, 10)
 	macro := fetcher.snapshots["BTCUSDT:4h"]
 	bias := fetcher.snapshots["BTCUSDT:1h"]
 	trigger := fetcher.snapshots["BTCUSDT:15m"]
@@ -56,7 +57,7 @@ func TestAlertServiceGeneratesNoTradeAfterTradableState(t *testing.T) {
 			"BTCUSDT:15m": buildDirectionTestSnapshot("BTCUSDT", "15m", 56, 70, "BUY", "uptrend"),
 		},
 	}
-	service := NewAlertService(fetcher, nil, []string{"BTCUSDT"}, 10)
+	service := NewAlertService(fetcher, nil, nil, []string{"BTCUSDT"}, 10)
 
 	if _, err := service.EvaluateAll(context.Background(), false); err != nil {
 		t.Fatalf("seed evaluate failed: %v", err)
@@ -170,7 +171,7 @@ func TestAlertServicePersistsAndReloadsHistoryState(t *testing.T) {
 		},
 	}
 
-	first := NewAlertService(fetcher, repo, []string{"BTCUSDT"}, 10)
+	first := NewAlertService(fetcher, repo, nil, []string{"BTCUSDT"}, 10)
 	generated, err := first.EvaluateAll(context.Background(), false)
 	if err != nil {
 		t.Fatalf("seed evaluate failed: %v", err)
@@ -181,7 +182,7 @@ func TestAlertServicePersistsAndReloadsHistoryState(t *testing.T) {
 
 	assertServiceCount(t, db, &models.AlertRecord{}, "symbol = ?", 1, "BTCUSDT")
 
-	second := NewAlertService(fetcher, repo, []string{"BTCUSDT"}, 10)
+	second := NewAlertService(fetcher, repo, nil, []string{"BTCUSDT"}, 10)
 	repeated, err := second.EvaluateAll(context.Background(), false)
 	if err != nil {
 		t.Fatalf("repeat evaluate failed: %v", err)
@@ -196,5 +197,95 @@ func TestAlertServicePersistsAndReloadsHistoryState(t *testing.T) {
 	}
 	if history[0].Kind != "setup_ready" {
 		t.Fatalf("unexpected persisted history item: %+v", history[0])
+	}
+}
+
+func TestAlertServiceAppliesPreferencesAndQuietHours(t *testing.T) {
+	db := newServiceTestDB(t)
+	preferenceRepo := repository.NewAlertPreferenceRepository(db)
+	fetcher := &stubDirectionFetcher{
+		snapshots: map[string]MarketSnapshot{
+			"BTCUSDT:4h":  buildDirectionTestSnapshot("BTCUSDT", "4h", 62, 78, "BUY", "uptrend"),
+			"BTCUSDT:1h":  buildDirectionTestSnapshot("BTCUSDT", "1h", 58, 74, "BUY", "uptrend"),
+			"BTCUSDT:15m": buildDirectionTestSnapshot("BTCUSDT", "15m", 56, 70, "BUY", "uptrend"),
+		},
+	}
+	notifier := &stubAlertNotifier{channel: "feishu"}
+	service := NewAlertService(fetcher, nil, preferenceRepo, []string{"BTCUSDT"}, 10, notifier)
+	service.now = func() time.Time {
+		return time.Date(2026, time.March, 11, 2, 0, 0, 0, time.Local)
+	}
+
+	_, err := service.UpdatePreferences(AlertPreferences{
+		FeishuEnabled:         true,
+		BrowserEnabled:        true,
+		SetupReadyEnabled:     true,
+		DirectionShiftEnabled: false,
+		NoTradeEnabled:        true,
+		MinimumConfidence:     80,
+		QuietHoursEnabled:     true,
+		QuietHoursStart:       1,
+		QuietHoursEnd:         8,
+		Symbols:               []string{"BTCUSDT"},
+	})
+	if err != nil {
+		t.Fatalf("update preferences failed: %v", err)
+	}
+
+	events, err := service.EvaluateAll(context.Background(), false)
+	if err != nil {
+		t.Fatalf("evaluate all failed: %v", err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("expected minimum confidence to suppress setup event, got=%d", len(events))
+	}
+
+	_, err = service.UpdatePreferences(AlertPreferences{
+		FeishuEnabled:         true,
+		BrowserEnabled:        true,
+		SetupReadyEnabled:     true,
+		DirectionShiftEnabled: false,
+		NoTradeEnabled:        true,
+		MinimumConfidence:     55,
+		QuietHoursEnabled:     true,
+		QuietHoursStart:       1,
+		QuietHoursEnd:         8,
+		Symbols:               []string{"BTCUSDT"},
+	})
+	if err != nil {
+		t.Fatalf("update preferences failed: %v", err)
+	}
+
+	service.stateBySymbol = map[string]alertState{}
+	events, err = service.EvaluateAll(context.Background(), false)
+	if err != nil {
+		t.Fatalf("evaluate all failed: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 setup event after lowering threshold, got=%d", len(events))
+	}
+	if len(events[0].Deliveries) != 1 || events[0].Deliveries[0].Status != "skipped" {
+		t.Fatalf("expected quiet hours to skip feishu delivery, got=%+v", events[0].Deliveries)
+	}
+	if notifier.calls != 0 {
+		t.Fatalf("expected notifier not to be called during quiet hours, got=%d", notifier.calls)
+	}
+}
+
+type stubAlertNotifier struct {
+	channel string
+	calls   int
+}
+
+func (s *stubAlertNotifier) Channel() string {
+	return s.channel
+}
+
+func (s *stubAlertNotifier) Notify(ctx context.Context, event AlertEvent) AlertDelivery {
+	s.calls++
+	return AlertDelivery{
+		Channel: s.channel,
+		Status:  "sent",
+		SentAt:  1710000000000,
 	}
 }

@@ -62,6 +62,8 @@ func SetupRouter(handlers HandlerSet) *gin.Engine {
 		if handlers.Alert != nil {
 			protected.GET("/alerts", handlers.Alert.GetAlerts)
 			protected.GET("/alerts/history", handlers.Alert.GetAlertHistory)
+			protected.GET("/alerts/preferences", handlers.Alert.GetAlertPreferences)
+			protected.PUT("/alerts/preferences", handlers.Alert.UpdateAlertPreferences)
 			protected.POST("/alerts/refresh", handlers.Alert.RefreshAlerts)
 		}
 	}

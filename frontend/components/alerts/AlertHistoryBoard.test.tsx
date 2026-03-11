@@ -7,7 +7,10 @@ import AlertHistoryBoard from "./AlertHistoryBoard";
 
 vi.mock("@/services/apiClient", () => ({
   alertApi: {
+    getAlerts: vi.fn(),
     getAlertHistory: vi.fn(),
+    getAlertPreferences: vi.fn(),
+    updateAlertPreferences: vi.fn(),
     refreshAlerts: vi.fn(),
   },
 }));

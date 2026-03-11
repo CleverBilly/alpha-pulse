@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { mockAlertApi } from "./support/mockAlertApi";
 import { mockMarketSnapshotApi } from "./support/mockMarketApi";
 
 test("market page shows overview, price ladder and signal tape", async ({ page }) => {
+  await mockAlertApi(page);
   await mockMarketSnapshotApi(page);
   await page.goto("/market");
 

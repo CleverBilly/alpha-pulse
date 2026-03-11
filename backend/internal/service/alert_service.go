@@ -58,16 +58,18 @@ type AlertFeed struct {
 }
 
 type AlertNotifier interface {
+	Channel() string
 	Notify(ctx context.Context, event AlertEvent) AlertDelivery
 }
 
 type AlertService struct {
-	fetcher      DirectionSnapshotFetcher
-	repo         *repository.AlertRecordRepository
-	symbols      []string
-	historyLimit int
-	notifiers    []AlertNotifier
-	now          func() time.Time
+	fetcher        DirectionSnapshotFetcher
+	repo           *repository.AlertRecordRepository
+	preferenceRepo *repository.AlertPreferenceRepository
+	symbols        []string
+	historyLimit   int
+	notifiers      []AlertNotifier
+	now            func() time.Time
 
 	mu            sync.RWMutex
 	recent        []AlertEvent
@@ -80,7 +82,7 @@ type alertState struct {
 	SetupReady bool
 }
 
-func NewAlertService(fetcher DirectionSnapshotFetcher, repo *repository.AlertRecordRepository, symbols []string, historyLimit int, notifiers ...AlertNotifier) *AlertService {
+func NewAlertService(fetcher DirectionSnapshotFetcher, repo *repository.AlertRecordRepository, preferenceRepo *repository.AlertPreferenceRepository, symbols []string, historyLimit int, notifiers ...AlertNotifier) *AlertService {
 	normalized := normalizeAlertSymbols(symbols)
 	if len(normalized) == 0 {
 		normalized = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}
@@ -90,14 +92,15 @@ func NewAlertService(fetcher DirectionSnapshotFetcher, repo *repository.AlertRec
 	}
 
 	return &AlertService{
-		fetcher:       fetcher,
-		repo:          repo,
-		symbols:       normalized,
-		historyLimit:  historyLimit,
-		notifiers:     notifiers,
-		now:           time.Now,
-		recent:        make([]AlertEvent, 0, historyLimit),
-		stateBySymbol: make(map[string]alertState, len(normalized)),
+		fetcher:        fetcher,
+		repo:           repo,
+		preferenceRepo: preferenceRepo,
+		symbols:        normalized,
+		historyLimit:   historyLimit,
+		notifiers:      notifiers,
+		now:            time.Now,
+		recent:         make([]AlertEvent, 0, historyLimit),
+		stateBySymbol:  make(map[string]alertState, len(normalized)),
 	}
 }
 
@@ -150,17 +153,33 @@ func (s *AlertService) ListHistory(limit int) []AlertEvent {
 	return s.ListRecent(limit)
 }
 
+func (s *AlertService) GetPreferences() AlertPreferences {
+	return loadAlertPreferences(s.preferenceRepo, s.symbols)
+}
+
+func (s *AlertService) UpdatePreferences(input AlertPreferences) (AlertPreferences, error) {
+	preferences, err := sanitizeAlertPreferences(input, s.symbols)
+	if err != nil {
+		return AlertPreferences{}, err
+	}
+	if err := persistAlertPreferences(s.preferenceRepo, preferences); err != nil {
+		return AlertPreferences{}, err
+	}
+	return preferences, nil
+}
+
 func (s *AlertService) EvaluateAll(ctx context.Context, refresh bool) ([]AlertEvent, error) {
 	if s.fetcher == nil {
 		return nil, fmt.Errorf("alert fetcher is not configured")
 	}
 
+	preferences := s.GetPreferences()
 	generated := make([]AlertEvent, 0, len(s.symbols))
 	var lastErr error
 	successCount := 0
 
 	for _, symbol := range s.symbols {
-		event, err := s.evaluateSymbol(ctx, symbol, refresh)
+		event, err := s.evaluateSymbol(ctx, symbol, refresh, preferences)
 		if err != nil {
 			lastErr = err
 			log.Printf("alert evaluation failed for %s: %v", symbol, err)
@@ -178,7 +197,7 @@ func (s *AlertService) EvaluateAll(ctx context.Context, refresh bool) ([]AlertEv
 	return generated, nil
 }
 
-func (s *AlertService) evaluateSymbol(ctx context.Context, symbol string, refresh bool) (*AlertEvent, error) {
+func (s *AlertService) evaluateSymbol(ctx context.Context, symbol string, refresh bool, preferences AlertPreferences) (*AlertEvent, error) {
 	macroSnapshot, err := s.fetcher.GetMarketSnapshotWithRefresh(symbol, alertMacroInterval, alertSnapshotLimit, refresh)
 	if err != nil {
 		return nil, err
@@ -213,8 +232,11 @@ func (s *AlertService) evaluateSymbol(ctx context.Context, symbol string, refres
 	if event == nil {
 		return nil, nil
 	}
+	if !preferences.AllowsEvent(*event) {
+		return nil, nil
+	}
 
-	event.Deliveries = s.deliver(ctx, *event)
+	event.Deliveries = s.deliver(ctx, *event, preferences)
 	if err := s.persistAlert(*event, current); err != nil {
 		return nil, err
 	}
@@ -249,13 +271,23 @@ func (s *AlertService) resolveAlertEvent(
 	return nil
 }
 
-func (s *AlertService) deliver(ctx context.Context, event AlertEvent) []AlertDelivery {
+func (s *AlertService) deliver(ctx context.Context, event AlertEvent, preferences AlertPreferences) []AlertDelivery {
 	if len(s.notifiers) == 0 {
 		return []AlertDelivery{}
 	}
 
 	deliveries := make([]AlertDelivery, 0, len(s.notifiers))
 	for _, notifier := range s.notifiers {
+		if notifier.Channel() == "feishu" {
+			if suppressed, detail := preferences.FeishuSuppressedAt(s.now()); suppressed {
+				deliveries = append(deliveries, AlertDelivery{
+					Channel: notifier.Channel(),
+					Status:  "skipped",
+					Detail:  detail,
+				})
+				continue
+			}
+		}
 		deliveries = append(deliveries, notifier.Notify(ctx, event))
 	}
 	return deliveries
