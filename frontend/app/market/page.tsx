@@ -1,3 +1,4 @@
+import FuturesWatchlist from "@/components/market/FuturesWatchlist";
 import LiquidityPanel from "@/components/liquidity/LiquidityPanel";
 import TradingWorkspaceHero from "@/components/layout/TradingWorkspaceHero";
 import MarketLevelsBoard from "@/components/market/MarketLevelsBoard";
@@ -11,6 +12,7 @@ export default function MarketPage() {
   return (
     <div className="space-y-6">
       <MarketSnapshotLoader />
+      <FuturesWatchlist />
       <TradingWorkspaceHero
         eyebrow="Market"
         title="Structure, ladder and flow in one view"

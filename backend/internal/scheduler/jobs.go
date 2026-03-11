@@ -26,7 +26,7 @@ func NewJobs(
 ) *Jobs {
 	normalizedSymbols := normalizeSymbols(symbols)
 	if len(normalizedSymbols) == 0 {
-		normalizedSymbols = []string{"BTCUSDT", "ETHUSDT"}
+		normalizedSymbols = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}
 	}
 	if interval <= 0 {
 		interval = 1 * time.Minute

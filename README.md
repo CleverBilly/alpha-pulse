@@ -1,6 +1,6 @@
 # alpha-pulse
 
-AI Crypto Trading Dashboard（BTC / ETH）
+AI Crypto Trading Dashboard（BTC / ETH / SOL）
 
 ## 当前状态
 
@@ -8,14 +8,15 @@ AI Crypto Trading Dashboard（BTC / ETH）
 
 当前上线范围：
 
-- `BTCUSDT / ETHUSDT`
+- `BTCUSDT / ETHUSDT / SOLUSDT`
 - `1m / 5m / 15m / 1h / 4h`
 - Dashboard / Chart / Signals / Market
 - 订单流、结构、流动性、信号、AI 解释统一快照分析
+- Futures 基础因子快照：mark / funding / open interest / long-short ratio
 
 当前不包含：
 
-- `Futures`
+- 完整 `Futures Direction Engine`
 - 自动下单
 - 回测平台
 - 多交易所接入
@@ -75,7 +76,7 @@ cp frontend/.env.example frontend/.env.local
 ```bash
 APP_MODE=dev
 GIN_MODE=debug
-MARKET_SYMBOLS=BTCUSDT,ETHUSDT
+MARKET_SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT
 AUTO_MIGRATE=true
 ENABLE_REDIS_CACHE=true
 ENABLE_STREAM_COLLECTOR=true

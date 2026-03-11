@@ -119,6 +119,11 @@ func (c *BinanceCollector) GetDepthSnapshot(symbol string, limit int) (models.Or
 	}, nil
 }
 
+// GetFuturesMarketData 拉取 USDM perpetual 的基础期货因子。
+func (c *BinanceCollector) GetFuturesMarketData(symbol string) (binance.FuturesMarketData, error) {
+	return c.client.GetFuturesMarketData(strings.ToUpper(symbol))
+}
+
 func encodeDepthLevels(levels []binance.OrderBookLevel) (string, error) {
 	payload, err := json.Marshal(levels)
 	if err != nil {

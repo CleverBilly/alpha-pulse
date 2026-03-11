@@ -13,6 +13,7 @@ export function buildMockMarketStoreState(overrides: Record<string, unknown> = {
     streamStatus: "live",
     streamError: null,
     price: snapshot.price,
+    futures: snapshot.futures,
     kline: latestKline,
     klines: snapshot.klines,
     indicator: snapshot.indicator,

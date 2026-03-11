@@ -1,7 +1,7 @@
 "use client";
 
 import { Tag } from "antd";
-import { MARKET_INTERVALS } from "@/types/market";
+import { MARKET_INTERVALS, MARKET_SYMBOLS } from "@/types/market";
 import { useMarketStore } from "@/store/marketStore";
 import { buildDashboardDecision, type DashboardTone } from "./dashboardViewModel";
 
@@ -93,8 +93,11 @@ export default function DecisionHeader() {
                 className="dashboard-decision__select"
                 aria-label="Symbol"
               >
-                <option value="BTCUSDT">BTCUSDT</option>
-                <option value="ETHUSDT">ETHUSDT</option>
+                {MARKET_SYMBOLS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
               </select>
               <button
                 type="button"

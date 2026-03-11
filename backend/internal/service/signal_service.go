@@ -28,6 +28,7 @@ type MarketPrice struct {
 // MarketSnapshot 定义聚合市场快照。
 type MarketSnapshot struct {
 	Price                MarketPrice                   `json:"price"`
+	Futures              FuturesSnapshot               `json:"futures"`
 	Klines               []models.Kline                `json:"klines"`
 	Indicator            models.Indicator              `json:"indicator"`
 	IndicatorSeries      []models.IndicatorSeriesPoint `json:"indicator_series"`
@@ -259,6 +260,24 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 	logServiceDuration("signal_service", "market_snapshot.price", symbol, interval, chartLimit, stageStartedAt, priceStatus, priceReason)
 
 	stageStartedAt = time.Now()
+	futuresSnapshot := buildFuturesSnapshot(s.collector, symbol)
+	futuresStatus := "ok"
+	if !futuresSnapshot.Available {
+		futuresStatus = "fallback"
+	}
+	logServiceDuration(
+		"signal_service",
+		"market_snapshot.futures",
+		symbol,
+		interval,
+		chartLimit,
+		stageStartedAt,
+		futuresStatus,
+		futuresSnapshot.Reason,
+		observability.String("source", futuresSnapshot.Source),
+	)
+
+	stageStartedAt = time.Now()
 	indicatorResult, err := s.indicatorEngine.Calculate(symbol, allKlines)
 	if err != nil {
 		logServiceDuration("signal_service", "market_snapshot.indicator", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
@@ -448,6 +467,7 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 
 	snapshot := MarketSnapshot{
 		Price:                price,
+		Futures:              futuresSnapshot,
 		Klines:               chartKlines,
 		Indicator:            indicatorResult,
 		IndicatorSeries:      indicatorSeries,

@@ -36,7 +36,7 @@ func TestLoadDefaultsToDevMode(t *testing.T) {
 	if cfg.SchedulerIntervalSeconds != 60 {
 		t.Fatalf("expected default scheduler interval 60s, got %d", cfg.SchedulerIntervalSeconds)
 	}
-	if !reflect.DeepEqual(cfg.MarketSymbols, []string{"BTCUSDT", "ETHUSDT"}) {
+	if !reflect.DeepEqual(cfg.MarketSymbols, []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}) {
 		t.Fatalf("unexpected default market symbols: %#v", cfg.MarketSymbols)
 	}
 }

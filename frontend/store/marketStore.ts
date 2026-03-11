@@ -8,6 +8,7 @@ import {
   Kline,
   Liquidity,
   LiquiditySeriesPoint,
+  FuturesSnapshot,
   MarketInterval,
   OrderFlow,
   OrderFlowMicrostructureEvent,
@@ -30,6 +31,7 @@ interface MarketState {
   streamStatus: MarketStreamStatus;
   streamError: string | null;
   price: PriceTicker | null;
+  futures: FuturesSnapshot | null;
   kline: Kline | null;
   klines: Kline[];
   indicator: Indicator | null;
@@ -70,6 +72,7 @@ export const useMarketStore = create<MarketState>((set, get) => {
   streamStatus: "idle",
   streamError: null,
   price: null,
+  futures: null,
   kline: null,
   klines: [],
   indicator: null,
@@ -93,6 +96,7 @@ export const useMarketStore = create<MarketState>((set, get) => {
       transportMode: options?.transport ?? state.transportMode,
       streamError: null,
       price: snapshot.price,
+      futures: snapshot.futures,
       kline: latestKline,
       klines: snapshot.klines,
       indicator: snapshot.indicator,

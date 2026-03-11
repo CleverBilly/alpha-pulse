@@ -11,6 +11,7 @@ import (
 
 	"alpha-pulse/backend/internal/observability"
 	binancesdk "github.com/adshao/go-binance/v2"
+	binancefutures "github.com/adshao/go-binance/v2/futures"
 )
 
 // KlineData 表示从 Binance 获取的一根原始 K 线。
@@ -49,9 +50,29 @@ type DepthSnapshotData struct {
 	Asks         []OrderBookLevel
 }
 
+// FuturesMarketData 表示 Binance USDM perpetual 的基础期货因子快照。
+type FuturesMarketData struct {
+	Symbol            string
+	MarketType        string
+	ContractType      string
+	MarkPrice         float64
+	IndexPrice        float64
+	BasisBps          float64
+	FundingRate       float64
+	NextFundingTime   int64
+	OpenInterest      float64
+	OpenInterestValue float64
+	LongShortRatio    float64
+	LongAccountRatio  float64
+	ShortAccountRatio float64
+	Time              int64
+	Source            string
+}
+
 // Client 封装 Binance SDK 调用，并保留离线回退能力。
 type Client struct {
 	sdkClient         *binancesdk.Client
+	futuresClient     *binancefutures.Client
 	timeout           time.Duration
 	allowMockFallback bool
 }
@@ -60,9 +81,12 @@ type Client struct {
 func NewClient(apiKey, secretKey string, timeout time.Duration) *Client {
 	sdkClient := binancesdk.NewClient(apiKey, secretKey)
 	sdkClient.HTTPClient = &http.Client{Timeout: timeout}
+	futuresClient := binancefutures.NewClient(apiKey, secretKey)
+	futuresClient.HTTPClient = &http.Client{Timeout: timeout}
 
 	return &Client{
 		sdkClient:         sdkClient,
+		futuresClient:     futuresClient,
 		timeout:           timeout,
 		allowMockFallback: true,
 	}
@@ -74,6 +98,7 @@ func (c *Client) SetHTTPClient(httpClient *http.Client) {
 		return
 	}
 	c.sdkClient.HTTPClient = httpClient
+	c.futuresClient.HTTPClient = httpClient
 }
 
 // SetMockFallbackEnabled 控制公开行情接口失败时是否回退为本地 mock 数据。
@@ -309,6 +334,97 @@ func (c *Client) GetDepthSnapshot(symbol string, limit int) (DepthSnapshotData, 
 	return snapshot, nil
 }
 
+// GetFuturesMarketData 获取 USDM perpetual 的基础期货因子。
+func (c *Client) GetFuturesMarketData(symbol string) (FuturesMarketData, error) {
+	symbol = strings.ToUpper(symbol)
+	ctx, cancel := c.newContext()
+	defer cancel()
+	startedAt := time.Now()
+
+	premiumRows, err := c.futuresClient.NewPremiumIndexService().
+		Symbol(symbol).
+		Do(ctx)
+	if err != nil {
+		return c.fallbackFuturesMarketData(symbol, startedAt, err)
+	}
+	if len(premiumRows) == 0 {
+		return c.fallbackFuturesMarketData(symbol, startedAt, errors.New("empty premium index payload"))
+	}
+
+	markPrice, err := strconv.ParseFloat(premiumRows[0].MarkPrice, 64)
+	if err != nil {
+		return c.fallbackFuturesMarketData(symbol, startedAt, err)
+	}
+	indexPrice, err := strconv.ParseFloat(premiumRows[0].IndexPrice, 64)
+	if err != nil {
+		return c.fallbackFuturesMarketData(symbol, startedAt, err)
+	}
+	fundingRate, err := strconv.ParseFloat(premiumRows[0].LastFundingRate, 64)
+	if err != nil {
+		return c.fallbackFuturesMarketData(symbol, startedAt, err)
+	}
+
+	openInterestPayload, err := c.futuresClient.NewGetOpenInterestService().
+		Symbol(symbol).
+		Do(ctx)
+	if err != nil {
+		return c.fallbackFuturesMarketData(symbol, startedAt, err)
+	}
+	if openInterestPayload == nil {
+		return c.fallbackFuturesMarketData(symbol, startedAt, errors.New("empty open interest payload"))
+	}
+	openInterest, err := strconv.ParseFloat(openInterestPayload.OpenInterest, 64)
+	if err != nil {
+		return c.fallbackFuturesMarketData(symbol, startedAt, err)
+	}
+
+	longShortRows, err := c.futuresClient.NewLongShortRatioService().
+		Symbol(symbol).
+		Period("5m").
+		Limit(1).
+		Do(ctx)
+	if err != nil {
+		return c.fallbackFuturesMarketData(symbol, startedAt, err)
+	}
+	if len(longShortRows) == 0 {
+		return c.fallbackFuturesMarketData(symbol, startedAt, errors.New("empty long short ratio payload"))
+	}
+
+	longShortRatio, err := strconv.ParseFloat(longShortRows[0].LongShortRatio, 64)
+	if err != nil {
+		return c.fallbackFuturesMarketData(symbol, startedAt, err)
+	}
+	longAccountRatio, err := strconv.ParseFloat(longShortRows[0].LongAccount, 64)
+	if err != nil {
+		return c.fallbackFuturesMarketData(symbol, startedAt, err)
+	}
+	shortAccountRatio, err := strconv.ParseFloat(longShortRows[0].ShortAccount, 64)
+	if err != nil {
+		return c.fallbackFuturesMarketData(symbol, startedAt, err)
+	}
+
+	result := FuturesMarketData{
+		Symbol:            symbol,
+		MarketType:        "usdm-perpetual",
+		ContractType:      string(binancefutures.ContractTypePerpetual),
+		MarkPrice:         markPrice,
+		IndexPrice:        indexPrice,
+		BasisBps:          computeBasisBps(markPrice, indexPrice),
+		FundingRate:       fundingRate,
+		NextFundingTime:   premiumRows[0].NextFundingTime,
+		OpenInterest:      openInterest,
+		OpenInterestValue: openInterest * markPrice,
+		LongShortRatio:    longShortRatio,
+		LongAccountRatio:  longAccountRatio,
+		ShortAccountRatio: shortAccountRatio,
+		Time:              maxInt64(premiumRows[0].Time, openInterestPayload.Time, longShortRows[0].Timestamp),
+		Source:            "sdk",
+	}
+
+	c.logRequest("futures_market", startedAt, "ok", "", symbol, "", 1, "sdk")
+	return result, nil
+}
+
 func (c *Client) newContext() (context.Context, context.CancelFunc) {
 	if c.timeout <= 0 {
 		return context.Background(), func() {}
@@ -349,13 +465,98 @@ func reasonFromError(err error, fallback string) string {
 }
 
 func (c *Client) mockPrice(symbol string) float64 {
-	base := 3000.0
-	if strings.HasPrefix(symbol, "BTC") {
-		base = 65000
-	}
-
+	base := mockBasePrice(symbol)
 	wave := math.Sin(float64(time.Now().UnixNano())/1e12) * base * 0.01
 	return base + wave
+}
+
+func (c *Client) fallbackFuturesMarketData(symbol string, startedAt time.Time, err error) (FuturesMarketData, error) {
+	if !c.allowMockFallback {
+		c.logRequest("futures_market", startedAt, "error", err.Error(), symbol, "", 1, "sdk")
+		return FuturesMarketData{}, err
+	}
+
+	mocked := c.mockFuturesMarketData(symbol)
+	c.logRequest("futures_market", startedAt, "fallback", reasonFromError(err, "empty_payload"), symbol, "", 1, "mock")
+	return mocked, nil
+}
+
+func (c *Client) mockFuturesMarketData(symbol string) FuturesMarketData {
+	now := time.Now().UnixMilli()
+	basePrice := c.mockPrice(symbol)
+	markPrice := basePrice * 1.0006
+	indexPrice := basePrice * 1.0001
+	openInterest := 18500.0
+	fundingRate := 0.00012
+	longShortRatio := 1.08
+	longAccountRatio := 0.519
+	shortAccountRatio := 0.481
+
+	switch {
+	case strings.HasPrefix(symbol, "ETH"):
+		openInterest = 162000
+		fundingRate = 0.00008
+		longShortRatio = 1.03
+		longAccountRatio = 0.508
+		shortAccountRatio = 0.492
+	case strings.HasPrefix(symbol, "SOL"):
+		openInterest = 410000
+		fundingRate = 0.00016
+		longShortRatio = 1.12
+		longAccountRatio = 0.529
+		shortAccountRatio = 0.471
+	}
+
+	return FuturesMarketData{
+		Symbol:            strings.ToUpper(symbol),
+		MarketType:        "usdm-perpetual",
+		ContractType:      string(binancefutures.ContractTypePerpetual),
+		MarkPrice:         markPrice,
+		IndexPrice:        indexPrice,
+		BasisBps:          computeBasisBps(markPrice, indexPrice),
+		FundingRate:       fundingRate,
+		NextFundingTime:   time.Now().Add(4 * time.Hour).UnixMilli(),
+		OpenInterest:      openInterest,
+		OpenInterestValue: openInterest * markPrice,
+		LongShortRatio:    longShortRatio,
+		LongAccountRatio:  longAccountRatio,
+		ShortAccountRatio: shortAccountRatio,
+		Time:              now,
+		Source:            "mock",
+	}
+}
+
+func mockBasePrice(symbol string) float64 {
+	switch {
+	case strings.HasPrefix(symbol, "BTC"):
+		return 65000
+	case strings.HasPrefix(symbol, "ETH"):
+		return 3200
+	case strings.HasPrefix(symbol, "SOL"):
+		return 145
+	default:
+		return 3000
+	}
+}
+
+func computeBasisBps(markPrice, indexPrice float64) float64 {
+	if indexPrice == 0 {
+		return 0
+	}
+	return ((markPrice - indexPrice) / indexPrice) * 10000
+}
+
+func maxInt64(values ...int64) int64 {
+	if len(values) == 0 {
+		return 0
+	}
+	maxValue := values[0]
+	for _, value := range values[1:] {
+		if value > maxValue {
+			maxValue = value
+		}
+	}
+	return maxValue
 }
 
 func (c *Client) mockKlines(symbol, interval string, limit int) []KlineData {

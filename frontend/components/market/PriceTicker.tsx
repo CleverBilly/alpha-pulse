@@ -1,7 +1,7 @@
 "use client";
 
 import { Tag, Typography } from "antd";
-import { MARKET_INTERVALS } from "@/types/market";
+import { MARKET_INTERVALS, MARKET_SYMBOLS } from "@/types/market";
 import { useMarketStore } from "@/store/marketStore";
 
 export default function PriceTicker() {
@@ -31,13 +31,13 @@ export default function PriceTicker() {
                 <Tag color={error ? "error" : loading ? "processing" : "success"}>
                   {error ? "Sync issue" : loading ? "Syncing" : "Snapshot ready"}
                 </Tag>
-                <Tag color="gold">BTC / ETH</Tag>
+                <Tag color="gold">BTC / ETH / SOL</Tag>
               </div>
               <Typography.Title level={2} className="!mb-0 !mt-4 !text-[28px] !leading-tight !tracking-[-0.03em]">
                 Price Ticker
               </Typography.Title>
               <Typography.Paragraph className="!mb-0 !mt-3 !max-w-2xl !text-[15px] !leading-7 !text-slate-600">
-                实时跟踪 BTC / ETH 价格，联动多周期快照、信号和结构分析。手动刷新才会强制重建快照。
+                实时跟踪 BTC / ETH / SOL 价格，联动多周期快照、信号和结构分析。手动刷新才会强制重建快照。
               </Typography.Paragraph>
             </div>
 
@@ -53,8 +53,11 @@ export default function PriceTicker() {
                     onChange={(e) => setSymbol(e.target.value)}
                     className="min-h-11 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-teal-600"
                   >
-                    <option value="BTCUSDT">BTCUSDT</option>
-                    <option value="ETHUSDT">ETHUSDT</option>
+                    {MARKET_SYMBOLS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
                   </select>
                   <button
                     onClick={() => {

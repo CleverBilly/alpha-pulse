@@ -65,6 +65,15 @@ func TestMarketSnapshotEndpointReturnsAggregatedPayload(t *testing.T) {
 	if snapshot.Price.Symbol != "BTCUSDT" {
 		t.Fatalf("unexpected price symbol: got=%s", snapshot.Price.Symbol)
 	}
+	if snapshot.Futures.Symbol != "BTCUSDT" {
+		t.Fatalf("unexpected futures symbol: got=%s", snapshot.Futures.Symbol)
+	}
+	if !snapshot.Futures.Available {
+		t.Fatalf("expected futures snapshot to be available: %+v", snapshot.Futures)
+	}
+	if snapshot.Futures.MarkPrice <= 0 || snapshot.Futures.IndexPrice <= 0 {
+		t.Fatalf("expected futures prices to be positive: %+v", snapshot.Futures)
+	}
 	if snapshot.Price.Price <= 0 {
 		t.Fatalf("price should be positive: got=%f", snapshot.Price.Price)
 	}

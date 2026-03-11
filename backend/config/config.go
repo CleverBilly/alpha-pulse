@@ -70,7 +70,7 @@ func Load() Config {
 		AnalysisCacheTTL: getEnvAsInt("ANALYSIS_VIEW_CACHE_TTL", 15),
 		BinanceAPIKey:    getEnv("BINANCE_API_KEY", ""),
 		BinanceSecretKey: getEnv("BINANCE_SECRET_KEY", ""),
-		MarketSymbols:    getEnvAsCSV("MARKET_SYMBOLS", []string{"BTCUSDT", "ETHUSDT"}),
+		MarketSymbols:    getEnvAsCSV("MARKET_SYMBOLS", []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}),
 
 		EnableAutoMigrate:        getEnvAsBool("AUTO_MIGRATE", defaults.autoMigrate),
 		EnableRedisCache:         getEnvAsBool("ENABLE_REDIS_CACHE", defaults.enableRedisCache),

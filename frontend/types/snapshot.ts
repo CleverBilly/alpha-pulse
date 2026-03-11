@@ -2,6 +2,7 @@ import {
   Indicator,
   IndicatorSeriesPoint,
   Kline,
+  FuturesSnapshot,
   Liquidity,
   LiquiditySeriesPoint,
   OrderFlowMicrostructureEvent,
@@ -15,6 +16,7 @@ import { SignalTimelinePoint } from "@/types/signal";
 
 export interface MarketSnapshot {
   price: PriceTicker;
+  futures: FuturesSnapshot;
   klines: Kline[];
   indicator: Indicator;
   indicator_series: IndicatorSeriesPoint[];

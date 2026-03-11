@@ -1,11 +1,33 @@
+export const MARKET_SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT"] as const;
 export const MARKET_INTERVALS = ["1m", "5m", "15m", "1h", "4h"] as const;
 
+export type MarketSymbol = (typeof MARKET_SYMBOLS)[number];
 export type MarketInterval = (typeof MARKET_INTERVALS)[number];
 
 export interface PriceTicker {
   symbol: string;
   price: number;
   time: number;
+}
+
+export interface FuturesSnapshot {
+  available: boolean;
+  symbol: string;
+  market_type: string;
+  contract_type: string;
+  mark_price: number;
+  index_price: number;
+  basis_bps: number;
+  funding_rate: number;
+  next_funding_time: number;
+  open_interest: number;
+  open_interest_value: number;
+  long_short_ratio: number;
+  long_account_ratio: number;
+  short_account_ratio: number;
+  time: number;
+  source: string;
+  reason: string;
 }
 
 export interface Kline {

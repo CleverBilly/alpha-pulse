@@ -1,7 +1,7 @@
 "use client";
 
 import { Tag } from "antd";
-import { MARKET_INTERVALS } from "@/types/market";
+import { MARKET_INTERVALS, MARKET_SYMBOLS } from "@/types/market";
 import { useMarketStore } from "@/store/marketStore";
 
 type TradingWorkspaceMetric = {
@@ -92,8 +92,11 @@ export default function TradingWorkspaceHero({
                 onChange={(e) => setSymbol(e.target.value)}
                 className="terminal-hero__select"
               >
-                <option value="BTCUSDT">BTCUSDT</option>
-                <option value="ETHUSDT">ETHUSDT</option>
+                {MARKET_SYMBOLS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
               </select>
               <button
                 type="button"

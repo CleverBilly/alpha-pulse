@@ -9,11 +9,11 @@ export function buildMockMarketSnapshot(
   const total = clamp(limit, 24, 48);
   const intervalMs = resolveIntervalMs(interval);
   const baseTime = Date.UTC(2026, 2, 7, 0, 0, 0, 0);
-  const basePrice = symbol === "ETHUSDT" ? 3220 : 65200;
+  const basePrice = resolveBasePrice(symbol);
 
   const klines = Array.from({ length: total }, (_, index) => {
-    const trend = index * (symbol === "ETHUSDT" ? 2.8 : 18);
-    const wave = Math.sin(index / 5) * (symbol === "ETHUSDT" ? 14 : 95);
+    const trend = index * resolveTrendStep(symbol);
+    const wave = Math.sin(index / 5) * resolveWaveSize(symbol);
     const open = basePrice + trend + wave;
     const close = open + (index % 5 < 3 ? 16 : -9);
     const high = Math.max(open, close) + 22;
@@ -362,6 +362,30 @@ export function buildMockMarketSnapshot(
       symbol,
       price: latestKline.close_price,
       time: latestKline.open_time + intervalMs / 2,
+    },
+    futures: {
+      available: true,
+      symbol,
+      market_type: "usdm-perpetual",
+      contract_type: "PERPETUAL",
+      mark_price: round(latestKline.close_price * 1.0007),
+      index_price: round(latestKline.close_price * 1.0002),
+      basis_bps: round(5.1, 2),
+      funding_rate: symbol === "SOLUSDT" ? 0.00016 : symbol === "ETHUSDT" ? 0.00008 : 0.00012,
+      next_funding_time: latestKline.open_time + 4 * 60 * 60 * 1000,
+      open_interest: symbol === "SOLUSDT" ? 410000 : symbol === "ETHUSDT" ? 162000 : 18500,
+      open_interest_value:
+        symbol === "SOLUSDT"
+          ? round(410000 * latestKline.close_price, 2)
+          : symbol === "ETHUSDT"
+            ? round(162000 * latestKline.close_price, 2)
+            : round(18500 * latestKline.close_price, 2),
+      long_short_ratio: symbol === "SOLUSDT" ? 1.12 : symbol === "ETHUSDT" ? 1.03 : 1.08,
+      long_account_ratio: symbol === "SOLUSDT" ? 0.529 : symbol === "ETHUSDT" ? 0.508 : 0.519,
+      short_account_ratio: symbol === "SOLUSDT" ? 0.471 : symbol === "ETHUSDT" ? 0.492 : 0.481,
+      time: latestKline.open_time + intervalMs / 2,
+      source: "mock",
+      reason: "",
     },
     klines,
     indicator: {
@@ -898,6 +922,39 @@ function resolveIntervalMs(interval: MarketInterval) {
 function round(value: number, digits = 2) {
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
+}
+
+function resolveBasePrice(symbol: string) {
+  switch (symbol) {
+    case "ETHUSDT":
+      return 3220;
+    case "SOLUSDT":
+      return 148;
+    default:
+      return 65200;
+  }
+}
+
+function resolveTrendStep(symbol: string) {
+  switch (symbol) {
+    case "ETHUSDT":
+      return 2.8;
+    case "SOLUSDT":
+      return 0.42;
+    default:
+      return 18;
+  }
+}
+
+function resolveWaveSize(symbol: string) {
+  switch (symbol) {
+    case "ETHUSDT":
+      return 14;
+    case "SOLUSDT":
+      return 4.5;
+    default:
+      return 95;
+  }
 }
 
 function clamp(value: number, min: number, max: number) {
