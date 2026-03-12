@@ -8,7 +8,7 @@ func TestProjectAlertRecordPreservesReplayPayload(t *testing.T) {
 		Symbol:            "BTCUSDT",
 		Kind:              "setup_ready",
 		Severity:          "A",
-		Title:             "BTCUSDT A 级 setup 已就绪",
+		Title:             "BTCUSDT A 级机会已就绪",
 		Verdict:           "强偏多",
 		TradeabilityLabel: "A 级可跟踪",
 		Summary:           "4h 与 1h 已经对齐，15m 触发也站在同一边。",

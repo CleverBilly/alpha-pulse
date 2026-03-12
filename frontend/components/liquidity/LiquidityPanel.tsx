@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Card, Progress, Tag, Typography } from "antd";
+import { formatLiquiditySideDominance, formatSweepLabel } from "@/lib/uiLabels";
 import { LiquidityWallEvolution, LiquidityWallLevel, LiquidityWallStrengthBand } from "@/types/market";
 import { useMarketStore } from "@/store/marketStore";
 
@@ -43,9 +44,9 @@ export default function LiquidityPanel() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <Typography.Title level={3} className="!mb-0 !text-[24px] !tracking-[-0.03em]">
-              Liquidity
+              流动性
             </Typography.Title>
-            <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Wall Map</p>
+            <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">墙位分布</p>
           </div>
           <button
             onClick={() => {
@@ -60,22 +61,22 @@ export default function LiquidityPanel() {
         {liquidity ? (
           <>
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Buy Liquidity" value={formatPrice(liquidity.buy_liquidity)} />
-              <MetricCard label="Sell Liquidity" value={formatPrice(liquidity.sell_liquidity)} />
-              <MetricCard label="Imbalance" value={formatSigned(liquidity.order_book_imbalance, 2)} />
-              <MetricCard label="Sweep" value={formatSweepType(liquidity.sweep_type)} accent />
+              <MetricCard label="买方流动性" value={formatPrice(liquidity.buy_liquidity)} />
+              <MetricCard label="卖方流动性" value={formatPrice(liquidity.sell_liquidity)} />
+              <MetricCard label="盘口失衡" value={formatSigned(liquidity.order_book_imbalance, 2)} />
+              <MetricCard label="扫流动性" value={formatSweepType(liquidity.sweep_type)} accent />
             </div>
 
             <div className="mt-6 grid gap-4 lg:grid-cols-2">
               <WallColumn
-                title="Ask Wall Map"
+                title="卖墙分布"
                 subtitle="上方卖单墙与潜在流动性回收区"
                 walls={askWalls}
                 currentPrice={price?.price}
                 tone="border-rose-100 bg-[linear-gradient(180deg,rgba(255,241,242,0.7)_0%,rgba(255,255,255,0.98)_100%)]"
               />
               <WallColumn
-                title="Bid Wall Map"
+                title="买墙分布"
                 subtitle="下方买单墙与被动承接带"
                 walls={bidWalls}
                 currentPrice={price?.price}
@@ -85,14 +86,14 @@ export default function LiquidityPanel() {
 
             <div className="mt-6 grid gap-4 lg:grid-cols-2">
               <BandColumn
-                title="Ask Heat Bands"
+                title="卖墙热度带"
                 subtitle="按距离分带聚合卖单墙热度"
                 bands={askBands}
                 tone="border-rose-100 bg-[linear-gradient(180deg,rgba(255,241,242,0.7)_0%,rgba(255,255,255,0.98)_100%)]"
                 strokeColor="#f43f5e"
               />
               <BandColumn
-                title="Bid Heat Bands"
+                title="买墙热度带"
                 subtitle="按距离分带聚合买单墙热度"
                 bands={bidBands}
                 tone="border-emerald-100 bg-[linear-gradient(180deg,rgba(236,253,245,0.7)_0%,rgba(255,255,255,0.98)_100%)]"
@@ -103,10 +104,10 @@ export default function LiquidityPanel() {
             <div className="mt-6 rounded-[24px] border border-slate-200 bg-white px-4 py-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Cross-Interval Wall Evolution</p>
+                  <p className="text-sm font-semibold text-slate-900">跨周期墙位演化</p>
                   <p className="mt-1 text-xs text-slate-500">观察 1m 到 4h 的主导 wall、强度变化和距离迁移。</p>
                 </div>
-                <Tag>{wallEvolution.length} intervals</Tag>
+                <Tag>{wallEvolution.length} 个周期</Tag>
               </div>
 
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -123,10 +124,10 @@ export default function LiquidityPanel() {
 
             <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
               <div className="flex flex-wrap items-center gap-2">
-                <Chip label={`Source ${liquidity.data_source}`} />
-                <Chip label={`Equal High ${formatPrice(liquidity.equal_high)}`} />
-                <Chip label={`Equal Low ${formatPrice(liquidity.equal_low)}`} />
-                <Chip label={`${(liquidity.stop_clusters ?? []).length} stop clusters`} />
+                <Chip label={`数据源 ${liquidity.data_source}`} />
+                <Chip label={`等高点 ${formatPrice(liquidity.equal_high)}`} />
+                <Chip label={`等低点 ${formatPrice(liquidity.equal_low)}`} />
+                <Chip label={`${(liquidity.stop_clusters ?? []).length} 个止损簇`} />
               </div>
             </div>
           </>
@@ -167,12 +168,12 @@ function BandColumn({
               <div>
                 <p className="text-sm font-semibold text-slate-900">{band.band}</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {band.level_count} levels · dominant {formatPrice(band.dominant_price)}
+                  {band.level_count} 层 · 主价位 {formatPrice(band.dominant_price)}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-sm font-semibold text-slate-900">{formatCompactNotional(band.total_notional)}</p>
-                <p className="mt-1 text-xs text-slate-500">{band.strength.toFixed(2)} strength</p>
+                <p className="mt-1 text-xs text-slate-500">强度 {band.strength.toFixed(2)}</p>
               </div>
             </div>
 
@@ -221,9 +222,9 @@ function WallColumn({
           <div key={`${wall.side}-${wall.layer}-${wall.price}`} className="rounded-2xl border border-white bg-white px-4 py-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-900">{wall.label}</p>
+                <p className="text-sm font-semibold text-slate-900">{formatWallLabel(wall.label)}</p>
                 <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-slate-400">
-                  {formatLayer(wall.layer)} layer
+                  {formatLayer(wall.layer)}层
                 </p>
               </div>
               <div className="text-right">
@@ -233,9 +234,9 @@ function WallColumn({
             </div>
 
             <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-              <MiniStat label="Notional" value={formatCompactNotional(wall.notional)} />
-              <MiniStat label="Distance" value={`${wall.distance_bps.toFixed(1)} bps`} />
-              <MiniStat label="Strength" value={wall.strength.toFixed(2)} />
+              <MiniStat label="名义价值" value={formatCompactNotional(wall.notional)} />
+              <MiniStat label="距离" value={`${wall.distance_bps.toFixed(1)} bps`} />
+              <MiniStat label="强度" value={wall.strength.toFixed(2)} />
             </div>
           </div>
         ))}
@@ -267,16 +268,16 @@ function EvolutionCard({ point }: { point: LiquidityWallEvolution }) {
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-        <MiniStat label="Bid Delta" value={formatSigned(point.buy_strength_delta, 2)} />
-        <MiniStat label="Ask Delta" value={formatSigned(point.sell_strength_delta, 2)} />
-        <MiniStat label="Bid Dist" value={`${point.buy_distance_bps.toFixed(1)} bps`} />
-        <MiniStat label="Ask Dist" value={`${point.sell_distance_bps.toFixed(1)} bps`} />
+        <MiniStat label="买盘变化" value={formatSigned(point.buy_strength_delta, 2)} />
+        <MiniStat label="卖盘变化" value={formatSigned(point.sell_strength_delta, 2)} />
+        <MiniStat label="买盘距离" value={`${point.buy_distance_bps.toFixed(1)} bps`} />
+        <MiniStat label="卖盘距离" value={`${point.sell_distance_bps.toFixed(1)} bps`} />
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Chip label={`Sweep ${formatSweepType(point.sweep_type)}`} />
-        <Chip label={`Imb ${formatSigned(point.order_book_imbalance, 2)}`} />
-        <Chip label={`Source ${point.data_source}`} />
+        <Chip label={`扫流动性 ${formatSweepType(point.sweep_type)}`} />
+        <Chip label={`失衡 ${formatSigned(point.order_book_imbalance, 2)}`} />
+        <Chip label={`数据源 ${point.data_source}`} />
       </div>
     </div>
   );
@@ -332,19 +333,25 @@ function formatSigned(value: number, decimals: number) {
 
 function formatSweepType(value: string) {
   if (!value || value === "none") {
-    return "No Sweep";
+    return "未见明显扫流动性";
   }
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  return formatSweepLabel(value);
 }
 
 function formatLayer(value: string) {
   if (!value) {
-    return "Unknown";
+    return "未知";
   }
-  return value.charAt(0).toUpperCase() + value.slice(1);
+  if (value === "near") {
+    return "近端";
+  }
+  if (value === "mid") {
+    return "中段";
+  }
+  if (value === "far") {
+    return "远端";
+  }
+  return value;
 }
 
 function formatCompactNotional(value: number) {
@@ -360,14 +367,22 @@ function formatCompactNotional(value: number) {
   return value.toFixed(0);
 }
 
+function formatWallLabel(value?: string | null) {
+  if (!value) {
+    return "未知墙位";
+  }
+
+  return value
+    .replace(/^Near Ask Wall$/i, "近端卖墙")
+    .replace(/^Mid Ask Wall$/i, "中段卖墙")
+    .replace(/^Far Ask Wall$/i, "远端卖墙")
+    .replace(/^Near Bid Wall$/i, "近端买墙")
+    .replace(/^Mid Bid Wall$/i, "中段买墙")
+    .replace(/^Far Bid Wall$/i, "远端买墙");
+}
+
 function formatDominantSide(value: string) {
-  if (value === "bid") {
-    return "Bid Dominant";
-  }
-  if (value === "ask") {
-    return "Ask Dominant";
-  }
-  return "Balanced";
+  return formatLiquiditySideDominance(value);
 }
 
 function formatPctDistance(currentPrice?: number | null, target?: number | null) {

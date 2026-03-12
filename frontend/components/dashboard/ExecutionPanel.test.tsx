@@ -18,11 +18,11 @@ describe("ExecutionPanel", () => {
 
     render(<ExecutionPanel />);
 
-    expect(screen.getByRole("heading", { name: "Execution Setup" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "执行方案" })).toBeInTheDocument();
     expect(screen.getByText("顺势做多")).toBeInTheDocument();
-    expect(screen.getByText("Entry Zone")).toBeInTheDocument();
-    expect(screen.getByText("Stop Loss")).toBeInTheDocument();
-    expect(screen.getByText("Target")).toBeInTheDocument();
+    expect(screen.getByText("进场区间")).toBeInTheDocument();
+    expect(screen.getByText("止损位")).toBeInTheDocument();
+    expect(screen.getByText("目标位")).toBeInTheDocument();
     expect(screen.getByText(/等待回踩/)).toBeInTheDocument();
   });
 

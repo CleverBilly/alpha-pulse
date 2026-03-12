@@ -13,7 +13,9 @@ export default function AlertEventCard({ item }: { item: AlertEvent }) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{item.symbol}</span>
             <Tag color={resolveSeverityColor(item.severity)}>{resolveSeverityLabel(item.severity)}</Tag>
-            <Tag color={item.tradeability_label === "No-Trade" ? "warning" : "success"}>{item.tradeability_label}</Tag>
+            <Tag color={item.tradeability_label === "No-Trade" || item.tradeability_label === "禁止交易" ? "warning" : "success"}>
+              {item.tradeability_label}
+            </Tag>
           </div>
           <h3 className="mt-2 text-base font-semibold tracking-[-0.02em] text-slate-950">{item.title}</h3>
         </div>
@@ -38,8 +40,8 @@ export default function AlertEventCard({ item }: { item: AlertEvent }) {
       <div className="mt-3 grid grid-cols-2 gap-3">
         <Metric label="置信度" value={`${item.confidence}%`} />
         <Metric label="风险" value={item.risk_label} />
-        <Metric label="Entry" value={formatLevel(item.entry_price)} />
-        <Metric label="Target" value={formatLevel(item.target_price)} />
+        <Metric label="进场位" value={formatLevel(item.entry_price)} />
+        <Metric label="目标位" value={formatLevel(item.target_price)} />
       </div>
 
       {item.reasons.length > 0 ? <p className="mt-3 text-sm leading-6 text-slate-600">原因：{item.reasons.join("；")}</p> : null}
@@ -51,7 +53,7 @@ export default function AlertEventCard({ item }: { item: AlertEvent }) {
               key={`${item.id}-${delivery.channel}`}
               color={delivery.status === "sent" ? "success" : delivery.status === "failed" ? "error" : "default"}
             >
-              {delivery.channel}:{delivery.status}
+              {delivery.channel}:{formatDeliveryStatus(delivery.status)}
             </Tag>
           ))}
         </div>
@@ -84,9 +86,9 @@ export function resolveSeverityLabel(severity: string) {
     return "A 级";
   }
   if (severity === "warning") {
-    return "No-Trade";
+    return "禁止交易";
   }
-  return "Direction";
+  return "方向";
 }
 
 export function resolveCardTone(severity: string) {
@@ -116,4 +118,14 @@ export function formatLevel(value: number) {
     return "--";
   }
   return value >= 1000 ? value.toFixed(2) : value.toFixed(3);
+}
+
+function formatDeliveryStatus(status: string) {
+  if (status === "sent") {
+    return "已发送";
+  }
+  if (status === "failed") {
+    return "发送失败";
+  }
+  return "待发送";
 }

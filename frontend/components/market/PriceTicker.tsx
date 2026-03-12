@@ -27,14 +27,14 @@ export default function PriceTicker() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl">
               <div className="flex flex-wrap gap-2">
-                <Tag color="cyan">Live Feed</Tag>
+                <Tag color="cyan">实时行情</Tag>
                 <Tag color={error ? "error" : loading ? "processing" : "success"}>
-                  {error ? "Sync issue" : loading ? "Syncing" : "Snapshot ready"}
+                  {error ? "同步异常" : loading ? "同步中" : "快照就绪"}
                 </Tag>
                 <Tag color="gold">BTC / ETH / SOL</Tag>
               </div>
               <Typography.Title level={2} className="!mb-0 !mt-4 !text-[28px] !leading-tight !tracking-[-0.03em]">
-                Price Ticker
+                行情总览
               </Typography.Title>
               <Typography.Paragraph className="!mb-0 !mt-3 !max-w-2xl !text-[15px] !leading-7 !text-slate-600">
                 实时跟踪 BTC / ETH / SOL 价格，联动多周期快照、信号和结构分析。手动刷新才会强制重建快照。
@@ -44,7 +44,7 @@ export default function PriceTicker() {
             <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[280px]">
               <div className="rounded-[24px] border border-white/60 bg-white/72 p-3 shadow-[0_12px_30px_rgba(32,42,63,0.07)] backdrop-blur">
                 <label htmlFor="symbol-select" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  Symbol
+                  标的
                 </label>
                 <div className="mt-2 flex flex-col gap-3 sm:flex-row">
                   <select
@@ -73,12 +73,12 @@ export default function PriceTicker() {
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
-            <TickerMetric label="Last Price" value={loading && !price ? "加载中..." : `$${price?.price.toFixed(2) ?? "-"}`} accent />
-            <TickerMetric label="Current Cycle" value={interval} />
-            <TickerMetric label="Active Symbol" value={symbol} />
-            <TickerMetric label="Feed" value={formatFeed(streamStatus, transportMode)} />
-            <TickerMetric label="Refresh Mode" value={formatRefreshMode(lastRefreshMode)} />
-            <TickerMetric label="Updated" value={formatUpdated(lastUpdatedAt)} />
+            <TickerMetric label="最新价" value={loading && !price ? "加载中..." : `$${price?.price.toFixed(2) ?? "-"}`} accent />
+            <TickerMetric label="当前周期" value={interval} />
+            <TickerMetric label="当前标的" value={symbol} />
+            <TickerMetric label="连接" value={formatFeed(streamStatus, transportMode)} />
+            <TickerMetric label="刷新模式" value={formatRefreshMode(lastRefreshMode)} />
+            <TickerMetric label="更新时间" value={formatUpdated(lastUpdatedAt)} />
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -134,17 +134,17 @@ function TickerMetric({
 
 function formatRefreshMode(mode: "cache" | "force" | null) {
   if (mode === "force") {
-    return "Force rebuild";
+    return "强制重建";
   }
   if (mode === "cache") {
-    return "Cache-backed";
+    return "缓存命中";
   }
-  return "Waiting";
+  return "等待中";
 }
 
 function formatUpdated(timestamp: number | null) {
   if (!timestamp || !Number.isFinite(timestamp)) {
-    return "Not synced";
+    return "未同步";
   }
 
   return new Date(timestamp).toLocaleTimeString("zh-CN", {
@@ -162,13 +162,13 @@ function formatFeed(
     return "WebSocket";
   }
   if (status === "connecting") {
-    return "Connecting";
+    return "连接中";
   }
   if (transport === "polling") {
-    return "HTTP polling";
+    return "HTTP 轮询";
   }
   if (status === "error") {
-    return "Stream issue";
+    return "推流异常";
   }
-  return "Waiting";
+  return "等待中";
 }

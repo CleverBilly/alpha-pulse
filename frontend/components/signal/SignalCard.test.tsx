@@ -21,12 +21,12 @@ describe("SignalCard", () => {
 
     render(<SignalCard />);
 
-    expect(screen.getByText("Signal")).toBeInTheDocument();
-    expect(screen.getByText("BUY")).toBeInTheDocument();
+    expect(screen.getByText("信号总览")).toBeInTheDocument();
+    expect(screen.getByText("做多")).toBeInTheDocument();
     expect(screen.getByText("BTCUSDT")).toBeInTheDocument();
     expect(screen.getByText("当前多头信号由趋势、订单流与微结构事件序列共振驱动。")).toBeInTheDocument();
-    expect(screen.getByText("Factor Breakdown")).toBeInTheDocument();
-    expect(screen.getByText("Microstructure")).toBeInTheDocument();
+    expect(screen.getByText("因子拆解")).toBeInTheDocument();
+    expect(screen.getByText("微结构")).toBeInTheDocument();
     expect(screen.getByText("最近微结构事件连续偏多，买方主动性增强")).toBeInTheDocument();
     expect(screen.getByText("74%")).toBeInTheDocument();
 

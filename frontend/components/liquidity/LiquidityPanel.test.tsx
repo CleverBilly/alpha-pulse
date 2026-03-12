@@ -19,17 +19,17 @@ describe("LiquidityPanel", () => {
 
     render(<LiquidityPanel />);
 
-    expect(screen.getByRole("heading", { name: "Liquidity" })).toBeInTheDocument();
-    expect(screen.getByText("Wall Map")).toBeInTheDocument();
-    expect(screen.getByText("Ask Wall Map")).toBeInTheDocument();
-    expect(screen.getByText("Bid Wall Map")).toBeInTheDocument();
-    expect(screen.getByText("Ask Heat Bands")).toBeInTheDocument();
-    expect(screen.getByText("Cross-Interval Wall Evolution")).toBeInTheDocument();
-    expect(screen.getByText("Near Ask Wall")).toBeInTheDocument();
-    expect(screen.getByText("Mid Bid Wall")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "流动性" })).toBeInTheDocument();
+    expect(screen.getByText("墙位分布")).toBeInTheDocument();
+    expect(screen.getByText("卖墙分布")).toBeInTheDocument();
+    expect(screen.getByText("买墙分布")).toBeInTheDocument();
+    expect(screen.getByText("卖墙热度带")).toBeInTheDocument();
+    expect(screen.getByText("跨周期墙位演化")).toBeInTheDocument();
+    expect(screen.getByText("近端卖墙")).toBeInTheDocument();
+    expect(screen.getByText("中段买墙")).toBeInTheDocument();
     expect(screen.getAllByText("0-10bps")).toHaveLength(2);
-    expect(screen.getByText("Bid Dominant")).toBeInTheDocument();
-    expect(screen.getByText(/stop clusters/i)).toBeInTheDocument();
+    expect(screen.getByText("买盘主导")).toBeInTheDocument();
+    expect(screen.getByText(/止损簇/)).toBeInTheDocument();
   });
 
   it("triggers refresh from the panel action", async () => {

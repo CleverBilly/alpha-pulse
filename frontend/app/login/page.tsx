@@ -17,7 +17,7 @@ export default function LoginPage() {
         <div className="login-card__header">
           <p className="login-card__eyebrow">单用户访问</p>
           <h1 className="login-card__title">登录 Alpha Pulse</h1>
-          <p className="login-card__description">登录后才能访问你的交易 cockpit、图表和信号页面。</p>
+          <p className="login-card__description">登录后才能访问你的交易驾驶舱、图表和信号页面。</p>
         </div>
 
         <form
@@ -31,7 +31,7 @@ export default function LoginPage() {
               router.replace("/dashboard");
               router.refresh();
             } catch (loginError) {
-              setError(loginError instanceof Error ? loginError.message : "login failed");
+              setError(loginError instanceof Error ? loginError.message : "登录失败");
             } finally {
               setSubmitting(false);
             }

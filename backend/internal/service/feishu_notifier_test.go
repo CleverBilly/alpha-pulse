@@ -28,7 +28,7 @@ func TestFeishuNotifierSendsSignedStructuredMessage(t *testing.T) {
 	}
 
 	result := notifier.Notify(context.Background(), AlertEvent{
-		Title:             "BTCUSDT A 级 setup 已就绪",
+		Title:             "BTCUSDT A 级机会已就绪",
 		Verdict:           "强偏多",
 		TradeabilityLabel: "A 级可跟踪",
 		Confidence:        74,

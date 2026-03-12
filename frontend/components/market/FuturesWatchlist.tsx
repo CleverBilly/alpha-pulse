@@ -106,18 +106,18 @@ export default function FuturesWatchlist() {
   }, []);
 
   return (
-    <section aria-label="Futures Watchlist" className="space-y-4">
+    <section aria-label="合约观察列表" className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">Futures Watchlist</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">合约观察列表</p>
           <h2 className="mt-3 text-[30px] font-semibold leading-tight tracking-[-0.04em] text-slate-950">
             BTC / ETH / SOL 的 4h / 1h / 15m / 5m 多周期方向雷达
           </h2>
           <p className="mt-3 text-[15px] leading-7 text-slate-600">
-            这条 watchlist 会先看 4h 大方向，再用 1h 判断主 bias，用 15m 检查触发是否跟上，最后再用 5m 判断执行是否已经拧回去，优先告诉你哪个标的能跟，哪个标的该直接 No-Trade。
+            这条观察列表会先看 4h 大方向，再用 1h 判断主偏向，用 15m 检查触发是否跟上，最后再用 5m 判断执行是否已经拧回去，优先告诉你哪个标的能跟，哪个标的该直接禁止交易。
           </p>
         </div>
-        <Tag color="geekblue">4h / 1h / 15m / 5m Copilot</Tag>
+        <Tag color="geekblue">4h / 1h / 15m / 5m 副驾驶</Tag>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -167,8 +167,8 @@ function WatchlistCard({
             </div>
             <p className="mt-2 text-sm text-slate-600">{item.status === "error" ? item.error : decision.summary}</p>
           </div>
-          <div className={`rounded-2xl px-4 py-3 text-right ${resolveConfidenceTone(decision.tone)}`}>
-            <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Confidence</span>
+            <div className={`rounded-2xl px-4 py-3 text-right ${resolveConfidenceTone(decision.tone)}`}>
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">置信度</span>
             <strong className="text-2xl tracking-[-0.03em] text-slate-950">{confidence}</strong>
           </div>
         </div>
@@ -177,9 +177,9 @@ function WatchlistCard({
           <Metric label="风险" value={decision.riskLabel} />
           <Metric label="执行" value={decision.tradeabilityLabel} />
           <Metric label="现价" value={formatPrice(price?.price)} />
-          <Metric label="Mark" value={formatPrice(futures?.mark_price)} />
-          <Metric label="Basis" value={formatSigned(futures?.basis_bps, 1, "bps")} />
-          <Metric label="Funding" value={formatPercent(futures?.funding_rate, 3)} />
+          <Metric label="标记价" value={formatPrice(futures?.mark_price)} />
+          <Metric label="基差" value={formatSigned(futures?.basis_bps, 1, "bps")} />
+          <Metric label="资金费率" value={formatPercent(futures?.funding_rate, 3)} />
           <Metric label="L/S" value={formatNumber(futures?.long_short_ratio, 2)} />
         </div>
 
@@ -195,20 +195,20 @@ function WatchlistCard({
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Direction Reason</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">方向原因</p>
           <p className="mt-2 text-sm leading-6 text-slate-700">
             {decision.reasons.length > 0 ? decision.reasons.join(" · ") : "等待多周期信号同步。"}
           </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Futures Signal</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">合约信号</p>
           <p className="mt-2 text-sm leading-6 text-slate-700">
             {futures?.available
               ? `${futures.liquidation_summary || "清算压力代理保持均衡。"} OI ${formatCompact(futures.open_interest)}，名义价值 ${formatCompactCurrency(
                   futures.open_interest_value,
                 )}，多头账户占比 ${formatPercent(futures.long_account_ratio, 1)}。`
-              : futures?.reason || "Futures metrics unavailable"}
+              : futures?.reason || "合约因子暂不可用"}
           </p>
         </div>
 
@@ -238,7 +238,7 @@ function formatError(error: unknown) {
   if (error instanceof Error) {
     return error.message;
   }
-  return "请求 watchlist 失败";
+  return "请求观察列表失败";
 }
 
 function formatPrice(value?: number | null) {

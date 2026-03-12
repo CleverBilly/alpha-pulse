@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Card, Progress, Tag, Typography } from "antd";
+import { formatSignalAction, formatSweepLabel, formatTrendLabel } from "@/lib/uiLabels";
 import { useMarketStore } from "@/store/marketStore";
 
 export default function MarketOverviewBoard() {
@@ -66,7 +67,7 @@ export default function MarketOverviewBoard() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="max-w-3xl">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
-                Market Overview
+                市场总览
               </p>
               <Typography.Title level={2} className="!mb-0 !mt-3 !text-[30px] !leading-tight !tracking-[-0.04em]">
                 {regime.headline}
@@ -79,15 +80,15 @@ export default function MarketOverviewBoard() {
 
             <div className="min-w-[250px] rounded-[28px] border border-white/70 bg-white/76 p-5 shadow-[0_14px_36px_rgba(32,42,63,0.08)]">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Confidence</span>
-                <Tag color={signalTone(signal?.signal).tag}>{signal?.signal ?? "NEUTRAL"}</Tag>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">置信度</span>
+                <Tag color={signalTone(signal?.signal).tag}>{formatSignalAction(signal?.signal)}</Tag>
               </div>
               <div className="mt-4 flex items-end justify-between gap-4">
                 <p className="text-4xl font-semibold tracking-[-0.04em] text-slate-900">
                   {regime.confidence.toFixed(0)}%
                 </p>
                 <div className="text-right text-xs text-slate-500">
-                  <p>Flow</p>
+                  <p>订单流</p>
                   <p className="mt-1 font-medium text-slate-700">{regime.flowBias}</p>
                 </div>
               </div>
@@ -102,18 +103,14 @@ export default function MarketOverviewBoard() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <StatCard label="Price" value={formatPrice(price?.price)} accent="text-sky-700" />
-            <StatCard label="Signal" value={signal?.signal ?? "NEUTRAL"} accent={signalTone(signal?.signal).text} />
-            <StatCard label="Trend" value={structure?.trend ?? "range"} accent={trendTone(structure?.trend).text} />
-            <StatCard label="Momentum" value={`${(indicator?.rsi ?? 0).toFixed(1)} RSI`} accent="text-violet-700" />
-            <StatCard label="Delta" value={formatCompact(orderFlow?.delta)} accent="text-emerald-700" />
+            <StatCard label="价格" value={formatPrice(price?.price)} accent="text-sky-700" />
+            <StatCard label="信号" value={formatSignalAction(signal?.signal)} accent={signalTone(signal?.signal).text} />
+            <StatCard label="趋势" value={formatTrendLabel(structure?.trend)} accent={trendTone(structure?.trend).text} />
+            <StatCard label="动量" value={`${(indicator?.rsi ?? 0).toFixed(1)} RSI`} accent="text-violet-700" />
+            <StatCard label="净差" value={formatCompact(orderFlow?.delta)} accent="text-emerald-700" />
             <StatCard label="CVD" value={formatCompact(orderFlow?.cvd)} accent="text-slate-700" />
-            <StatCard
-              label="Order Book"
-              value={formatSigned(liquidity?.order_book_imbalance, 3)}
-              accent="text-amber-700"
-            />
-            <StatCard label="Sweep" value={liquidity?.sweep_type || "none"} accent="text-rose-700" />
+            <StatCard label="盘口失衡" value={formatSigned(liquidity?.order_book_imbalance, 3)} accent="text-amber-700" />
+            <StatCard label="扫流动性" value={formatSweepLabel(liquidity?.sweep_type)} accent="text-rose-700" />
           </div>
         </div>
       </Card>

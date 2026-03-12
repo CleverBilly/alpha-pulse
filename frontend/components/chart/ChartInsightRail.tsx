@@ -2,6 +2,15 @@
 
 import { useMemo } from "react";
 import { Progress, Tag, Typography } from "antd";
+import {
+  formatAbsorptionBiasLabel,
+  formatBiasLabel,
+  formatIcebergBiasLabel,
+  formatMicrostructureEventTypeLabel,
+  formatSweepLabel,
+  formatTrendLabel,
+  formatTrendBiasLabel,
+} from "@/lib/uiLabels";
 import type { OrderFlowMicrostructureEvent } from "@/types/market";
 import { useMarketStore } from "@/store/marketStore";
 
@@ -27,7 +36,7 @@ export default function ChartInsightRail() {
   const layerRows = useMemo(
     () => [
       {
-        label: "EMA Stack",
+        label: "EMA 叠层",
         swatch: "bg-emerald-500",
         value:
           indicator && Number.isFinite(indicator.ema20) && Number.isFinite(indicator.ema50)
@@ -36,7 +45,7 @@ export default function ChartInsightRail() {
         detail: "快速判断短中期均线相对位置。",
       },
       {
-        label: "Structure",
+        label: "结构",
         swatch: "bg-rose-500",
         value:
           structure && Number.isFinite(structure.support) && Number.isFinite(structure.resistance)
@@ -45,7 +54,7 @@ export default function ChartInsightRail() {
         detail: "主结构支撑与阻力。",
       },
       {
-        label: "Liquidity",
+        label: "流动性",
         swatch: "bg-amber-500",
         value:
           liquidity && Number.isFinite(liquidity.buy_liquidity) && Number.isFinite(liquidity.sell_liquidity)
@@ -54,18 +63,18 @@ export default function ChartInsightRail() {
         detail: "买卖墙与扫流动性上下文。",
       },
       {
-        label: "Signal Markers",
+        label: "信号标记",
         swatch: "bg-sky-600",
         value:
           signal && signal.signal !== "NEUTRAL"
             ? `${signal.entry_price.toFixed(2)} / ${signal.target_price.toFixed(2)}`
-            : "Neutral",
-        detail: "图上 entry / target / stop 标记。",
+            : "观望",
+        detail: "图上进场 / 目标 / 止损标记。",
       },
       {
-        label: "Micro Events",
+        label: "微结构事件",
         swatch: "bg-fuchsia-600",
-        value: `${microstructureEvents.length} live`,
+        value: `${microstructureEvents.length} 条`,
         detail: "吸收、冰山、主动性切换等事件。",
       },
     ],
@@ -82,22 +91,22 @@ export default function ChartInsightRail() {
     <aside className="space-y-4 xl:sticky xl:top-28">
       <section className="surface-panel surface-panel--dark chart-rail chart-rail--hero">
         <div className="flex flex-wrap items-center gap-2">
-          <Tag color={signalColor(signal?.signal)}>{signal?.signal ?? "NEUTRAL"}</Tag>
-          <Tag color={trendColor(structure?.trend)}>{structure?.trend ?? "range"}</Tag>
+          <Tag color={signalColor(signal?.signal)}>{formatTrendBiasLabel(signal?.trend_bias)}</Tag>
+          <Tag color={trendColor(structure?.trend)}>{formatTrendLabel(structure?.trend)}</Tag>
           <Tag color="gold">{symbol}</Tag>
           <Tag color="cyan">{interval}</Tag>
         </div>
 
         <Typography.Title level={3} className="chart-rail__title !mb-0 !mt-4 !text-white">
-          Session Thesis
+          盘中结论
         </Typography.Title>
         <p className="chart-rail__hero-copy">{thesis}</p>
 
         <div className="chart-rail__hero-grid">
-          <MetricBlock label="Confidence" value={signal ? `${signal.confidence.toFixed(0)}%` : "-"} />
-          <MetricBlock label="R/R" value={signal ? signal.risk_reward.toFixed(2) : "-"} />
-          <MetricBlock label="Sweep" value={liquidity?.sweep_type || "none"} />
-          <MetricBlock label="Updated" value={formatTime(lastUpdatedAt)} />
+          <MetricBlock label="置信度" value={signal ? `${signal.confidence.toFixed(0)}%` : "-"} />
+          <MetricBlock label="盈亏比" value={signal ? signal.risk_reward.toFixed(2) : "-"} />
+          <MetricBlock label="扫流动性" value={formatSweepLabel(liquidity?.sweep_type)} />
+          <MetricBlock label="更新时间" value={formatTime(lastUpdatedAt)} />
         </div>
 
         <Progress
@@ -112,27 +121,27 @@ export default function ChartInsightRail() {
       <section className="surface-panel chart-rail__section">
         <div className="chart-rail__section-head">
           <div>
-            <p className="chart-rail__eyebrow">Execution</p>
-            <h3 className="chart-rail__section-title">Playbook Frame</h3>
+            <p className="chart-rail__eyebrow">执行</p>
+            <h3 className="chart-rail__section-title">执行框架</h3>
           </div>
-          <Tag color={signalColor(signal?.signal)}>{signal?.trend_bias ?? "neutral"}</Tag>
+          <Tag color={signalColor(signal?.signal)}>{formatTrendBiasLabel(signal?.trend_bias)}</Tag>
         </div>
 
         <div className="chart-rail__stack">
-          <QuickRow label="Entry" value={signal ? formatPrice(signal.entry_price) : "-"} />
-          <QuickRow label="Target" value={signal ? formatPrice(signal.target_price) : "-"} />
-          <QuickRow label="Stop" value={signal ? formatPrice(signal.stop_loss) : "-"} />
-          <QuickRow label="Flow Delta" value={formatSigned(orderFlow?.delta)} />
-          <QuickRow label="Absorption" value={orderFlow?.absorption_bias || "none"} />
-          <QuickRow label="Iceberg" value={orderFlow?.iceberg_bias || "none"} />
+          <QuickRow label="进场位" value={signal ? formatPrice(signal.entry_price) : "-"} />
+          <QuickRow label="目标位" value={signal ? formatPrice(signal.target_price) : "-"} />
+          <QuickRow label="止损位" value={signal ? formatPrice(signal.stop_loss) : "-"} />
+          <QuickRow label="净差" value={formatSigned(orderFlow?.delta)} />
+          <QuickRow label="吸收" value={formatAbsorptionBiasLabel(orderFlow?.absorption_bias)} />
+          <QuickRow label="冰山" value={formatIcebergBiasLabel(orderFlow?.iceberg_bias)} />
         </div>
       </section>
 
       <section className="surface-panel chart-rail__section">
         <div className="chart-rail__section-head">
           <div>
-            <p className="chart-rail__eyebrow">Layers</p>
-            <h3 className="chart-rail__section-title">Overlay Stack</h3>
+            <p className="chart-rail__eyebrow">图层</p>
+            <h3 className="chart-rail__section-title">叠加图层</h3>
           </div>
           <span className="chart-rail__helper">图层说明</span>
         </div>
@@ -156,10 +165,10 @@ export default function ChartInsightRail() {
       <section className="surface-panel chart-rail__section">
         <div className="chart-rail__section-head">
           <div>
-            <p className="chart-rail__eyebrow">Microstructure</p>
-            <h3 className="chart-rail__section-title">Recent Cues</h3>
+            <p className="chart-rail__eyebrow">微结构</p>
+            <h3 className="chart-rail__section-title">近期线索</h3>
           </div>
-          <Tag color="purple">{recentEvents.length} events</Tag>
+          <Tag color="purple">{recentEvents.length} 条事件</Tag>
         </div>
 
         <div className="space-y-3">
@@ -200,7 +209,7 @@ function MicroEventCard({ event }: { event: OrderFlowMicrostructureEvent }) {
       <div className="chart-rail__event-head">
         <strong>{formatEventType(event.type)}</strong>
         <Tag color={event.bias === "bullish" ? "success" : event.bias === "bearish" ? "error" : "default"}>
-          {event.bias}
+          {formatBiasLabel(event.bias)}
         </Tag>
       </div>
       <div className="chart-rail__event-meta">
@@ -215,13 +224,13 @@ function MicroEventCard({ event }: { event: OrderFlowMicrostructureEvent }) {
 
 function buildSessionThesis(signal?: string, trend?: string, sweep?: string) {
   if (signal === "BUY" && trend === "uptrend") {
-    return `偏向顺势做多，优先等待回踩或吸收确认；${sweep || "未出现 sweep"} 只是节奏，不改主方向。`;
+    return `偏向顺势做多，优先等待回踩或吸收确认；${formatSweepLabel(sweep)} 只是节奏，不改主方向。`;
   }
   if (signal === "SELL" && trend === "downtrend") {
-    return `偏向顺势做空，优先等待反弹衰竭或卖方重夺主动；${sweep || "未出现 sweep"} 需要结合结构解读。`;
+    return `偏向顺势做空，优先等待反弹衰竭或卖方重夺主动；${formatSweepLabel(sweep)} 需要结合结构解读。`;
   }
   if (trend === "range") {
-    return "结构仍在区间，图表更适合做边界确认而不是追价，重点观察 liquidity sweep 之后的回收。";
+    return "结构仍在区间，图表更适合做边界确认而不是追价，重点观察扫流动性后的回收。";
   }
   return "当前图表没有形成强单边共识，先看结构与微结构是否继续同向，再决定是否执行。";
 }
@@ -248,7 +257,7 @@ function trendColor(trend?: string) {
 
 function formatTime(timestamp: number | null) {
   if (!timestamp || !Number.isFinite(timestamp)) {
-    return "Waiting";
+    return "等待中";
   }
 
   return new Date(timestamp).toLocaleTimeString("zh-CN", {
@@ -282,8 +291,5 @@ function formatEventTime(timestamp: number) {
 }
 
 function formatEventType(type: string) {
-  return type
-    .split("_")
-    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
-    .join(" ");
+  return formatMicrostructureEventTypeLabel(type);
 }

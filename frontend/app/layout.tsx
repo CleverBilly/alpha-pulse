@@ -6,7 +6,7 @@ import "../styles/globals.css";
 
 export const metadata: Metadata = {
   title: "Alpha Pulse",
-  description: "AI crypto spot analysis workstation",
+  description: "面向个人合约交易者的方向判断与告警工作台",
 };
 
 export default function RootLayout({

@@ -2,6 +2,16 @@
 
 import { useMemo } from "react";
 import { Card, Typography } from "antd";
+import {
+  formatAbsorptionBiasLabel,
+  formatFactorName,
+  formatIcebergBiasLabel,
+  formatMicrostructureEventTypeLabel,
+  formatSignalAction,
+  formatSweepLabel,
+  formatTrendLabel,
+  formatTrendBiasLabel,
+} from "@/lib/uiLabels";
 import { useMarketStore } from "@/store/marketStore";
 
 export default function AIAnalysisPanel() {
@@ -46,10 +56,10 @@ export default function AIAnalysisPanel() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
-              AI Analysis
+              AI 分析
             </p>
             <Typography.Title level={3} className="!mb-0 !mt-3 !text-[28px] !tracking-[-0.04em]">
-              Decision Memo
+              决策备忘
             </Typography.Title>
             <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
               {signal?.explain ?? "当前还没有可用的 AI 分析结果。"}
@@ -57,7 +67,11 @@ export default function AIAnalysisPanel() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <SummaryPill label="Bias" value={signal?.trend_bias ?? "neutral"} tone={biasTone(signal?.trend_bias)} />
+            <SummaryPill
+              label="方向"
+              value={formatTrendBiasLabel(signal?.trend_bias)}
+              tone={biasTone(signal?.trend_bias)}
+            />
             <SummaryPill
               label="R/R"
               value={signal ? signal.risk_reward.toFixed(2) : "-"}
@@ -71,40 +85,42 @@ export default function AIAnalysisPanel() {
             <PlaybookStrip
               rows={[
                 {
-                  label: "Entry Window",
+                  label: "进场区间",
                   value: signal ? signal.entry_price.toFixed(2) : "-",
                   detail: signal ? "围绕当前方向等待确认后再执行。" : "等待新的信号快照。",
                 },
                 {
-                  label: "Invalidation",
+                  label: "失效位",
                   value: signal ? signal.stop_loss.toFixed(2) : "-",
                   detail: structure?.trend === "uptrend" ? "上行结构失守即降级。" : "结构未确认前避免追单。",
                 },
                 {
-                  label: "Target",
+                  label: "目标位",
                   value: signal ? signal.target_price.toFixed(2) : "-",
-                  detail: liquidity?.sweep_type ? `重点观察 ${liquidity.sweep_type} 后续延续。` : "关注流动性回收后的方向选择。",
+                  detail: liquidity?.sweep_type
+                    ? `重点观察 ${formatSweepLabel(liquidity.sweep_type)} 后续是否延续。`
+                    : "关注流动性回收后的方向选择。",
                 },
               ]}
             />
 
             <InsightBlock
-              title="Bullish Drivers"
+              title="多头驱动"
               emptyText="当前没有明显的多头共振因子。"
               tone="bg-emerald-50 text-emerald-700 border-emerald-100"
               factors={positives.slice(0, 4).map((factor) => ({
-                name: factor.name,
+                name: formatFactorName(factor.name),
                 detail: factor.reason,
                 score: factor.score,
               }))}
             />
 
             <InsightBlock
-              title="Risk Factors"
+              title="风险因子"
               emptyText="当前没有显著的反向风险因子。"
               tone="bg-rose-50 text-rose-700 border-rose-100"
               factors={negatives.slice(0, 4).map((factor) => ({
-                name: factor.name,
+                name: formatFactorName(factor.name),
                 detail: factor.reason,
                 score: factor.score,
               }))}
@@ -113,38 +129,38 @@ export default function AIAnalysisPanel() {
 
           <div className="space-y-6">
             <ContextPanel
-              title="Execution Plan"
+              title="执行计划"
               rows={[
-                { label: "Execution Bias", value: executionBias },
-                { label: "Trend", value: structure?.trend ?? "range" },
-                { label: "Sweep", value: liquidity?.sweep_type || "none" },
-                { label: "Absorption", value: orderFlow?.absorption_bias || "none" },
-                { label: "Iceberg", value: orderFlow?.iceberg_bias || "none" },
+                { label: "执行倾向", value: executionBias },
+                { label: "趋势", value: formatTrendLabel(structure?.trend) },
+                { label: "扫流动性", value: formatSweepLabel(liquidity?.sweep_type) },
+                { label: "吸收", value: formatAbsorptionBiasLabel(orderFlow?.absorption_bias) },
+                { label: "冰山", value: formatIcebergBiasLabel(orderFlow?.iceberg_bias) },
                 { label: "RSI", value: indicator ? indicator.rsi.toFixed(2) : "-" },
               ]}
             />
 
             <ContextPanel
-              title="Recent Signal Tape"
+              title="近期信号序列"
               rows={
                 latestTimeline.length > 0
                   ? latestTimeline.map((point) => ({
-                      label: `${formatSignalTime(point.open_time)} ${point.signal}`,
-                      value: `score ${point.score} / conf ${point.confidence}%`,
+                      label: `${formatSignalTime(point.open_time)} ${formatSignalAction(point.signal)}`,
+                      value: `评分 ${point.score} / 置信度 ${point.confidence}%`,
                     }))
-                  : [{ label: "History", value: "暂无历史信号" }]
+                  : [{ label: "历史信号", value: "暂无历史信号" }]
               }
             />
 
             <ContextPanel
-              title="Microstructure Tape"
+              title="微结构序列"
               rows={
                 latestMicroEvents.length > 0
                   ? latestMicroEvents.map((event) => ({
-                      label: `${formatEventType(event.type)} ${formatEventTime(event.trade_time)}`,
-                      value: `${event.bias} / ${event.detail}`,
+                      label: `${formatMicrostructureEventTypeLabel(event.type)} ${formatEventTime(event.trade_time)}`,
+                      value: `${formatTrendBiasLabel(event.bias)} / ${event.detail}`,
                     }))
-                  : [{ label: "Microstructure", value: "暂无微结构事件" }]
+                  : [{ label: "微结构", value: "暂无微结构事件" }]
               }
             />
           </div>
@@ -186,7 +202,7 @@ function InsightBlock({
     <div className="rounded-[26px] border border-slate-100 bg-white/85 p-5 backdrop-blur">
       <div className="flex items-center justify-between gap-3">
         <h4 className="text-sm font-semibold text-slate-900">{title}</h4>
-        <span className="text-xs text-slate-500">{factors.length} items</span>
+        <span className="text-xs text-slate-500">{factors.length} 条</span>
       </div>
 
       <div className="mt-4 space-y-3">
@@ -278,10 +294,7 @@ function formatSignalTime(timestamp: number) {
 }
 
 function formatEventType(value: string) {
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  return formatMicrostructureEventTypeLabel(value);
 }
 
 function formatEventTime(timestamp: number) {

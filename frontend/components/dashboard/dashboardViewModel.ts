@@ -143,7 +143,7 @@ export function buildDirectionCopilotDecision({
       confidence: 0,
       riskLabel: "高风险",
       tradable: false,
-      tradeabilityLabel: "No-Trade",
+      tradeabilityLabel: "禁止交易",
       timeframeLabels: [],
     };
   }
@@ -337,7 +337,7 @@ export function buildDirectionAwareExecutionSetup(
     return {
       status: "unavailable",
       tone: "warning",
-      biasLabel: "No-Trade",
+      biasLabel: "禁止交易",
       reason: input.decision.summary,
       entryLow: 0,
       entryHigh: 0,
@@ -372,7 +372,7 @@ function buildOrderFlowEvidence(
   if (!orderFlow) {
     return {
       id: "orderflow",
-      title: "Order Flow",
+      title: "订单流",
       href: "/signals",
       ctaLabel: "查看信号深页",
       status: "unavailable",
@@ -387,7 +387,7 @@ function buildOrderFlowEvidence(
 
   return {
     id: "orderflow",
-    title: "Order Flow",
+    title: "订单流",
     href: "/signals",
     ctaLabel: "查看信号深页",
     status: "ready",
@@ -397,7 +397,7 @@ function buildOrderFlowEvidence(
         ? `主动买盘占优，${formatAbsorption(orderFlow.absorption_bias)}，最近事件为 ${formatEventName(lastEvent?.type)}。`
         : `主动卖盘占优，${formatAbsorption(orderFlow.absorption_bias)}，最近事件为 ${formatEventName(lastEvent?.type)}。`,
     metrics: [
-      { label: "Delta", value: formatSigned(orderFlow.delta, 0) },
+      { label: "净差", value: formatSigned(orderFlow.delta, 0) },
       { label: "Large Trade", value: formatSigned(orderFlow.large_trade_delta, 0) },
     ],
   };
@@ -407,7 +407,7 @@ function buildLiquidityEvidence(liquidity?: Liquidity | null): EvidenceCardView 
   if (!liquidity) {
     return {
       id: "liquidity",
-      title: "Liquidity",
+      title: "流动性",
       href: "/market",
       ctaLabel: "查看市场深页",
       status: "unavailable",
@@ -424,15 +424,15 @@ function buildLiquidityEvidence(liquidity?: Liquidity | null): EvidenceCardView 
 
   return {
     id: "liquidity",
-    title: "Liquidity",
+    title: "流动性",
     href: "/market",
     ctaLabel: "查看市场深页",
     status: "ready",
     tone,
     summary,
     metrics: [
-      { label: "Imbalance", value: formatSigned(liquidity.order_book_imbalance, 2) },
-      { label: "Sweep", value: formatSweep(liquidity.sweep_type || "none") },
+      { label: "盘口失衡", value: formatSigned(liquidity.order_book_imbalance, 2) },
+      { label: "扫流动性", value: formatSweep(liquidity.sweep_type || "none") },
     ],
   };
 }
@@ -444,7 +444,7 @@ function buildStructureEvidence(
   if (!structure) {
     return {
       id: "structure",
-      title: "Structure & Microstructure",
+      title: "结构与微结构",
       href: "/chart",
       ctaLabel: "查看图表深页",
       status: "unavailable",
@@ -461,14 +461,14 @@ function buildStructureEvidence(
 
   return {
     id: "structure",
-    title: "Structure & Microstructure",
+    title: "结构与微结构",
     href: "/chart",
     ctaLabel: "查看图表深页",
     status: "ready",
     tone,
-    summary: `${formatTrend(structure.trend)}，最近结构事件 ${latestEvent?.label ?? "none"}，微结构最近出现 ${formatEventName(lastMicro?.type)}。`,
+    summary: `${formatTrend(structure.trend)}，最近结构事件 ${latestEvent?.label ?? "暂无"}，微结构最近出现 ${formatEventName(lastMicro?.type)}。`,
     metrics: [
-      { label: "Trend", value: formatTrend(structure.trend) },
+      { label: "趋势", value: formatTrend(structure.trend) },
       { label: "Event", value: latestEvent?.label ?? "None" },
     ],
   };
@@ -614,7 +614,7 @@ function buildNoTradeDecision({
     confidence: clamp(confidence, 0, 100),
     riskLabel: "高风险",
     tradable: false,
-    tradeabilityLabel: "No-Trade",
+    tradeabilityLabel: "禁止交易",
     timeframeLabels,
   };
 }
@@ -778,22 +778,40 @@ function formatAbsorption(value?: string) {
 
 function formatEventName(value?: string) {
   if (!value) {
-    return "none";
+    return "暂无";
   }
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  const mapping: Record<string, string> = {
+    absorption: "吸收",
+    iceberg: "冰山",
+    iceberg_reload: "冰山回补",
+    aggression_burst: "主动成交爆发",
+    initiative_shift: "主动性切换",
+    initiative_exhaustion: "主动性衰竭",
+    large_trade_cluster: "大单簇",
+    failed_auction: "失败拍卖",
+    failed_auction_high_reject: "高位失败拍卖",
+    failed_auction_low_reclaim: "低位失败回收",
+    order_book_migration: "订单簿迁移",
+    order_book_migration_layered: "分层订单簿迁移",
+    order_book_migration_accelerated: "加速订单簿迁移",
+    auction_trap_reversal: "拍卖陷阱反转",
+    liquidity_ladder_breakout: "流动性阶梯突破",
+    migration_auction_flip: "迁移拍卖翻转",
+    absorption_reload_continuation: "吸收回补延续",
+    exhaustion_migration_reversal: "衰竭迁移反转",
+    microstructure_confluence: "微结构共振",
+  };
+  return mapping[value] ?? value;
 }
 
 function formatTrend(trend?: string) {
   if (trend === "uptrend") {
-    return "Uptrend";
+    return "上升趋势";
   }
   if (trend === "downtrend") {
-    return "Downtrend";
+    return "下降趋势";
   }
-  return "Range";
+  return "区间震荡";
 }
 
 function formatSigned(value: number, digits: number) {

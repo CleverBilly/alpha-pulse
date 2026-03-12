@@ -99,6 +99,6 @@ describe("FuturesWatchlist", () => {
 
     expect(screen.getAllByText("当前禁止交易").length).toBeGreaterThan(0);
     expect(screen.getByText("4h 与 1h 方向互相打架，当前属于逆大级别风险区。")).toBeInTheDocument();
-    expect(screen.getAllByText("No-Trade").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("禁止交易").length).toBeGreaterThan(0);
   });
 });

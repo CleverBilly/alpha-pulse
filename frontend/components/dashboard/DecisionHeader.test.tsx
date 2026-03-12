@@ -47,7 +47,7 @@ describe("DecisionHeader", () => {
     await user.click(screen.getByRole("button", { name: "刷新" }));
     expect(refreshDashboard).toHaveBeenCalledWith(true);
 
-    await user.selectOptions(screen.getByLabelText("Symbol"), "ETHUSDT");
+    await user.selectOptions(screen.getByLabelText("标的"), "ETHUSDT");
     expect(setSymbol).toHaveBeenCalledWith("ETHUSDT");
 
     await user.click(screen.getByRole("button", { name: "4h" }));

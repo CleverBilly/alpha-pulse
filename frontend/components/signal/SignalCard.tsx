@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Card, Progress, Tag, Typography } from "antd";
+import { formatFactorName, formatSignalAction, formatTrendBiasLabel } from "@/lib/uiLabels";
 import { useMarketStore } from "@/store/marketStore";
 
 export default function SignalCard() {
@@ -22,7 +23,7 @@ export default function SignalCard() {
       >
         <div className="mb-5 flex items-center justify-between gap-3">
           <Typography.Title level={3} className="!mb-0 !text-[24px] !tracking-[-0.03em]">
-            Signal
+            信号总览
           </Typography.Title>
           <Button
             onClick={() => {
@@ -44,15 +45,15 @@ export default function SignalCard() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${badgeClass}`}>
-                    {action}
+                    {formatSignalAction(action)}
                   </span>
                   <Tag color="blue">{signal.symbol}</Tag>
                   <Tag color={signal.trend_bias === "bullish" ? "success" : signal.trend_bias === "bearish" ? "error" : undefined}>
-                    {signal.trend_bias || "neutral"}
+                    {formatTrendBiasLabel(signal.trend_bias)}
                   </Tag>
                 </div>
                 <div className="text-right">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Confidence</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">置信度</p>
                   <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-slate-900">
                     {signal.confidence.toFixed(0)}%
                   </p>
@@ -66,26 +67,26 @@ export default function SignalCard() {
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm xl:grid-cols-4">
-              <Data label="Score" value={signal.score.toString()} accent />
-              <Data label="Confidence" value={`${signal.confidence.toFixed(0)} / 100`} />
-              <Data label="Entry" value={formatNumber(signal.entry_price)} />
-              <Data label="Target" value={formatNumber(signal.target_price)} />
-              <Data label="Stop" value={formatNumber(signal.stop_loss)} />
-              <Data label="R/R" value={signal.risk_reward.toFixed(2)} />
-              <Data label="Trend Bias" value={signal.trend_bias || "neutral"} />
+              <Data label="评分" value={signal.score.toString()} accent />
+              <Data label="置信度" value={`${signal.confidence.toFixed(0)} / 100`} />
+              <Data label="进场位" value={formatNumber(signal.entry_price)} />
+              <Data label="目标位" value={formatNumber(signal.target_price)} />
+              <Data label="止损位" value={formatNumber(signal.stop_loss)} />
+              <Data label="盈亏比" value={signal.risk_reward.toFixed(2)} />
+              <Data label="趋势偏向" value={formatTrendBiasLabel(signal.trend_bias)} />
               <Data label="RSI" value={indicator ? indicator.rsi.toFixed(2) : "-"} />
             </div>
 
             <div className="rounded-[28px] border border-slate-100 bg-slate-50/82 p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h4 className="text-sm font-semibold">Factor Breakdown</h4>
-                <span className="text-xs text-muted">{signal.factors.length} factors</span>
+                <h4 className="text-sm font-semibold">因子拆解</h4>
+                <span className="text-xs text-muted">{signal.factors.length} 个因子</span>
               </div>
               <div className="space-y-2">
                 {signal.factors.map((factor) => (
                   <FactorRow
                     key={factor.key}
-                    name={factor.name}
+                    name={formatFactorName(factor.name)}
                     score={factor.score}
                     reason={factor.reason}
                   />

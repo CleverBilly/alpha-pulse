@@ -1,6 +1,7 @@
 "use client";
 
 import { Tag } from "antd";
+import { formatSignalAction, formatSweepLabel, formatTrendBiasLabel, formatTrendLabel } from "@/lib/uiLabels";
 import { MARKET_INTERVALS, MARKET_SYMBOLS } from "@/types/market";
 import { useMarketStore } from "@/store/marketStore";
 
@@ -50,7 +51,7 @@ export default function TradingWorkspaceHero({
           <div className="terminal-hero__eyebrow-row">
             <p className="terminal-hero__eyebrow">{eyebrow}</p>
             <Tag color={transportTone}>{transportLabel}</Tag>
-            <Tag color={signalTone(signal?.signal)}>{signal?.signal ?? "NEUTRAL"}</Tag>
+            <Tag color={signalTone(signal?.signal)}>{formatSignalAction(signal?.signal)}</Tag>
           </div>
 
           <h1 className="terminal-hero__title">{title}</h1>
@@ -59,10 +60,10 @@ export default function TradingWorkspaceHero({
           </p>
 
           <div className="terminal-hero__statusline">
-            <StatusChip label="Trend" value={structure?.trend ?? "range"} />
-            <StatusChip label="Sweep" value={liquidity?.sweep_type || "none"} />
-            <StatusChip label="Refresh" value={formatRefreshMode(lastRefreshMode)} />
-            <StatusChip label="Updated" value={formatUpdated(lastUpdatedAt)} />
+            <StatusChip label="趋势" value={formatTrendLabel(structure?.trend)} />
+            <StatusChip label="扫流动性" value={formatSweepLabel(liquidity?.sweep_type)} />
+            <StatusChip label="刷新" value={formatRefreshMode(lastRefreshMode)} />
+            <StatusChip label="更新时间" value={formatUpdated(lastUpdatedAt)} />
           </div>
         </div>
 
@@ -74,7 +75,7 @@ export default function TradingWorkspaceHero({
           <div className="terminal-hero__price">{loading && !price ? "..." : `$${price?.price.toFixed(2) ?? "-"}`}</div>
           <div className="terminal-hero__quote-sub">
             <span>{transportLabel}</span>
-            <span>{signal?.trend_bias ?? "neutral"}</span>
+            <span>{formatTrendBiasLabel(signal?.trend_bias)}</span>
           </div>
         </div>
       </div>
@@ -83,7 +84,7 @@ export default function TradingWorkspaceHero({
         <div className="terminal-hero__controls">
           <div className="terminal-hero__control-box">
             <label htmlFor="terminal-symbol-select" className="terminal-hero__control-label">
-              Symbol
+              标的
             </label>
             <div className="terminal-hero__control-row">
               <select
@@ -155,18 +156,18 @@ function formatFeed(
   transport: "idle" | "websocket" | "polling",
 ) {
   if (status === "live" && transport === "websocket") {
-    return "Realtime WS";
+    return "实时 WS";
   }
   if (status === "connecting") {
-    return "Connecting";
+    return "连接中";
   }
   if (transport === "polling") {
-    return "HTTP Polling";
+    return "HTTP 轮询";
   }
   if (status === "error") {
-    return "Stream Issue";
+    return "推流异常";
   }
-  return "Waiting";
+  return "等待中";
 }
 
 function signalTone(signal?: string) {
@@ -181,17 +182,17 @@ function signalTone(signal?: string) {
 
 function formatRefreshMode(mode: "cache" | "force" | null) {
   if (mode === "force") {
-    return "Force";
+    return "强制";
   }
   if (mode === "cache") {
-    return "Cache";
+    return "缓存";
   }
-  return "Waiting";
+  return "等待中";
 }
 
 function formatUpdated(timestamp: number | null) {
   if (!timestamp || !Number.isFinite(timestamp)) {
-    return "Not synced";
+    return "未同步";
   }
 
   return new Date(timestamp).toLocaleTimeString("zh-CN", {

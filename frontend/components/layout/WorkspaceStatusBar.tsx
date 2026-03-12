@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Tag } from "antd";
+import { formatSignalAction, formatSweepLabel, formatTrendLabel } from "@/lib/uiLabels";
 import { useMarketStore } from "@/store/marketStore";
 
 export default function WorkspaceStatusBar() {
@@ -22,16 +23,16 @@ export default function WorkspaceStatusBar() {
 
   const statusLabel =
     streamStatus === "live" && transportMode === "websocket"
-      ? "Realtime feed live"
+      ? "实时推流已连通"
       : streamStatus === "connecting"
-        ? "Realtime feed connecting"
+        ? "实时推流连接中"
         : streamStatus === "fallback"
-          ? "Polling fallback active"
+          ? "已切到轮询兜底"
           : loading
-            ? "Syncing snapshot"
+            ? "正在同步快照"
             : error
-              ? "Attention required"
-              : "Snapshot live";
+              ? "需要关注"
+              : "快照正常";
   const statusTone =
     streamStatus === "live"
       ? "success"
@@ -45,48 +46,48 @@ export default function WorkspaceStatusBar() {
   const updatedLabel = useMemo(() => formatUpdateLabel(lastUpdatedAt), [lastUpdatedAt]);
   const regimeLabel = useMemo(() => {
     if (structure?.trend === "uptrend") {
-      return "Uptrend regime";
+      return "上升趋势";
     }
     if (structure?.trend === "downtrend") {
-      return "Downtrend regime";
+      return "下降趋势";
     }
-    return "Range regime";
+    return "震荡区间";
   }, [structure?.trend]);
 
   return (
     <section className="surface-panel surface-panel--status">
       <div className="status-strip">
         <div className="status-strip__lead">
-          <div className="status-bar__eyebrow">Workspace Status</div>
+          <div className="status-bar__eyebrow">工作区状态</div>
           <div className="status-strip__headline">
             <h2 className="status-strip__title">{statusLabel}</h2>
-            <Tag color={statusTone}>{loading ? "Loading" : error ? "Issue" : "Healthy"}</Tag>
+            <Tag color={statusTone}>{loading ? "加载中" : error ? "异常" : "健康"}</Tag>
           </div>
           <p className="status-strip__description">
             {error || streamError
               ? error || streamError
-              : `当前监控 ${symbol} ${interval}，${regimeLabel}，信号倾向 ${signal?.signal ?? "NEUTRAL"}。`}
+              : `当前监控 ${symbol} ${interval}，${regimeLabel}，信号倾向 ${formatSignalAction(signal?.signal)}。`}
           </p>
         </div>
 
         <div className="status-strip__metrics">
-          <MetricPill label="Symbol" value={symbol} />
-          <MetricPill label="Interval" value={interval} />
-          <MetricPill label="Feed" value={formatFeedLabel(streamStatus, transportMode)} />
-          <MetricPill label="Signal" value={signal?.signal ?? "NEUTRAL"} />
-          <MetricPill label="Trend" value={structure?.trend ?? "range"} />
-          <MetricPill label="Sweep" value={liquidity?.sweep_type || "none"} />
+          <MetricPill label="标的" value={symbol} />
+          <MetricPill label="周期" value={interval} />
+          <MetricPill label="连接" value={formatFeedLabel(streamStatus, transportMode)} />
+          <MetricPill label="信号" value={formatSignalAction(signal?.signal)} />
+          <MetricPill label="趋势" value={formatTrendLabel(structure?.trend)} />
+          <MetricPill label="扫流动性" value={formatSweepLabel(liquidity?.sweep_type)} />
           <MetricPill
-            label="Refresh"
+            label="刷新"
             value={
               lastRefreshMode === "force"
-                ? "Force rebuild"
+                ? "强制重建"
                 : lastRefreshMode === "cache"
-                  ? "Cache-backed"
-                  : "Waiting"
+                  ? "缓存命中"
+                  : "等待中"
             }
           />
-          <MetricPill label="Updated" value={updatedLabel} />
+          <MetricPill label="更新时间" value={updatedLabel} />
         </div>
       </div>
     </section>
@@ -110,7 +111,7 @@ function MetricPill({
 
 function formatUpdateLabel(timestamp: number | null) {
   if (!timestamp || !Number.isFinite(timestamp)) {
-    return "Not synced yet";
+    return "尚未同步";
   }
 
   return new Date(timestamp).toLocaleString("zh-CN", {
@@ -127,16 +128,16 @@ function formatFeedLabel(
   transport: "idle" | "websocket" | "polling",
 ) {
   if (status === "live" && transport === "websocket") {
-    return "WebSocket live";
+    return "WebSocket 已连通";
   }
   if (status === "connecting") {
-    return "WebSocket connecting";
+    return "WebSocket 连接中";
   }
   if (transport === "polling") {
-    return "HTTP polling";
+    return "HTTP 轮询";
   }
   if (status === "error") {
-    return "Stream issue";
+    return "推流异常";
   }
-  return "Waiting";
+  return "等待中";
 }

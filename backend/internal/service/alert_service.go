@@ -263,11 +263,11 @@ func (s *AlertService) resolveAlertEvent(
 	switch {
 	case current.Tradable && current.SetupReady:
 		if !hasPrevious || !previous.SetupReady || previous.State != current.State {
-			return buildAlertEvent(s.now(), symbol, "setup_ready", "A", decision, biasSnapshot, "A 级 setup 已就绪")
+			return buildAlertEvent(s.now(), symbol, "setup_ready", "A", decision, biasSnapshot, "A 级机会已就绪")
 		}
 	case !current.Tradable:
 		if hasPrevious && (previous.Tradable || previous.SetupReady) {
-			return buildAlertEvent(s.now(), symbol, "no_trade", "warning", decision, biasSnapshot, "进入 No-Trade")
+			return buildAlertEvent(s.now(), symbol, "no_trade", "warning", decision, biasSnapshot, "进入禁止交易")
 		}
 	case current.Tradable && (!hasPrevious || !previous.Tradable || previous.State != current.State):
 		return buildAlertEvent(s.now(), symbol, "direction_shift", "info", decision, biasSnapshot, fmt.Sprintf("方向切换为 %s", decision.Verdict))

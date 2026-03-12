@@ -51,10 +51,10 @@ describe("AlertCenter", () => {
     });
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Open alert center" }));
+    await user.click(screen.getByRole("button", { name: "打开告警中心" }));
 
-    expect(screen.getByText("Alert Center")).toBeInTheDocument();
-    expect(screen.getByText("BTCUSDT A 级 setup 已就绪")).toBeInTheDocument();
+    expect(screen.getByText("告警中心")).toBeInTheDocument();
+    expect(screen.getByText("BTCUSDT A 级机会已就绪")).toBeInTheDocument();
     expect(screen.getByText("浏览器通知未授权")).toBeInTheDocument();
   });
 
@@ -78,13 +78,13 @@ describe("AlertCenter", () => {
     });
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Open alert center" }));
+    await user.click(screen.getByRole("button", { name: "打开告警中心" }));
     await user.click(screen.getByRole("button", { name: /立即检查/ }));
 
     await waitFor(() => {
       expect(mockedAlertApi.refreshAlerts).toHaveBeenCalledWith(20);
       expect(notificationSpy).toHaveBeenCalledWith(
-        "BTCUSDT A 级 setup 已就绪",
+        "BTCUSDT A 级机会已就绪",
         expect.objectContaining({
           tag: "alert-1",
         }),
@@ -112,7 +112,7 @@ describe("AlertCenter", () => {
     });
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Open alert center" }));
+    await user.click(screen.getByRole("button", { name: "打开告警中心" }));
     await user.click(screen.getByRole("button", { name: /配置中心/ }));
 
     expect(screen.getByText("推送渠道")).toBeInTheDocument();
@@ -131,7 +131,7 @@ function buildMockAlert() {
     symbol: "BTCUSDT",
     kind: "setup_ready",
     severity: "A",
-    title: "BTCUSDT A 级 setup 已就绪",
+    title: "BTCUSDT A 级机会已就绪",
     verdict: "强偏多",
     tradeability_label: "A 级可跟踪",
     summary: "4h 与 1h 已经对齐，15m 触发也站在同一边。",

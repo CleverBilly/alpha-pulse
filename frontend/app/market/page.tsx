@@ -14,13 +14,13 @@ export default function MarketPage() {
       <MarketSnapshotLoader />
       <FuturesWatchlist />
       <TradingWorkspaceHero
-        eyebrow="Direction Drilldown"
+        eyebrow="方向下钻"
         title="先看多周期方向，再下钻结构、流动性和订单流"
-        description="市场页现在承接 Futures direction copilot。先用 watchlist 找到能跟的标的，再往下看结构层级、关键价位和微结构事件。"
+        description="市场页现在承接合约方向副驾驶。先用观察列表找到能跟的标的，再往下看结构层级、关键价位和微结构事件。"
         metrics={[
-          { label: "Direction", value: "4h / 1h / 15m / 5m" },
-          { label: "Trigger", value: "15m + 5m execution" },
-          { label: "Liquidity", value: "Sweep + walls" },
+          { label: "方向", value: "4h / 1h / 15m / 5m" },
+          { label: "触发", value: "15m + 5m 执行" },
+          { label: "流动性", value: "扫流动性 + 墙位" },
         ]}
       />
       <MarketOverviewBoard />

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Tag } from "antd";
+import { formatBiasLabel, formatMicrostructureEventTypeLabel } from "@/lib/uiLabels";
 import { OrderFlowMicrostructureEvent } from "@/types/market";
 import { useMarketStore } from "@/store/marketStore";
 
@@ -21,13 +22,13 @@ const HIGH_ORDER_EVENT_TYPES = new Set([
 ]);
 
 const TIMELINE_FILTERS = [
-  { id: "all", label: "All" },
-  { id: "high_order", label: "High Order" },
-  { id: "auction", label: "Auction" },
-  { id: "migration", label: "Migration" },
-  { id: "execution", label: "Execution" },
-  { id: "absorption", label: "Absorption" },
-  { id: "composite", label: "Composite" },
+  { id: "all", label: "全部" },
+  { id: "high_order", label: "高阶事件" },
+  { id: "auction", label: "拍卖" },
+  { id: "migration", label: "迁移" },
+  { id: "execution", label: "执行" },
+  { id: "absorption", label: "吸收" },
+  { id: "composite", label: "复合" },
 ] as const;
 
 type TimelineFilterId = (typeof TIMELINE_FILTERS)[number]["id"];
@@ -61,15 +62,15 @@ export default function MicrostructureTimeline() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
-            Microstructure
+            微结构
           </p>
-          <h3 className="mt-2 text-xl font-semibold text-slate-900">Microstructure Timeline</h3>
+          <h3 className="mt-2 text-xl font-semibold text-slate-900">微结构时间线</h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
             这里把盘口吸收、迁移、执行切换和高阶共振事件串成一条可读的盘中叙事链。
           </p>
         </div>
         <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
-          {visibleEvents.length} / {events.length} visible
+          可见 {visibleEvents.length} / {events.length}
         </span>
       </div>
 
@@ -78,9 +79,9 @@ export default function MicrostructureTimeline() {
           <div className="flex flex-wrap items-center gap-2">
             <Tag color="gold">{dominantFamily.label}</Tag>
             <Tag color={summary.netScore >= 0 ? "success" : "error"}>
-              Net {formatSigned(summary.netScore)}
+              净分 {formatSigned(summary.netScore)}
             </Tag>
-            <Tag color="blue">Avg Strength {averageStrength.toFixed(2)}</Tag>
+            <Tag color="blue">平均强度 {averageStrength.toFixed(2)}</Tag>
           </div>
           <p className="mt-3 text-sm leading-7 text-slate-600">
             {dominantFamily.copy(summary, averageStrength)}
@@ -88,10 +89,10 @@ export default function MicrostructureTimeline() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <SummaryCard label="Visible" value={`${summary.visibleCount} / ${summary.totalCount}`} />
-          <SummaryCard label="Net Score" value={formatSigned(summary.netScore)} />
-          <SummaryCard label="Bias Tilt" value={`${summary.bullishCount}B / ${summary.bearishCount}S`} />
-          <SummaryCard label="High Order" value={summary.highOrderCount.toString()} accent />
+          <SummaryCard label="可见事件" value={`${summary.visibleCount} / ${summary.totalCount}`} />
+          <SummaryCard label="净分" value={formatSigned(summary.netScore)} />
+          <SummaryCard label="方向倾斜" value={`${summary.bullishCount} 多 / ${summary.bearishCount} 空`} />
+          <SummaryCard label="高阶事件" value={summary.highOrderCount.toString()} accent />
         </div>
       </div>
 
@@ -159,7 +160,7 @@ export default function MicrostructureTimeline() {
                     </span>
                     {isHighOrder ? (
                       <span className="rounded-full border border-amber-300/80 bg-amber-100/80 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
-                        High Order
+                        高阶事件
                       </span>
                     ) : null}
                     <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${eventTone(event.bias)}`}>
@@ -180,10 +181,10 @@ export default function MicrostructureTimeline() {
                 </div>
 
                 <div className="mt-4 grid gap-2 text-xs text-slate-500 sm:grid-cols-4">
-                  <StatPill label="Score" value={formatSigned(event.score)} />
-                  <StatPill label="Strength" value={event.strength.toFixed(2)} />
-                  <StatPill label="Price" value={event.price.toFixed(2)} />
-                  <StatPill label="Type" value={meta.shortLabel} />
+                  <StatPill label="评分" value={formatSigned(event.score)} />
+                  <StatPill label="强度" value={event.strength.toFixed(2)} />
+                  <StatPill label="价格" value={event.price.toFixed(2)} />
+                  <StatPill label="类型" value={meta.shortLabel} />
                 </div>
               </article>
             </div>
@@ -311,7 +312,7 @@ function buildSummary(events: OrderFlowMicrostructureEvent[], totalCount: number
 function resolveDominantFamily(events: OrderFlowMicrostructureEvent[]) {
   if (events.length === 0) {
     return {
-      label: "Awaiting micro events",
+      label: "等待微结构事件",
       copy: () => "当前还没有足够的微结构事件用于形成可读叙事。",
     };
   }
@@ -322,7 +323,7 @@ function resolveDominantFamily(events: OrderFlowMicrostructureEvent[]) {
     counts.set(family, (counts.get(family) ?? 0) + 1);
   }
 
-  const [label = "Mixed Flow"] =
+  const [label = "混合流向"] =
     [...counts.entries()].sort((left, right) => right[1] - left[1])[0] ?? [];
 
   return {
@@ -352,28 +353,22 @@ function getEventMeta(type: string) {
     label: formatRawEventType(type),
     shortLabel: type.toUpperCase().slice(0, 4),
     family: "other",
-    familyLabel: "Other",
+    familyLabel: "其他",
   } as const;
 }
 
 function impactLabel(event: OrderFlowMicrostructureEvent, isHighOrder: boolean) {
   if (isHighOrder) {
-    return event.bias === "bearish" ? "High Order Reversal" : "High Order Continuation";
+    return event.bias === "bearish" ? "高阶反转" : "高阶延续";
   }
   if (Math.abs(event.score) >= 5 || event.strength >= 0.7) {
-    return "Primary Trigger";
+    return "主触发";
   }
-  return "Supporting Flow";
+  return "辅助流";
 }
 
 function formatBias(value: string) {
-  if (value === "bullish") {
-    return "Bullish";
-  }
-  if (value === "bearish") {
-    return "Bearish";
-  }
-  return "Neutral";
+  return formatBiasLabel(value);
 }
 
 function formatEventTime(timestamp: number) {
@@ -391,10 +386,7 @@ function formatSigned(value: number) {
 }
 
 function formatRawEventType(value: string) {
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  return formatMicrostructureEventTypeLabel(value);
 }
 
 const EVENT_METADATA: Record<
@@ -407,117 +399,117 @@ const EVENT_METADATA: Record<
   }
 > = {
   absorption: {
-    label: "Absorption",
+    label: "吸收",
     shortLabel: "ABS",
     family: "absorption",
-    familyLabel: "Absorption",
+    familyLabel: "吸收",
   },
   iceberg: {
-    label: "Iceberg",
+    label: "冰山",
     shortLabel: "ICE",
     family: "absorption",
-    familyLabel: "Absorption",
+    familyLabel: "吸收",
   },
   iceberg_reload: {
-    label: "Iceberg Reload",
+    label: "冰山回补",
     shortLabel: "IRL",
     family: "absorption",
-    familyLabel: "Absorption",
+    familyLabel: "吸收",
   },
   aggression_burst: {
-    label: "Aggression Burst",
+    label: "主动成交爆发",
     shortLabel: "AGR",
     family: "execution",
-    familyLabel: "Execution",
+    familyLabel: "执行",
   },
   initiative_shift: {
-    label: "Initiative Shift",
+    label: "主动性切换",
     shortLabel: "INI",
     family: "execution",
-    familyLabel: "Execution",
+    familyLabel: "执行",
   },
   initiative_exhaustion: {
-    label: "Initiative Exhaustion",
+    label: "主动性衰竭",
     shortLabel: "IEX",
     family: "execution",
-    familyLabel: "Execution",
+    familyLabel: "执行",
   },
   large_trade_cluster: {
-    label: "Large Trade Cluster",
+    label: "大单簇",
     shortLabel: "LTC",
     family: "execution",
-    familyLabel: "Execution",
+    familyLabel: "执行",
   },
   failed_auction: {
-    label: "Failed Auction",
+    label: "失败拍卖",
     shortLabel: "FAU",
     family: "auction",
-    familyLabel: "Auction",
+    familyLabel: "拍卖",
   },
   failed_auction_high_reject: {
-    label: "Failed Auction High Reject",
+    label: "高位失败拍卖",
     shortLabel: "FAH",
     family: "auction",
-    familyLabel: "Auction",
+    familyLabel: "拍卖",
   },
   failed_auction_low_reclaim: {
-    label: "Failed Auction Low Reclaim",
+    label: "低位失败回收",
     shortLabel: "FAL",
     family: "auction",
-    familyLabel: "Auction",
+    familyLabel: "拍卖",
   },
   order_book_migration: {
-    label: "Order Book Migration",
+    label: "订单簿迁移",
     shortLabel: "OBM",
     family: "migration",
-    familyLabel: "Migration",
+    familyLabel: "迁移",
   },
   order_book_migration_layered: {
-    label: "Order Book Migration Layered",
+    label: "分层订单簿迁移",
     shortLabel: "OBL",
     family: "migration",
-    familyLabel: "Migration",
+    familyLabel: "迁移",
   },
   order_book_migration_accelerated: {
-    label: "Order Book Migration Accelerated",
+    label: "加速订单簿迁移",
     shortLabel: "OBA",
     family: "migration",
-    familyLabel: "Migration",
+    familyLabel: "迁移",
   },
   microstructure_confluence: {
-    label: "Microstructure Confluence",
+    label: "微结构共振",
     shortLabel: "MCF",
     family: "confluence",
-    familyLabel: "Confluence",
+    familyLabel: "共振",
   },
   auction_trap_reversal: {
-    label: "Auction Trap Reversal",
+    label: "拍卖陷阱反转",
     shortLabel: "TRP",
     family: "composite",
-    familyLabel: "Composite",
+    familyLabel: "复合",
   },
   liquidity_ladder_breakout: {
-    label: "Liquidity Ladder Breakout",
+    label: "流动性阶梯突破",
     shortLabel: "LLB",
     family: "composite",
-    familyLabel: "Composite",
+    familyLabel: "复合",
   },
   migration_auction_flip: {
-    label: "Migration Auction Flip",
+    label: "迁移拍卖翻转",
     shortLabel: "MAF",
     family: "composite",
-    familyLabel: "Composite",
+    familyLabel: "复合",
   },
   absorption_reload_continuation: {
-    label: "Absorption Reload Continuation",
+    label: "吸收回补延续",
     shortLabel: "ARC",
     family: "composite",
-    familyLabel: "Composite",
+    familyLabel: "复合",
   },
   exhaustion_migration_reversal: {
-    label: "Exhaustion Migration Reversal",
+    label: "衰竭迁移反转",
     shortLabel: "EMR",
     family: "composite",
-    familyLabel: "Composite",
+    familyLabel: "复合",
   },
 };

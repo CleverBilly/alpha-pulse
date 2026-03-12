@@ -22,15 +22,15 @@ describe("EvidenceRail", () => {
 
     render(<EvidenceRail />);
 
-    expect(screen.getByRole("heading", { name: "Evidence Chain" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Order Flow" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Liquidity" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Structure & Microstructure" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "证据链" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "订单流" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "流动性" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "结构与微结构" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "查看信号深页" })).toHaveAttribute("href", "/signals");
     expect(screen.getByRole("link", { name: "查看市场深页" })).toHaveAttribute("href", "/market");
     expect(screen.getByRole("link", { name: "查看图表深页" })).toHaveAttribute("href", "/chart");
-    expect(screen.getByText("Delta")).toBeInTheDocument();
-    expect(screen.getByText("Imbalance")).toBeInTheDocument();
-    expect(screen.getByText("Trend")).toBeInTheDocument();
+    expect(screen.getByText("净差")).toBeInTheDocument();
+    expect(screen.getByText("盘口失衡")).toBeInTheDocument();
+    expect(screen.getByText("趋势")).toBeInTheDocument();
   });
 });

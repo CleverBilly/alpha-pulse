@@ -7,7 +7,7 @@ test("review route shows alert replay and live signal context", async ({ page })
   await mockMarketSnapshotApi(page);
   await page.goto("/review");
 
-  await expect(page.getByRole("heading", { name: "Alert Review Board" })).toBeVisible();
-  await expect(page.getByText("Live Signal Context")).toBeVisible();
-  await expect(page.getByText("Decision Memo")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "告警复盘看板" })).toBeVisible();
+  await expect(page.getByText("实时信号上下文")).toBeVisible();
+  await expect(page.getByText("决策备忘")).toBeVisible();
 });

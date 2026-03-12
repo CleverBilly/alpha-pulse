@@ -14,6 +14,7 @@ import { Button, Drawer, Layout, Menu, Tag, Typography, Grid, type MenuProps } f
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import AlertCenter from "@/components/alerts/AlertCenter";
+import { formatSignalAction } from "@/lib/uiLabels";
 import { authApi } from "@/services/apiClient";
 import { useMarketStore } from "@/store/marketStore";
 
@@ -21,22 +22,22 @@ const NAV_ITEMS = [
   {
     key: "/dashboard",
     icon: <DashboardOutlined />,
-    label: "Dashboard",
+    label: "驾驶舱",
   },
   {
     key: "/chart",
     icon: <LineChartOutlined />,
-    label: "Chart",
+    label: "图表",
   },
   {
     key: "/review",
     icon: <ThunderboltOutlined />,
-    label: "Review",
+    label: "复盘",
   },
   {
     key: "/market",
     icon: <BarChartOutlined />,
-    label: "Market",
+    label: "市场",
   },
 ] as const;
 
@@ -86,7 +87,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <span className="app-shell__brand-mark">AP</span>
             <span>
               <strong>Alpha Pulse</strong>
-              <small>Futures Direction Copilot</small>
+              <small>合约方向副驾驶</small>
             </span>
           </Link>
 
@@ -95,13 +96,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
           {screens.md ? (
             <div className="app-shell__status">
               <span className="app-shell__status-chip app-shell__status-chip--muted">
-                {String(selectedItem?.label ?? "Dashboard")}
+                {String(selectedItem?.label ?? "驾驶舱")}
               </span>
               <span className="app-shell__status-chip">
                 {symbol} · {interval}
               </span>
               <span className={`app-shell__status-chip ${resolveSignalClassName(signal?.signal)}`}>
-                {signal?.signal ?? "NEUTRAL"}
+                {formatSignalAction(signal?.signal)}
               </span>
               {screens.xl ? (
                 <span className="app-shell__status-chip app-shell__status-chip--dim">
@@ -135,7 +136,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <Button
                 type="default"
                 icon={<MenuOutlined />}
-                aria-label="Open navigation"
+                aria-label="打开导航"
                 onClick={() => setDrawerOpen(true)}
                 className="!border-white/40 !bg-white/75 !backdrop-blur"
               />
@@ -149,7 +150,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <div className="app-shell__container">{children}</div>
       </Layout.Content>
 
-      <nav className="app-shell__quicknav" aria-label="Quick navigation">
+      <nav className="app-shell__quicknav" aria-label="快捷导航">
         {NAV_ITEMS.map((item) => {
           const key = String(item?.key ?? "");
           const active = key === selectedKey;
@@ -177,7 +178,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         className="app-shell__drawer"
       >
         <div className="app-shell__drawer-head">
-          <Typography.Text className="!font-semibold !text-slate-900">Navigate</Typography.Text>
+          <Typography.Text className="!font-semibold !text-slate-900">页面导航</Typography.Text>
           <Tag color="cyan">V2.0</Tag>
         </div>
         {menu}
@@ -209,17 +210,17 @@ function formatSnapshotMeta(
   transport: "idle" | "websocket" | "polling",
   status: "idle" | "connecting" | "live" | "fallback" | "error",
 ) {
-  const modeLabel = mode === "force" ? "Force" : mode === "cache" ? "Cache" : "Idle";
+  const modeLabel = mode === "force" ? "强制" : mode === "cache" ? "缓存" : "空闲";
   const transportLabel =
     status === "live" && transport === "websocket"
-      ? "WS"
+      ? "实时 WS"
       : transport === "polling"
-        ? "HTTP"
+        ? "HTTP 轮询"
         : status === "connecting"
-          ? "Dialing"
-          : "Idle";
+          ? "连接中"
+          : "空闲";
   if (!updatedAt || !Number.isFinite(updatedAt)) {
-    return `${transportLabel} · waiting`;
+    return `${transportLabel} · 等待中`;
   }
 
   const timeLabel = new Date(updatedAt).toLocaleTimeString("zh-CN", {

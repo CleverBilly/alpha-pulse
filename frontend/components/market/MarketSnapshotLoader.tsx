@@ -87,7 +87,7 @@ export default function MarketSnapshotLoader() {
       }
 
       if (typeof WebSocket !== "function") {
-        handleStreamFallback("Browser does not support WebSocket");
+        handleStreamFallback("当前浏览器不支持 WebSocket");
         return;
       }
 
@@ -103,7 +103,7 @@ export default function MarketSnapshotLoader() {
 
       handshakeTimer = setTimeout(() => {
         if (!hasStreamSnapshot) {
-          handleStreamFallback("WebSocket handshake timed out");
+          handleStreamFallback("WebSocket 握手超时");
         }
       }, STREAM_HANDSHAKE_TIMEOUT_MS);
 
@@ -126,7 +126,7 @@ export default function MarketSnapshotLoader() {
         }
 
         if (payload.type === "error") {
-          const reason = payload.error || "WebSocket stream returned an error";
+          const reason = payload.error || "WebSocket 推流返回错误";
           if (hasStreamSnapshot) {
             setStreamState("error", "websocket", reason);
           } else {
@@ -140,9 +140,9 @@ export default function MarketSnapshotLoader() {
           return;
         }
         if (!hasStreamSnapshot) {
-          handleStreamFallback("WebSocket connection failed");
+          handleStreamFallback("WebSocket 连接失败");
         } else {
-          setStreamState("error", "websocket", "WebSocket connection interrupted");
+          setStreamState("error", "websocket", "WebSocket 连接中断");
         }
       };
 
@@ -151,7 +151,7 @@ export default function MarketSnapshotLoader() {
           return;
         }
         clearHandshakeTimer();
-        handleStreamFallback(hasStreamSnapshot ? "WebSocket closed, fallback to polling" : "WebSocket unavailable");
+        handleStreamFallback(hasStreamSnapshot ? "WebSocket 已关闭，切回轮询" : "WebSocket 当前不可用");
       };
     };
 
@@ -188,5 +188,5 @@ function formatStreamError(error: unknown) {
   if (error instanceof Error) {
     return error.message;
   }
-  return "Unknown WebSocket error";
+  return "未知 WebSocket 错误";
 }

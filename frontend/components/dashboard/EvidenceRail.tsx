@@ -14,11 +14,11 @@ export default function EvidenceRail() {
   });
 
   return (
-    <section className="dashboard-evidence" aria-label="Evidence Chain">
+    <section className="dashboard-evidence" aria-label="证据链">
       <div className="dashboard-evidence__header">
         <div>
           <p className="dashboard-evidence__eyebrow">证据链</p>
-          <h2 className="dashboard-evidence__title">Evidence Chain</h2>
+          <h2 className="dashboard-evidence__title">证据链</h2>
         </div>
         <p className="dashboard-evidence__description">只保留最影响短线判断的三组证据，并直接跳转到各自深页。</p>
       </div>
@@ -30,7 +30,7 @@ export default function EvidenceRail() {
               <div>
                 <h3 className="dashboard-evidence__card-title">{card.title}</h3>
                 <p className={`dashboard-evidence__state dashboard-evidence__state--${card.tone}`}>
-                  {card.status === "ready" ? "Ready" : "Unavailable"}
+                  {card.status === "ready" ? "已就绪" : "暂不可用"}
                 </p>
               </div>
               <Link href={card.href} className="dashboard-evidence__link">
@@ -50,7 +50,7 @@ export default function EvidenceRail() {
                 ))
               ) : (
                 <div className="dashboard-evidence__metric dashboard-evidence__metric--empty">
-                  <span>Waiting</span>
+                  <span>等待中</span>
                   <strong>--</strong>
                 </div>
               )}

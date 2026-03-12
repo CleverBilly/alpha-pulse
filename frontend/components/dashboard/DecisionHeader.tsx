@@ -1,6 +1,7 @@
 "use client";
 
 import { Tag } from "antd";
+import { formatTrendBiasLabel } from "@/lib/uiLabels";
 import { MARKET_INTERVALS, MARKET_SYMBOLS } from "@/types/market";
 import { useMarketStore } from "@/store/marketStore";
 import { buildDashboardDecision, buildDirectionCopilotDecision, type DashboardTone } from "./dashboardViewModel";
@@ -49,7 +50,7 @@ export default function DecisionHeader() {
   const issue = error || streamError || directionError;
 
   return (
-    <section className="dashboard-decision surface-panel surface-panel--control" aria-label="Decision Header">
+    <section className="dashboard-decision surface-panel surface-panel--control" aria-label="决策头部">
       <div className="dashboard-decision__summary">
         <div className="dashboard-decision__eyebrow-row">
           <p className="dashboard-decision__eyebrow">当前判断</p>
@@ -66,7 +67,7 @@ export default function DecisionHeader() {
             <p className="dashboard-decision__description">{issue || decision.summary}</p>
           </div>
           <div className={`dashboard-decision__confidence dashboard-decision__confidence--${decision.tone}`}>
-            <span>Confidence</span>
+            <span>置信度</span>
             <strong>{decision.confidence.toFixed(0)}%</strong>
           </div>
         </div>
@@ -102,13 +103,13 @@ export default function DecisionHeader() {
             <strong>{interval}</strong>
           </div>
           <div className="dashboard-decision__price">{loading && !price ? "..." : `$${price?.price.toFixed(2) ?? "-"}`}</div>
-          <p className="dashboard-decision__quote-sub">{signal?.trend_bias ?? "neutral"} bias</p>
+          <p className="dashboard-decision__quote-sub">{formatTrendBiasLabel(signal?.trend_bias)}偏向</p>
         </div>
 
         <div className="dashboard-decision__controls">
           <div className="dashboard-decision__control-box">
             <label htmlFor="dashboard-symbol-select" className="dashboard-decision__control-label">
-              Symbol
+              标的
             </label>
             <div className="dashboard-decision__control-row">
               <select
@@ -116,7 +117,7 @@ export default function DecisionHeader() {
                 value={symbol}
                 onChange={(event) => setSymbol(event.target.value)}
                 className="dashboard-decision__select"
-                aria-label="Symbol"
+                aria-label="标的"
               >
                 {MARKET_SYMBOLS.map((item) => (
                   <option key={item} value={item}>
@@ -136,7 +137,7 @@ export default function DecisionHeader() {
             </div>
           </div>
 
-          <div className="dashboard-decision__intervals" aria-label="Interval switcher">
+          <div className="dashboard-decision__intervals" aria-label="周期切换">
             {MARKET_INTERVALS.map((item) => {
               const active = item === interval;
               return (
@@ -180,23 +181,23 @@ function formatFeed(
   transport: "idle" | "websocket" | "polling",
 ) {
   if (status === "live" && transport === "websocket") {
-    return "Realtime WS";
+    return "实时 WS";
   }
   if (status === "connecting") {
-    return "Connecting";
+    return "连接中";
   }
   if (transport === "polling" || status === "fallback") {
-    return "HTTP Polling";
+    return "HTTP 轮询";
   }
   if (status === "error") {
-    return "Stream Issue";
+    return "数据流异常";
   }
-  return "Waiting";
+  return "等待同步";
 }
 
 function formatUpdated(timestamp: number | null) {
   if (!timestamp || !Number.isFinite(timestamp)) {
-    return "Not synced";
+    return "未同步";
   }
 
   return new Date(timestamp).toLocaleTimeString("zh-CN", {

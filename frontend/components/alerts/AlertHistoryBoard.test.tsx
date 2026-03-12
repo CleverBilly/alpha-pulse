@@ -48,12 +48,12 @@ describe("AlertHistoryBoard", () => {
       expect(mockedAlertApi.getAlertHistory).toHaveBeenCalledWith(60);
     });
 
-    expect(screen.getByText("BTCUSDT A 级 setup 已就绪")).toBeInTheDocument();
-    expect(screen.queryByText("ETHUSDT A 级 setup 已就绪")).not.toBeInTheDocument();
+    expect(screen.getByText("BTCUSDT A 级机会已就绪")).toBeInTheDocument();
+    expect(screen.queryByText("ETHUSDT A 级机会已就绪")).not.toBeInTheDocument();
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "全部历史" }));
-    expect(screen.getByText("ETHUSDT A 级 setup 已就绪")).toBeInTheDocument();
+    expect(screen.getByText("ETHUSDT A 级机会已就绪")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /重新评估告警/ }));
     await waitFor(() => {
@@ -68,7 +68,7 @@ function buildMockAlert(symbol: string) {
     symbol,
     kind: "setup_ready",
     severity: "A",
-    title: `${symbol} A 级 setup 已就绪`,
+    title: `${symbol} A 级机会已就绪`,
     verdict: "强偏多",
     tradeability_label: "A 级可跟踪",
     summary: "4h 与 1h 已经对齐，15m 触发也站在同一边。",

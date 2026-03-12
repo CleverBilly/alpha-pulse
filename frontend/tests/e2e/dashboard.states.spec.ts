@@ -26,8 +26,8 @@ test("dashboard shows loading state on weak network", async ({ page }) => {
   await page.goto("/dashboard");
   await expect(page.getByText("加载中...").first()).toBeVisible();
   await expect(page.getByText("当前判断")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Execution Setup" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Kline Chart" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "执行方案" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "K 线图" })).toBeVisible();
   await expect(page.getByRole("button", { name: "等待 setup 完整" })).toBeVisible();
 });
 

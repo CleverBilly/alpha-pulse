@@ -146,14 +146,14 @@ export default function AlertCenter() {
           icon={<BellOutlined />}
           onClick={() => setOpen(true)}
           className="!rounded-full !border-slate-200 !bg-white/85"
-          aria-label="Open alert center"
+          aria-label="打开告警中心"
         >
-          Alerts
+          告警
         </Button>
       </Badge>
 
       <Drawer
-        title="Alert Center"
+        title="告警中心"
         placement="right"
         open={open}
         onClose={() => setOpen(false)}
@@ -162,7 +162,7 @@ export default function AlertCenter() {
       >
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Tag color="gold">A 级 setup</Tag>
+            <Tag color="gold">A 级机会</Tag>
             <Tag color={permissionTagColor(permission)}>{permissionLabel(permission)}</Tag>
             {preferences ? (
               <>
@@ -332,5 +332,5 @@ function formatError(error: unknown) {
   if (error instanceof Error) {
     return error.message;
   }
-  return "请求 alert center 失败";
+  return "请求告警中心失败";
 }

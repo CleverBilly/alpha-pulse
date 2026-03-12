@@ -209,7 +209,7 @@ describe("dashboardViewModel", () => {
     expect(decision.state).toBe("invalid");
     expect(decision.verdict).toBe("当前禁止交易");
     expect(decision.tradable).toBe(false);
-    expect(decision.tradeabilityLabel).toBe("No-Trade");
+    expect(decision.tradeabilityLabel).toBe("禁止交易");
     expect(setup.status).toBe("unavailable");
     expect(setup.reason).toContain("4h 与 1h");
   });
@@ -234,7 +234,7 @@ describe("dashboardViewModel", () => {
     });
 
     expect(decision.state).toBe("invalid");
-    expect(decision.tradeabilityLabel).toBe("No-Trade");
+    expect(decision.tradeabilityLabel).toBe("禁止交易");
     expect(decision.summary).toContain("5m 执行触发开始反着 15m 走");
     expect(decision.timeframeLabels).toEqual(["4h 强偏多", "1h 强偏多", "15m 强偏多", "5m 偏空"]);
   });

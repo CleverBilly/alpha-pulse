@@ -74,10 +74,10 @@ export default function AlertHistoryBoard() {
       <Card variant="borderless" className="surface-card surface-card--paper">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700">Replay</p>
-            <h2 className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-slate-950">Alert Review Board</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700">复盘</p>
+            <h2 className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-slate-950">告警复盘看板</h2>
             <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-              把 A 级 setup、No-Trade 和方向切换落成可回看的历史，先看少数真正值得处理的机会，再回看它们为什么出现。
+              把 A 级机会、禁止交易和方向切换落成可回看的历史，先看少数真正值得处理的机会，再回看它们为什么出现。
             </p>
           </div>
 
@@ -117,14 +117,14 @@ export default function AlertHistoryBoard() {
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <Tag color="processing">{scope === "current" ? `过滤 ${symbol}` : "过滤全部标的"}</Tag>
-          <Tag color="gold">最近 {HISTORY_LIMIT} 条历史</Tag>
+          <Tag color="gold">最近 {HISTORY_LIMIT} 条记录</Tag>
           {error ? <Tag color="error">{error}</Tag> : null}
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard label="历史告警" value={String(summary.total)} detail="当前过滤范围内" />
-          <SummaryCard label="A 级 setup" value={String(summary.setupReady)} detail="优先关注的机会" />
-          <SummaryCard label="No-Trade" value={String(summary.noTrade)} detail="被系统挡掉的时刻" />
+          <SummaryCard label="A 级机会" value={String(summary.setupReady)} detail="优先关注的机会" />
+          <SummaryCard label="禁止交易" value={String(summary.noTrade)} detail="被系统挡掉的时刻" />
           <SummaryCard label="最近一条" value={summary.latestLabel} detail="可直接回看原因链" />
         </div>
 
@@ -167,5 +167,5 @@ function formatError(error: unknown) {
   if (error instanceof Error) {
     return error.message;
   }
-  return "请求 alert history 失败";
+  return "请求告警历史失败";
 }

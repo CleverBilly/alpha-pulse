@@ -39,7 +39,7 @@ export default function AlertConfigPanel({
   return (
     <Modal
       open={open}
-      title="Alert Config Center"
+      title="告警配置中心"
       okText="保存配置"
       cancelText="关闭"
       confirmLoading={saving}
@@ -79,7 +79,7 @@ export default function AlertConfigPanel({
             />
             <Row
               label="浏览器通知"
-              description="关闭后 Alert Center 仍保留 feed，但不会弹桌面提醒。"
+              description="关闭后告警中心仍保留 feed，但不会弹桌面提醒。"
               control={
                 <Switch
                   checked={current.browser_enabled}
@@ -98,7 +98,7 @@ export default function AlertConfigPanel({
               checked={current.setup_ready_enabled}
               onChange={(event) => setDraft({ ...current, setup_ready_enabled: event.target.checked })}
             >
-              A 级 setup
+              A 级机会
             </Checkbox>
             <Checkbox
               checked={current.direction_shift_enabled}
@@ -110,7 +110,7 @@ export default function AlertConfigPanel({
               checked={current.no_trade_enabled}
               onChange={(event) => setDraft({ ...current, no_trade_enabled: event.target.checked })}
             >
-              No-Trade
+              禁止交易
             </Checkbox>
           </section>
 
@@ -121,7 +121,7 @@ export default function AlertConfigPanel({
             </div>
 
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Symbols</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">标的</p>
               <Checkbox.Group
                 className="mt-3 flex flex-wrap gap-3"
                 value={current.symbols}
@@ -135,7 +135,7 @@ export default function AlertConfigPanel({
 
             <div>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Minimum Confidence</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">最低置信度</p>
                 <span className="text-sm font-semibold text-slate-950">{current.minimum_confidence}%</span>
               </div>
               <Slider
@@ -162,7 +162,7 @@ export default function AlertConfigPanel({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Start</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">开始</p>
                 <Select
                   className="mt-2 w-full"
                   value={current.quiet_hours_start}
@@ -172,7 +172,7 @@ export default function AlertConfigPanel({
                 />
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">End</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">结束</p>
                 <Select
                   className="mt-2 w-full"
                   value={current.quiet_hours_end}

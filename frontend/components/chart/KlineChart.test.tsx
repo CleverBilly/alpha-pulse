@@ -22,10 +22,10 @@ describe("KlineChart", () => {
 
     render(<KlineChart />);
 
-    expect(screen.getByText("Kline Chart")).toBeInTheDocument();
-    expect(screen.getAllByText("Signal Entry").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Buy Liquidity").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Int Support").length).toBeGreaterThan(0);
+    expect(screen.getByText("K 线图")).toBeInTheDocument();
+    expect(screen.getAllByText("信号进场").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("买方流动性").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("内部支撑").length).toBeGreaterThan(0);
     expect(screen.getByText("HH")).toBeInTheDocument();
     expect(screen.getByText("iHL")).toBeInTheDocument();
     expect(screen.getByText("BOS")).toBeInTheDocument();
@@ -44,18 +44,18 @@ describe("KlineChart", () => {
     expect(screen.queryByText("ARC")).not.toBeInTheDocument();
     expect(screen.queryByText("EMR")).not.toBeInTheDocument();
     expect(screen.queryByText("MCF")).not.toBeInTheDocument();
-    expect(screen.getByText("Events")).toBeInTheDocument();
-    expect(screen.getByText("Struct Tier")).toBeInTheDocument();
-    expect(screen.getByText("uptrend")).toBeInTheDocument();
-    expect(screen.getByText("external")).toBeInTheDocument();
+    expect(screen.getByText("结构事件")).toBeInTheDocument();
+    expect(screen.getByText("结构层级")).toBeInTheDocument();
+    expect(screen.getByText("上升趋势")).toBeInTheDocument();
+    expect(screen.getByText("外部")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Initiative Shift" }));
-    await user.click(screen.getByRole("button", { name: "Large Trade Cluster" }));
-    await user.click(screen.getByRole("button", { name: "Reload / Exhaustion" }));
-    await user.click(screen.getByRole("button", { name: "Failed Auction" }));
-    await user.click(screen.getByRole("button", { name: "Order Book Migration" }));
-    await user.click(screen.getByRole("button", { name: "Composite Patterns" }));
-    await user.click(screen.getByRole("button", { name: "Microstructure Confluence" }));
+    await user.click(screen.getByRole("button", { name: "主动性切换" }));
+    await user.click(screen.getByRole("button", { name: "大单簇" }));
+    await user.click(screen.getByRole("button", { name: "回补 / 衰竭" }));
+    await user.click(screen.getByRole("button", { name: "失败拍卖" }));
+    await user.click(screen.getByRole("button", { name: "订单簿迁移" }));
+    await user.click(screen.getByRole("button", { name: "复合形态" }));
+    await user.click(screen.getByRole("button", { name: "微结构共振" }));
 
     expect(screen.getByText("SHF")).toBeInTheDocument();
     expect(screen.getByText("LTC")).toBeInTheDocument();
@@ -70,16 +70,16 @@ describe("KlineChart", () => {
     expect(screen.getByText("EMR")).toBeInTheDocument();
     expect(screen.getByText("MCF")).toBeInTheDocument();
 
-    await user.hover(screen.getByRole("button", { name: "Micro ABS Absorption" }));
-    expect(screen.getByText("Absorption · ABS")).toBeInTheDocument();
-    expect(screen.getByText("BULLISH | score +5")).toBeInTheDocument();
+    await user.hover(screen.getByRole("button", { name: "微结构 ABS 吸收" }));
+    expect(screen.getByText("吸收 · ABS")).toBeInTheDocument();
+    expect(screen.getByText("多头 | 评分 +5")).toBeInTheDocument();
     expect(screen.getAllByText("卖压被持续吸收，价格未继续下破").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: /EMA20/i }));
-    expect(screen.getByText("Indicator Stack")).toBeInTheDocument();
+    expect(screen.getByText("指标图层")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Micro ABS Absorption" }));
-    expect(screen.getByText("Pinned")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "微结构 ABS 吸收" }));
+    expect(screen.getByText("已固定")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "更新K线" }));
     expect(refreshDashboard).toHaveBeenCalledTimes(1);

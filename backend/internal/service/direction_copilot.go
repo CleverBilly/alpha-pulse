@@ -186,7 +186,7 @@ func buildNoTradeDecision(summary string, reasons []string, confidence int, time
 		Confidence:        boundedInt(confidence, 0, 100),
 		RiskLabel:         "高风险",
 		Tradable:          false,
-		TradeabilityLabel: "No-Trade",
+		TradeabilityLabel: "禁止交易",
 		TimeframeLabels:   timeframeLabels,
 	}
 }

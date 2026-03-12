@@ -1,6 +1,13 @@
 "use client";
 
 import { Button, Card, Tag, Typography } from "antd";
+import {
+  formatAbsorptionBiasLabel,
+  formatBiasLabel,
+  formatIcebergBiasLabel,
+  formatMicrostructureEventTypeLabel,
+  formatTradeSide,
+} from "@/lib/uiLabels";
 import { useMarketStore } from "@/store/marketStore";
 
 export default function OrderFlowPanel() {
@@ -17,7 +24,7 @@ export default function OrderFlowPanel() {
       >
         <div className="mb-5 flex items-center justify-between gap-3">
           <Typography.Title level={3} className="!mb-0 !text-[24px] !tracking-[-0.03em]">
-            Order Flow
+            订单流
           </Typography.Title>
           <Button
             onClick={() => {
@@ -32,21 +39,27 @@ export default function OrderFlowPanel() {
         {orderFlow ? (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <Metric label="Buy Volume" value={orderFlow.buy_volume} accent="emerald" />
-              <Metric label="Sell Volume" value={orderFlow.sell_volume} accent="rose" />
-              <Metric label="Delta" value={orderFlow.delta} accent="teal" />
+              <Metric label="买入量" value={orderFlow.buy_volume} accent="emerald" />
+              <Metric label="卖出量" value={orderFlow.sell_volume} accent="rose" />
+              <Metric label="净差" value={orderFlow.delta} accent="teal" />
               <Metric label="CVD" value={orderFlow.cvd} />
-              <Metric label="Large Buy" value={orderFlow.buy_large_trade_notional} accent="emerald" />
-              <Metric label="Large Sell" value={orderFlow.sell_large_trade_notional} accent="rose" />
-              <Metric label="Absorption" value={orderFlow.absorption_strength} digits={3} accent="amber" />
-              <Metric label="Iceberg" value={orderFlow.iceberg_strength} digits={3} accent="violet" />
+              <Metric label="大额买入" value={orderFlow.buy_large_trade_notional} accent="emerald" />
+              <Metric label="大额卖出" value={orderFlow.sell_large_trade_notional} accent="rose" />
+              <Metric label="吸收强度" value={orderFlow.absorption_strength} digits={3} accent="amber" />
+              <Metric label="冰山强度" value={orderFlow.iceberg_strength} digits={3} accent="violet" />
             </div>
 
             <div className="rounded-[26px] border border-slate-100 bg-slate-50/80 p-4">
               <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-                <ToneTag label={`Source: ${orderFlow.data_source || "unknown"}`} color="blue" />
-                <ToneTag label={`Absorption: ${orderFlow.absorption_bias || "none"}`} color={flowTone(orderFlow.absorption_bias)} />
-                <ToneTag label={`Iceberg: ${orderFlow.iceberg_bias || "none"}`} color={flowTone(orderFlow.iceberg_bias)} />
+                <ToneTag label={`数据源：${orderFlow.data_source || "未知"}`} color="blue" />
+                <ToneTag
+                  label={`吸收：${formatAbsorptionBiasLabel(orderFlow.absorption_bias)}`}
+                  color={flowTone(orderFlow.absorption_bias)}
+                />
+                <ToneTag
+                  label={`冰山：${formatIcebergBiasLabel(orderFlow.iceberg_bias)}`}
+                  color={flowTone(orderFlow.iceberg_bias)}
+                />
               </div>
               {largeTrades.length > 0 ? (
                 <div className="space-y-2">
@@ -56,7 +69,7 @@ export default function OrderFlowPanel() {
                       className="flex items-center justify-between rounded-[20px] border border-slate-100 bg-white px-3 py-3 text-xs shadow-[0_10px_24px_rgba(32,42,63,0.04)]"
                     >
                       <span className={trade.side === "buy" ? "text-positive" : "text-negative"}>
-                        {trade.side.toUpperCase()}
+                        {formatTradeSide(trade.side)}
                       </span>
                       <span>{trade.price.toFixed(2)}</span>
                       <span>{trade.notional.toFixed(0)} USDT</span>
@@ -70,9 +83,9 @@ export default function OrderFlowPanel() {
 
             <div className="rounded-[26px] border border-slate-100 bg-slate-50/80 p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h4 className="text-sm font-semibold text-slate-900">Microstructure Events</h4>
+                <h4 className="text-sm font-semibold text-slate-900">微结构事件</h4>
                 <span className="text-xs text-slate-500">
-                  {microEvents.length} items
+                  {microEvents.length} 条
                 </span>
               </div>
               {microEvents.length > 0 ? (
@@ -85,7 +98,7 @@ export default function OrderFlowPanel() {
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
                           <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${eventTone(event.bias)}`}>
-                            {event.bias}
+                            {formatBiasLabel(event.bias)}
                           </span>
                           <span className="text-sm font-semibold text-slate-900">
                             {formatEventType(event.type)}
@@ -97,8 +110,8 @@ export default function OrderFlowPanel() {
                       </div>
                       <p className="mt-2 text-xs leading-5 text-slate-600">{event.detail}</p>
                       <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-                        <span>price {event.price.toFixed(2)}</span>
-                        <span>strength {event.strength.toFixed(2)}</span>
+                        <span>价格 {event.price.toFixed(2)}</span>
+                        <span>强度 {event.strength.toFixed(2)}</span>
                         <span>{formatEventTime(event.trade_time)}</span>
                       </div>
                     </div>
@@ -174,10 +187,7 @@ function flowTone(value?: string) {
 }
 
 function formatEventType(value: string) {
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  return formatMicrostructureEventTypeLabel(value);
 }
 
 function formatEventTime(timestamp: number) {

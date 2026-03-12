@@ -12,7 +12,7 @@ func TestBuildDirectionCopilotDecisionReturnsNoTradeWhen5mConflicts(t *testing.T
 	if decision.Tradable {
 		t.Fatalf("expected 5m conflict to downgrade tradability, got=%+v", decision)
 	}
-	if decision.TradeabilityLabel != "No-Trade" {
+	if decision.TradeabilityLabel != "禁止交易" {
 		t.Fatalf("expected no-trade label, got=%s", decision.TradeabilityLabel)
 	}
 	if len(decision.TimeframeLabels) != 4 || decision.TimeframeLabels[3] != "5m 偏空" {

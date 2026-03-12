@@ -3,6 +3,14 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useMemo, useState } from "react";
 import { Tag, Typography } from "antd";
+import {
+  formatBiasLabel,
+  formatMicrostructureEventTypeLabel,
+  formatSignalAction,
+  formatStructureTierLabel,
+  formatSweepLabel,
+  formatTrendLabel,
+} from "@/lib/uiLabels";
 import { useMarketStore } from "@/store/marketStore";
 import {
   IndicatorSeriesPoint,
@@ -24,26 +32,26 @@ const PADDING_BOTTOM = 36;
 const PADDING_LEFT = 18;
 const PRIMARY_MICROSTRUCTURE_TYPES = ["absorption", "iceberg", "aggression_burst"] as const;
 const SECONDARY_MICROSTRUCTURE_LAYERS = [
-  { key: "initiative_shift", label: "Initiative Shift", types: ["initiative_shift"] },
-  { key: "large_trade_cluster", label: "Large Trade Cluster", types: ["large_trade_cluster"] },
+  { key: "initiative_shift", label: "主动性切换", types: ["initiative_shift"] },
+  { key: "large_trade_cluster", label: "大单簇", types: ["large_trade_cluster"] },
   {
     key: "reload_exhaustion",
-    label: "Reload / Exhaustion",
+    label: "回补 / 衰竭",
     types: ["iceberg_reload", "initiative_exhaustion"],
   },
   {
     key: "failed_auction",
-    label: "Failed Auction",
+    label: "失败拍卖",
     types: ["failed_auction", "failed_auction_high_reject", "failed_auction_low_reclaim"],
   },
   {
     key: "order_book_migration",
-    label: "Order Book Migration",
+    label: "订单簿迁移",
     types: ["order_book_migration", "order_book_migration_layered", "order_book_migration_accelerated"],
   },
   {
     key: "composite_patterns",
-    label: "Composite Patterns",
+    label: "复合形态",
     types: [
       "auction_trap_reversal",
       "liquidity_ladder_breakout",
@@ -52,7 +60,7 @@ const SECONDARY_MICROSTRUCTURE_LAYERS = [
       "exhaustion_migration_reversal",
     ],
   },
-  { key: "microstructure_confluence", label: "Microstructure Confluence", types: ["microstructure_confluence"] },
+  { key: "microstructure_confluence", label: "微结构共振", types: ["microstructure_confluence"] },
 ] as const;
 
 type SecondaryLayerKey = (typeof SECONDARY_MICROSTRUCTURE_LAYERS)[number]["key"];
@@ -141,7 +149,7 @@ export default function KlineChart() {
     ? buildMicrostructureTooltip(activeMicrostructureMarker)
     : null;
   const legendOpacity = (key: LegendFocusKey) => (focusedLegendKey === null || focusedLegendKey === key ? 1 : 0.16);
-  const highlightedLegendLabel = focusedLegendKey ? resolveLegendFocusLabel(focusedLegendKey) : "All layers";
+  const highlightedLegendLabel = focusedLegendKey ? resolveLegendFocusLabel(focusedLegendKey) : "全部图层";
 
   return (
     <section>
@@ -149,7 +157,7 @@ export default function KlineChart() {
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <Typography.Title level={3} className="!mb-0 !text-[24px] !tracking-[-0.03em]">
-              Kline Chart
+              K 线图
             </Typography.Title>
             <p className="mt-2 text-sm text-muted">
               48 根 K 线，叠加结构点、动态支撑阻力、流动性轨迹、信号位与多指标
@@ -174,7 +182,7 @@ export default function KlineChart() {
         {visibleKlines.length > 0 ? (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <Tag>Core Layers: ABS / ICE / AGR</Tag>
+              <Tag>核心图层：ABS / ICE / AGR</Tag>
               {SECONDARY_MICROSTRUCTURE_LAYERS.map((layer) => (
                 <LayerToggle
                   key={layer.key}
@@ -434,7 +442,7 @@ export default function KlineChart() {
                       fill="transparent"
                       role="button"
                       tabIndex={0}
-                      aria-label={`Candle ${formatCandleAriaLabel(visibleKlines[index])}`}
+                      aria-label={`K线 ${formatCandleAriaLabel(visibleKlines[index])}`}
                       onMouseEnter={() => setHoveredCandleIndex(index)}
                       onMouseLeave={() => setHoveredCandleIndex((value) => (value === index ? null : value))}
                       onFocus={() => setHoveredCandleIndex(index)}
@@ -444,7 +452,7 @@ export default function KlineChart() {
                 ))}
 
                 {hoveredCandle && hoveredKline ? (
-                  <g pointerEvents="none" aria-label="Candle Hover Lens">
+                  <g pointerEvents="none" aria-label="K线悬浮镜">
                     <line
                       x1={hoveredCandle.x}
                       y1={PADDING_TOP}
@@ -526,7 +534,7 @@ export default function KlineChart() {
                         key={marker.key}
                         role="button"
                         tabIndex={0}
-                        aria-label={`Micro ${marker.label} ${formatMicrostructureEventType(marker.type)}`}
+                        aria-label={`微结构 ${marker.label} ${formatMicrostructureEventType(marker.type)}`}
                         className="cursor-pointer"
                         onMouseEnter={() => setHoveredMicrostructureMarkerKey(marker.key)}
                         onMouseLeave={() =>
@@ -575,7 +583,7 @@ export default function KlineChart() {
                   })}
 
                   {microstructureTooltip ? (
-                    <g pointerEvents="none" aria-label="Microstructure Tooltip">
+                    <g pointerEvents="none" aria-label="微结构提示">
                       <rect
                         x={microstructureTooltip.x}
                         y={microstructureTooltip.y}
@@ -659,9 +667,9 @@ export default function KlineChart() {
 
             <div className="flex flex-col gap-3 rounded-[24px] border border-slate-100 bg-white/82 px-4 py-3 shadow-[0_10px_24px_rgba(32,42,63,0.04)] md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Legend Focus</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">图例聚焦</p>
                 <p className="mt-2 text-sm text-slate-700">
-                  当前聚焦 <span className="font-semibold text-slate-950">{highlightedLegendLabel}</span>。点击 legend 可以隔离图层。
+                  当前聚焦 <span className="font-semibold text-slate-950">{highlightedLegendLabel}</span>。点击图例可以隔离图层。
                 </p>
               </div>
               <button
@@ -669,7 +677,7 @@ export default function KlineChart() {
                 onClick={() => setFocusedLegendKey(null)}
                 className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
               >
-                Reset View
+                重置视图
               </button>
             </div>
 
@@ -699,7 +707,7 @@ export default function KlineChart() {
                 onClick={() => toggleLegendFocus(setFocusedLegendKey, "indicators")}
               />
               <Legend
-                label="BB Upper"
+                label="布林上轨"
                 value={indicator?.bollinger_upper}
                 color="bg-sky-500"
                 focused={focusedLegendKey === "indicators"}
@@ -707,7 +715,7 @@ export default function KlineChart() {
                 onClick={() => toggleLegendFocus(setFocusedLegendKey, "indicators")}
               />
               <Legend
-                label="BB Mid"
+                label="布林中轨"
                 value={indicator?.bollinger_middle}
                 color="bg-slate-500"
                 focused={focusedLegendKey === "indicators"}
@@ -715,7 +723,7 @@ export default function KlineChart() {
                 onClick={() => toggleLegendFocus(setFocusedLegendKey, "indicators")}
               />
               <Legend
-                label="BB Lower"
+                label="布林下轨"
                 value={indicator?.bollinger_lower}
                 color="bg-cyan-400"
                 focused={focusedLegendKey === "indicators"}
@@ -723,7 +731,7 @@ export default function KlineChart() {
                 onClick={() => toggleLegendFocus(setFocusedLegendKey, "indicators")}
               />
               <Legend
-                label="Support"
+                label="支撑位"
                 value={structure?.support}
                 color="bg-emerald-700"
                 focused={focusedLegendKey === "structure"}
@@ -731,7 +739,7 @@ export default function KlineChart() {
                 onClick={() => toggleLegendFocus(setFocusedLegendKey, "structure")}
               />
               <Legend
-                label="Resistance"
+                label="阻力位"
                 value={structure?.resistance}
                 color="bg-rose-700"
                 focused={focusedLegendKey === "structure"}
@@ -739,7 +747,7 @@ export default function KlineChart() {
                 onClick={() => toggleLegendFocus(setFocusedLegendKey, "structure")}
               />
               <Legend
-                label="Int Support"
+                label="内部支撑"
                 value={structure?.internal_support}
                 color="bg-teal-500"
                 focused={focusedLegendKey === "structure"}
@@ -747,7 +755,7 @@ export default function KlineChart() {
                 onClick={() => toggleLegendFocus(setFocusedLegendKey, "structure")}
               />
               <Legend
-                label="Int Resistance"
+                label="内部阻力"
                 value={structure?.internal_resistance}
                 color="bg-pink-400"
                 focused={focusedLegendKey === "structure"}
@@ -755,7 +763,7 @@ export default function KlineChart() {
                 onClick={() => toggleLegendFocus(setFocusedLegendKey, "structure")}
               />
               <Legend
-                label="Buy Liquidity"
+                label="买方流动性"
                 value={liquidity?.buy_liquidity}
                 color="bg-teal-600"
                 focused={focusedLegendKey === "liquidity"}
@@ -763,7 +771,7 @@ export default function KlineChart() {
                 onClick={() => toggleLegendFocus(setFocusedLegendKey, "liquidity")}
               />
               <Legend
-                label="Sell Liquidity"
+                label="卖方流动性"
                 value={liquidity?.sell_liquidity}
                 color="bg-orange-500"
                 focused={focusedLegendKey === "liquidity"}
@@ -771,7 +779,7 @@ export default function KlineChart() {
                 onClick={() => toggleLegendFocus(setFocusedLegendKey, "liquidity")}
               />
               <Legend
-                label="Equal High"
+                label="等高点"
                 value={liquidity?.equal_high}
                 color="bg-amber-700"
                 focused={focusedLegendKey === "liquidity"}
@@ -779,7 +787,7 @@ export default function KlineChart() {
                 onClick={() => toggleLegendFocus(setFocusedLegendKey, "liquidity")}
               />
               <Legend
-                label="Equal Low"
+                label="等低点"
                 value={liquidity?.equal_low}
                 color="bg-cyan-700"
                 focused={focusedLegendKey === "liquidity"}
@@ -787,7 +795,7 @@ export default function KlineChart() {
                 onClick={() => toggleLegendFocus(setFocusedLegendKey, "liquidity")}
               />
               <Legend
-                label="Micro Events"
+                label="微结构事件"
                 value={String(chart.microstructureMarkers.length)}
                 color="bg-fuchsia-600"
                 focused={focusedLegendKey === "micro"}
@@ -797,7 +805,7 @@ export default function KlineChart() {
               {signal?.signal !== "NEUTRAL" ? (
                 <>
                   <Legend
-                    label="Signal Entry"
+                    label="信号进场"
                     value={signal?.entry_price}
                     color="bg-sky-700"
                     focused={focusedLegendKey === "signal"}
@@ -805,7 +813,7 @@ export default function KlineChart() {
                     onClick={() => toggleLegendFocus(setFocusedLegendKey, "signal")}
                   />
                   <Legend
-                    label="Signal Target"
+                    label="信号目标"
                     value={signal?.target_price}
                     color="bg-violet-700"
                     focused={focusedLegendKey === "signal"}
@@ -813,7 +821,7 @@ export default function KlineChart() {
                     onClick={() => toggleLegendFocus(setFocusedLegendKey, "signal")}
                   />
                   <Legend
-                    label="Signal Stop"
+                    label="信号止损"
                     value={signal?.stop_loss}
                     color="bg-rose-800"
                     focused={focusedLegendKey === "signal"}
@@ -828,26 +836,26 @@ export default function KlineChart() {
               <div className="rounded-[24px] border border-slate-100 bg-white/82 p-4 shadow-[0_12px_24px_rgba(32,42,63,0.04)]">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Hover Lens</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">Hover a candle to inspect the local auction.</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">悬浮镜</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">悬停 K 线即可检查局部拍卖。</p>
                   </div>
                   <Tag color={hoveredKline ? "cyan" : "default"}>
-                    {hoveredKline ? formatKlineTime(hoveredKline.open_time) : "Waiting"}
+                    {hoveredKline ? formatKlineTime(hoveredKline.open_time) : "等待中"}
                   </Tag>
                 </div>
 
                 {hoveredKline ? (
                   <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                    <Metric label="Open" value={hoveredKline.open_price} />
-                    <Metric label="High" value={hoveredKline.high_price} />
-                    <Metric label="Low" value={hoveredKline.low_price} />
-                    <Metric label="Close" value={hoveredKline.close_price} />
-                    <Metric label="Volume" value={hoveredKline.volume} digits={4} />
-                    <Metric label="Range" value={hoveredKline.high_price - hoveredKline.low_price} />
+                    <Metric label="开盘" value={hoveredKline.open_price} />
+                    <Metric label="最高" value={hoveredKline.high_price} />
+                    <Metric label="最低" value={hoveredKline.low_price} />
+                    <Metric label="收盘" value={hoveredKline.close_price} />
+                    <Metric label="成交量" value={hoveredKline.volume} digits={4} />
+                    <Metric label="振幅" value={hoveredKline.high_price - hoveredKline.low_price} />
                   </div>
                 ) : (
                   <p className="mt-4 text-sm leading-6 text-slate-600">
-                    将鼠标移动到任意 K 线柱体上，可以查看该根 candle 的 OHLC、volume 和当前时间锚点。
+                    将鼠标移动到任意 K 线柱体上，可以查看该根 K 线的 OHLC、成交量和当前时间锚点。
                   </p>
                 )}
               </div>
@@ -855,8 +863,8 @@ export default function KlineChart() {
               <div className="rounded-[24px] border border-slate-100 bg-slate-950 p-4 text-slate-100 shadow-[0_16px_30px_rgba(15,23,42,0.16)]">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Active Marker</p>
-                    <p className="mt-2 text-sm font-semibold text-white">Click a micro marker to pin the detail card.</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">活动标记</p>
+                    <p className="mt-2 text-sm font-semibold text-white">点击微结构标记即可固定详情卡。</p>
                   </div>
                   <button
                     type="button"
@@ -866,7 +874,7 @@ export default function KlineChart() {
                     }}
                     className="rounded-full border border-white/15 bg-white/8 px-3 py-1 text-xs font-semibold text-white transition hover:border-white/25 hover:bg-white/12"
                   >
-                    Clear
+                    清除
                   </button>
                 </div>
 
@@ -874,18 +882,18 @@ export default function KlineChart() {
                   <div className="mt-4 space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <Tag color={activeMicrostructureMarker.bias === "bullish" ? "success" : "error"}>
-                        {activeMicrostructureMarker.bias}
+                        {formatBiasLabel(activeMicrostructureMarker.bias)}
                       </Tag>
                       <Tag color="purple">{activeMicrostructureMarker.label}</Tag>
                       <Tag color="cyan">{formatKlineTime(activeMicrostructureMarker.tradeTime)}</Tag>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <Metric label="Score" value={activeMicrostructureMarker.score} digits={0} tone="dark" />
-                      <Metric label="Strength" value={activeMicrostructureMarker.strength} tone="dark" />
-                      <Metric label="Price" value={activeMicrostructureMarker.price} tone="dark" />
+                      <Metric label="评分" value={activeMicrostructureMarker.score} digits={0} tone="dark" />
+                      <Metric label="强度" value={activeMicrostructureMarker.strength} tone="dark" />
+                      <Metric label="价格" value={activeMicrostructureMarker.price} tone="dark" />
                       <Metric
-                        label="State"
-                        value={pinnedMicrostructureMarkerKey === activeMicrostructureMarker.key ? "Pinned" : "Hover"}
+                        label="状态"
+                        value={pinnedMicrostructureMarkerKey === activeMicrostructureMarker.key ? "已固定" : "悬停中"}
                         tone="dark"
                       />
                     </div>
@@ -901,26 +909,26 @@ export default function KlineChart() {
 
             {latestKline ? (
               <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4 xl:grid-cols-6">
-                <Metric label="Open" value={latestKline.open_price} />
-                <Metric label="High" value={latestKline.high_price} />
-                <Metric label="Low" value={latestKline.low_price} />
-                <Metric label="Close" value={latestKline.close_price} />
-                <Metric label="Volume" value={latestKline.volume} digits={4} />
+                <Metric label="开盘" value={latestKline.open_price} />
+                <Metric label="最高" value={latestKline.high_price} />
+                <Metric label="最低" value={latestKline.low_price} />
+                <Metric label="收盘" value={latestKline.close_price} />
+                <Metric label="成交量" value={latestKline.volume} digits={4} />
                 {indicator ? <Metric label="VWAP" value={indicator.vwap} /> : null}
                 {indicator ? <Metric label="EMA20" value={indicator.ema20} /> : null}
                 {indicator ? <Metric label="EMA50" value={indicator.ema50} /> : null}
-                {structure ? <Metric label="Trend" value={structure.trend} /> : null}
-                {structure ? <Metric label="Struct Tier" value={structure.primary_tier || "internal"} /> : null}
-                {structure ? <Metric label="Events" value={String(structure.events.length)} /> : null}
-                {structure?.internal_support ? <Metric label="Int Support" value={structure.internal_support} /> : null}
-                {structure?.internal_resistance ? <Metric label="Int Resist" value={structure.internal_resistance} /> : null}
-                <Metric label="Micro Events" value={String(chart.microstructureMarkers.length)} />
-                {liquidity ? <Metric label="Sweep" value={liquidity.sweep_type || "none"} /> : null}
-                {liquidity ? <Metric label="OB Imb." value={liquidity.order_book_imbalance} digits={3} /> : null}
-                {signal ? <Metric label="Signal" value={signal.signal} /> : null}
-                {signal ? <Metric label="Entry" value={signal.entry_price} /> : null}
-                {signal ? <Metric label="Target" value={signal.target_price} /> : null}
-                {signal ? <Metric label="Stop" value={signal.stop_loss} /> : null}
+                {structure ? <Metric label="趋势" value={formatTrendLabel(structure.trend)} /> : null}
+                {structure ? <Metric label="结构层级" value={formatStructureTierLabel(structure.primary_tier || "internal")} /> : null}
+                {structure ? <Metric label="结构事件" value={String(structure.events.length)} /> : null}
+                {structure?.internal_support ? <Metric label="内部支撑" value={structure.internal_support} /> : null}
+                {structure?.internal_resistance ? <Metric label="内部阻力" value={structure.internal_resistance} /> : null}
+                <Metric label="微结构事件" value={String(chart.microstructureMarkers.length)} />
+                {liquidity ? <Metric label="扫流动性" value={formatSweepLabel(liquidity.sweep_type)} /> : null}
+                {liquidity ? <Metric label="盘口失衡" value={liquidity.order_book_imbalance} digits={3} /> : null}
+                {signal ? <Metric label="信号" value={formatSignalAction(signal.signal)} /> : null}
+                {signal ? <Metric label="进场位" value={signal.entry_price} /> : null}
+                {signal ? <Metric label="目标位" value={signal.target_price} /> : null}
+                {signal ? <Metric label="止损位" value={signal.stop_loss} /> : null}
               </div>
             ) : null}
           </div>
@@ -1338,7 +1346,7 @@ function buildZoneLines(
   const lines: ZoneLine[] = [];
 
   addZoneLine(lines, {
-    label: "Support",
+    label: "支撑位",
     value: structure?.support,
     color: "#047857",
     dasharray: "0",
@@ -1346,7 +1354,7 @@ function buildZoneLines(
     labelColor: "#065f46",
   });
   addZoneLine(lines, {
-    label: "Resistance",
+    label: "阻力位",
     value: structure?.resistance,
     color: "#be123c",
     dasharray: "0",
@@ -1354,7 +1362,7 @@ function buildZoneLines(
     labelColor: "#9f1239",
   });
   addZoneLine(lines, {
-    label: "Int Support",
+    label: "内部支撑",
     value: structure?.internal_support,
     color: "#0f766e",
     dasharray: "4 4",
@@ -1362,7 +1370,7 @@ function buildZoneLines(
     labelColor: "#115e59",
   });
   addZoneLine(lines, {
-    label: "Int Resistance",
+    label: "内部阻力",
     value: structure?.internal_resistance,
     color: "#fb7185",
     dasharray: "4 4",
@@ -1370,7 +1378,7 @@ function buildZoneLines(
     labelColor: "#9f1239",
   });
   addZoneLine(lines, {
-    label: "Buy Liquidity",
+    label: "买方流动性",
     value: liquidity?.buy_liquidity,
     color: "#0f766e",
     dasharray: "6 4",
@@ -1378,7 +1386,7 @@ function buildZoneLines(
     labelColor: "#115e59",
   });
   addZoneLine(lines, {
-    label: "Sell Liquidity",
+    label: "卖方流动性",
     value: liquidity?.sell_liquidity,
     color: "#ea580c",
     dasharray: "6 4",
@@ -1386,7 +1394,7 @@ function buildZoneLines(
     labelColor: "#9a3412",
   });
   addZoneLine(lines, {
-    label: "Equal High",
+    label: "等高点",
     value: liquidity?.equal_high,
     color: "#b45309",
     dasharray: "2 4",
@@ -1394,7 +1402,7 @@ function buildZoneLines(
     labelColor: "#92400e",
   });
   addZoneLine(lines, {
-    label: "Equal Low",
+    label: "等低点",
     value: liquidity?.equal_low,
     color: "#0f766e",
     dasharray: "2 4",
@@ -1416,7 +1424,7 @@ function buildZoneLines(
 
   if (signal && signal.signal !== "NEUTRAL") {
     addZoneLine(lines, {
-      label: "Signal Entry",
+      label: "信号进场",
       value: signal.entry_price,
       color: "#1d4ed8",
       dasharray: "0",
@@ -1424,7 +1432,7 @@ function buildZoneLines(
       labelColor: "#1e3a8a",
     });
     addZoneLine(lines, {
-      label: "Signal Target",
+      label: "信号目标",
       value: signal.target_price,
       color: "#6d28d9",
       dasharray: "8 4",
@@ -1432,7 +1440,7 @@ function buildZoneLines(
       labelColor: "#5b21b6",
     });
     addZoneLine(lines, {
-      label: "Signal Stop",
+      label: "信号止损",
       value: signal.stop_loss,
       color: "#be123c",
       dasharray: "8 4",
@@ -1927,18 +1935,15 @@ function resolveMicrostructureMarkerTone(type: string, bias: string) {
 }
 
 function formatMicrostructureEventType(type: string) {
-  return type
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  return formatMicrostructureEventTypeLabel(type);
 }
 
 function buildMicrostructureTooltip(marker: MicrostructureMarker): MicrostructureTooltip {
   const detailLines = wrapTooltipText(marker.detail, 24, 2);
   const lines = [
     `${formatMicrostructureEventType(marker.type)} · ${marker.label}`,
-    `${marker.bias.toUpperCase()} | score ${marker.score > 0 ? `+${marker.score}` : marker.score}`,
-    `strength ${marker.strength.toFixed(2)} | price ${marker.price.toFixed(2)}`,
+    `${formatBiasLabel(marker.bias)} | 评分 ${marker.score > 0 ? `+${marker.score}` : marker.score}`,
+    `强度 ${marker.strength.toFixed(2)} | 价格 ${marker.price.toFixed(2)}`,
     ...detailLines,
   ];
   const width = 226;
@@ -1976,17 +1981,17 @@ function toggleLegendFocus(
 function resolveLegendFocusLabel(key: LegendFocusKey) {
   switch (key) {
     case "indicators":
-      return "Indicator Stack";
+      return "指标图层";
     case "structure":
-      return "Structure Map";
+      return "结构图层";
     case "liquidity":
-      return "Liquidity Map";
+      return "流动性图层";
     case "signal":
-      return "Signal Markers";
+      return "信号标记";
     case "micro":
-      return "Microstructure";
+      return "微结构";
     default:
-      return "All layers";
+      return "全部图层";
   }
 }
 
@@ -1998,7 +2003,9 @@ function resolveZoneLineOpacity(label: string, focusedLegendKey: LegendFocusKey 
   const upperLabel = label.toUpperCase();
   if (
     focusedLegendKey === "structure" &&
-    (upperLabel.includes("SUPPORT") ||
+    (upperLabel.includes("支撑") ||
+      upperLabel.includes("阻力") ||
+      upperLabel.includes("SUPPORT") ||
       upperLabel.includes("RESIST") ||
       upperLabel.includes("BOS") ||
       upperLabel.includes("CHOCH"))
@@ -2007,13 +2014,24 @@ function resolveZoneLineOpacity(label: string, focusedLegendKey: LegendFocusKey 
   }
   if (
     focusedLegendKey === "liquidity" &&
-    (upperLabel.includes("LIQ") || upperLabel.includes("EQH") || upperLabel.includes("EQL") || upperLabel.includes("SWEEP"))
+    (upperLabel.includes("流动性") ||
+      upperLabel.includes("等高") ||
+      upperLabel.includes("等低") ||
+      upperLabel.includes("LIQ") ||
+      upperLabel.includes("EQH") ||
+      upperLabel.includes("EQL") ||
+      upperLabel.includes("SWEEP"))
   ) {
     return 1;
   }
   if (
     focusedLegendKey === "signal" &&
-    (upperLabel.includes("ENTRY") || upperLabel.includes("TARGET") || upperLabel.includes("STOP"))
+    (upperLabel.includes("进场") ||
+      upperLabel.includes("目标") ||
+      upperLabel.includes("止损") ||
+      upperLabel.includes("ENTRY") ||
+      upperLabel.includes("TARGET") ||
+      upperLabel.includes("STOP"))
   ) {
     return 1;
   }
@@ -2034,11 +2052,11 @@ function formatKlineTime(timestamp: number): string {
 
 function formatCandleAriaLabel(kline?: Kline) {
   if (!kline) {
-    return "unknown";
+    return "未知";
   }
-  return `${formatKlineTime(kline.open_time)} open ${kline.open_price.toFixed(2)} high ${kline.high_price.toFixed(
+  return `${formatKlineTime(kline.open_time)} 开 ${kline.open_price.toFixed(2)} 高 ${kline.high_price.toFixed(
     2,
-  )} low ${kline.low_price.toFixed(2)} close ${kline.close_price.toFixed(2)}`;
+  )} 低 ${kline.low_price.toFixed(2)} 收 ${kline.close_price.toFixed(2)}`;
 }
 
 interface CandleShape {

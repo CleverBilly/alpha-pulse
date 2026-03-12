@@ -159,13 +159,13 @@ describe("AIAnalysisPanel", () => {
 
     render(<AIAnalysisPanel />);
 
-    expect(screen.getByText("Decision Memo")).toBeInTheDocument();
+    expect(screen.getByText("决策备忘")).toBeInTheDocument();
     expect(screen.getByText("当前多头信号由趋势、订单流与流动性共振驱动。")).toBeInTheDocument();
-    expect(screen.getByText("Bullish Drivers")).toBeInTheDocument();
-    expect(screen.getByText("Risk Factors")).toBeInTheDocument();
-    expect(screen.getByText("Recent Signal Tape")).toBeInTheDocument();
-    expect(screen.getByText("Microstructure Tape")).toBeInTheDocument();
+    expect(screen.getByText("多头驱动")).toBeInTheDocument();
+    expect(screen.getByText("风险因子")).toBeInTheDocument();
+    expect(screen.getByText("近期信号序列")).toBeInTheDocument();
+    expect(screen.getByText("微结构序列")).toBeInTheDocument();
     expect(screen.getByText(/卖压被持续吸收/)).toBeInTheDocument();
-    expect(screen.getByText(/BUY/)).toBeInTheDocument();
+    expect(screen.getByText(/做多/)).toBeInTheDocument();
   });
 });
