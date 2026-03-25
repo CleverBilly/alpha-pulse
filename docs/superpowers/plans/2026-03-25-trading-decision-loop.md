@@ -137,9 +137,12 @@ sound_enabled: boolean;
 
 - [ ] **Step 2: 在 AlertCenter.tsx 中实现声音告警**
 
-读取 `frontend/components/alerts/AlertCenter.tsx`，在 `notifyBrowser` 调用处附近添加声音告警逻辑。
+**先读取 `frontend/components/alerts/AlertCenter.tsx`，定位以下关键位置：**
+1. `notifyBrowser` 调用所在的 `if (newItems.length > 0)` 块，记录 `forEach` 内的完整逻辑（包含 `notifiedIdsRef.current.add(item.id)` 等 ID 追踪代码）
+2. 铃铛按钮的 `onClick` 处理函数
+3. `browserEnabledRef` 同步 `useEffect` 的位置
 
-在组件顶部（`export default function AlertCenter()`函数体内，useState 之后）添加 AudioContext ref：
+读取完成后，在组件顶部（`export default function AlertCenter()` 函数体内，useState 之后）添加 AudioContext ref：
 
 ```typescript
 const audioCtxRef = useRef<AudioContext | null>(null);
@@ -187,18 +190,18 @@ if (!audioCtxRef.current) {
 }
 ```
 
-在检测到新 alert 的 `if (newItems.length > 0)` 判断块内（`newItems.forEach` 循环结束之后），调用一次声音告警：
+在检测到新 alert 的 `if (newItems.length > 0)` 判断块内（`newItems.forEach` 循环结束之后），在现有 forEach 结束之后追加 `playSoundAlert()` 调用，**不要覆盖或修改 forEach 内的现有逻辑**：
+
 ```typescript
+// 示意：保留 forEach 内的所有现有代码（notifiedIdsRef.add、badge 更新等）
+// 只在 forEach 循环结束后、if 块内追加一行：
 if (newItems.length > 0) {
   newItems.forEach((item) => {
-    notifyBrowser(item);
-    // ... 其他 forEach 逻辑 ...
+    /* 保持现有逻辑不变 */
   });
-  playSoundAlert(); // 循环结束后只调用一次，不对每条 alert 各播一次
+  playSoundAlert(); // ← 追加在这里，循环结束后调用一次
 }
 ```
-
-> 直接使用上面的结构覆盖原有 `if (newItems.length > 0)` 块，不要在 forEach 内部插入再移出。
 
 - [ ] **Step 3: 在 AlertConfigPanel.tsx 中添加声音开关 UI**
 
@@ -244,6 +247,14 @@ git commit -m "feat: add sound alert to alert center"
 - Create: `frontend/components/chart/SignalOverlayLayer.tsx`（不含三线，Task 5 再加）
 
 > **重要：** 本 Task 只拆分，不增加任何新功能。拆分后行为与原版完全相同。拆分完成后立即运行 `npm test` 验证无回归。
+
+- [ ] **Step 0: 记录拆分前基准测试通过状态**
+
+```bash
+cd frontend && npm test -- --run 2>&1 | tail -5
+```
+
+记录当前通过/失败数量，作为拆分后对比基准。如果拆分前已有失败，先确认原因（不是本 Task 引入的）再继续。
 
 - [ ] **Step 1: 阅读完整 KlineChart.tsx**
 
@@ -880,12 +891,31 @@ func TestUpdateOutcomeDoesNotOverwriteOtherFields(t *testing.T) {
 cd backend && go test ./repository/... -run TestFindPending -v
 ```
 
-期望：FAIL（`FindPending` / `UpdateOutcome` 未定义）。如果 SQLite driver 未安装，先运行：
+期望：FAIL（`FindPending` / `UpdateOutcome` 未定义）。
+
+**重要：SQLite driver 选择**
+
+`gorm.io/driver/sqlite` 需要 CGO（C 语言编译器）。请先确认环境：
+
 ```bash
-cd backend && go get gorm.io/driver/sqlite && go mod tidy
+go env CGO_ENABLED
 ```
 
-> `go.mod` 和 `go.sum` 会被修改，必须加入后续 commit（Task 7 Step 7 中处理）。
+- 若输出 `1`：使用 `gorm.io/driver/sqlite`（推荐，与项目中可能已有的 CGO 工具链一致）
+  ```bash
+  cd backend && go get gorm.io/driver/sqlite && go mod tidy
+  ```
+- 若输出 `0`（容器/CI 环境常见）：改用纯 Go 版本 `modernc.org/sqlite`
+  ```bash
+  cd backend && go get modernc.org/sqlite gorm.io/driver/sqlite && go mod tidy
+  ```
+  并在测试文件中将 import 改为：
+  ```go
+  _ "modernc.org/sqlite"           // 注册 sqlite3 驱动
+  "gorm.io/driver/sqlite"          // gorm 适配层不变
+  ```
+
+无论哪种方式，`go.mod` 和 `go.sum` 会被修改，在 Task 7 Step 7 的 commit 中必须包含这两个文件。
 
 - [ ] **Step 2: 给 AlertRecord 新增字段**
 
@@ -1640,9 +1670,20 @@ interface KlineChartProps {
 }
 ```
 
-当 `historicalMode` 存在时，使用传入的 `klines` 数据替代 Zustand store 的数据，同时跳过 store 的订阅（`useMarketStore` 调用需要条件保护）。
+当 `historicalMode` 存在时，使用传入的 `klines` 数据替代 Zustand store 的数据。
 
-将 `activeSignal` prop 传递给 `SignalOverlayLayer`（覆盖内部的 fetch 逻辑）。
+**正确实现方式（React Hooks 规则要求 Hook 不能条件调用）：**
+
+```typescript
+// 无条件调用 useMarketStore，在渲染逻辑中选择数据来源
+const storeKlines = useMarketStore((s) => s.klines); // 字段名以实际 store 为准
+const klinesToRender = historicalMode ? historicalMode.klines : storeKlines;
+// 将 klinesToRender 传给 KlineCandleLayer 等子组件
+```
+
+不要写 `if (historicalMode) { ... } const store = useMarketStore()` — 这违反 React Hooks 规则。
+
+将 `activeSignal` prop 传递给 `SignalOverlayLayer`（当 `activeSignal` prop 存在时，覆盖内部通过 fetch 获取的 activeSignal）。
 
 > **注意：** historicalMode 下不调用 `refreshDashboard`，不触发 store 更新。
 
@@ -1965,7 +2006,7 @@ import (
     "gorm.io/gorm"
 )
 
-func newTestAlertRecordRepo(t *testing.T) *repository.AlertRecordRepository {
+func newTestAlertRecordRepo(t *testing.T) (*repository.AlertRecordRepository, *gorm.DB) {
     t.Helper()
     db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
     if err != nil {
@@ -1974,11 +2015,11 @@ func newTestAlertRecordRepo(t *testing.T) *repository.AlertRecordRepository {
     if err := db.AutoMigrate(&models.AlertRecord{}); err != nil {
         t.Fatalf("migrate: %v", err)
     }
-    return repository.NewAlertRecordRepository(db)
+    return repository.NewAlertRecordRepository(db), db
 }
 
 func TestGetAlertStatsWinRateExcludesPendingFromDenominator(t *testing.T) {
-    repo := newTestAlertRecordRepo(t)
+    repo, db := newTestAlertRecordRepo(t)
 
     // 写入测试数据：2 target_hit, 1 stop_hit, 1 pending, 1 expired
     records := []models.AlertRecord{
@@ -1990,7 +2031,7 @@ func TestGetAlertStatsWinRateExcludesPendingFromDenominator(t *testing.T) {
     }
     for _, r := range records {
         r := r
-        if err := repo.GetDB().Create(&r).Error; err != nil {
+        if err := db.Create(&r).Error; err != nil { // 直接使用 db 变量，不依赖 GetDB()
             t.Fatalf("create record: %v", err)
         }
     }
@@ -2009,7 +2050,7 @@ func TestGetAlertStatsWinRateExcludesPendingFromDenominator(t *testing.T) {
     if stats.WinRate < expected-0.1 || stats.WinRate > expected+0.1 {
         t.Fatalf("expected win_rate≈%.2f, got %.2f", expected, stats.WinRate)
     }
-    // avg_rr = (2.0 + 1.5 + (-1.0)) / 3 ≈ 0.83
+    // avg_rr = (2.0 + 1.5 + (-1.0)) / 3 ≈ 0.83（含止损 -1.0 的全周期平均）
     expectedRR := (2.0 + 1.5 + (-1.0)) / 3
     if stats.AvgRR < expectedRR-0.01 || stats.AvgRR > expectedRR+0.01 {
         t.Fatalf("expected avg_rr≈%.2f, got %.2f", expectedRR, stats.AvgRR)
@@ -2017,8 +2058,7 @@ func TestGetAlertStatsWinRateExcludesPendingFromDenominator(t *testing.T) {
 }
 ```
 
-> **注意**：`AlertService.now` 字段类型是 `func() time.Time`，直接构造时用 `now: time.Now`。
-> `repo.GetDB()` 需要在 `AlertRecordRepository` 上暴露 `GetDB() *gorm.DB` 方法（如已存在则直接用，否则测试中直接用 sqlite db 变量）。
+> **注意**：`AlertService.now` 字段类型是 `func() time.Time`，用 `now: time.Now`。`db` 变量直接持有，不依赖 `repo.GetDB()` 方法（该方法不存在）。
 
 ```bash
 cd backend && go test ./internal/service/... -run TestGetAlertStats -v
