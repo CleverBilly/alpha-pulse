@@ -187,12 +187,18 @@ if (!audioCtxRef.current) {
 }
 ```
 
-在检测到新 alert 的循环中（`newItems.forEach` 块内，`notifyBrowser` 调用之后）添加：
+在检测到新 alert 的 `if (newItems.length > 0)` 判断块内（`newItems.forEach` 循环结束之后），调用一次声音告警：
 ```typescript
-playSoundAlert();
+if (newItems.length > 0) {
+  newItems.forEach((item) => {
+    notifyBrowser(item);
+    // ... 其他 forEach 逻辑 ...
+  });
+  playSoundAlert(); // 循环结束后只调用一次，不对每条 alert 各播一次
+}
 ```
 
-> 注意：`playSoundAlert` 只调用一次（不对每条 alert 各调一次），因为 `newItems` 可能有多条，一次提示音足够。将 `playSoundAlert()` 移到 `newItems.forEach` 循环外、`if (newItems.length > 0)` 判断内。
+> 直接使用上面的结构覆盖原有 `if (newItems.length > 0)` 块，不要在 forEach 内部插入再移出。
 
 - [ ] **Step 3: 在 AlertConfigPanel.tsx 中添加声音开关 UI**
 
@@ -332,6 +338,16 @@ export default function SignalOverlayLayer(props: SignalOverlayLayerProps)
 2. import 三个新图层组件
 3. 在 SVG 内按顺序渲染：`<KlineCandleLayer>` → `<StructureLiquidityLayer>` → `<SignalOverlayLayer>`
 4. 主容器目标 ≤420 行
+
+- [ ] **Step 6b: TypeScript 类型检查（快速验证 props 接口正确）**
+
+在运行测试之前，先做构建检查，快速发现 props 传参错误：
+
+```bash
+cd frontend && npm run build 2>&1 | grep -E "error TS|Error"
+```
+
+期望：零 TypeScript 错误。如有错误，在本 Task 内修复后再继续 Step 7。
 
 - [ ] **Step 7: 运行测试验证无回归**
 
@@ -488,7 +504,7 @@ useEffect(() => {
 
 将 `activeSignal` 传入 `<SignalOverlayLayer activeSignal={activeSignal} />`。
 
-- [ ] **Step 3: 运行测试**
+- [ ] **Step 4: 运行测试**
 
 ```bash
 cd frontend && npm test -- --run && npm run build
@@ -496,11 +512,12 @@ cd frontend && npm test -- --run && npm run build
 
 期望：通过。
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add frontend/components/chart/SignalOverlayLayer.tsx \
-        frontend/components/chart/KlineChart.tsx
+        frontend/components/chart/KlineChart.tsx \
+        frontend/utils/alertUtils.ts
 git commit -m "feat: add entry/stop/target signal overlay to chart"
 ```
 
@@ -865,8 +882,10 @@ cd backend && go test ./repository/... -run TestFindPending -v
 
 期望：FAIL（`FindPending` / `UpdateOutcome` 未定义）。如果 SQLite driver 未安装，先运行：
 ```bash
-go get gorm.io/driver/sqlite
+cd backend && go get gorm.io/driver/sqlite && go mod tidy
 ```
+
+> `go.mod` 和 `go.sum` 会被修改，必须加入后续 commit（Task 7 Step 7 中处理）。
 
 - [ ] **Step 2: 给 AlertRecord 新增字段**
 
@@ -980,8 +999,10 @@ Interval: alertBiasInterval, // "1h"，即触发周期
 cd backend && go build ./... && cd ..
 git add backend/models/alert_record.go \
         backend/repository/alert_record_repo.go \
+        backend/repository/alert_record_outcome_test.go \
         backend/repository/kline_repo.go \
-        backend/internal/service/alert_persistence.go
+        backend/internal/service/alert_persistence.go \
+        backend/go.mod backend/go.sum
 git commit -m "feat(s1): add outcome fields to alert_records and repo methods"
 ```
 
@@ -1214,11 +1235,6 @@ func evalOutcome(record models.AlertRecord, klines []models.Kline, now time.Time
         return "", 0, 0 // 中性方向不追踪
     }
 
-    // 过期检查
-    if now.UnixMilli()-record.EventTime > outcomeExpiryMs && len(klines) == 0 {
-        return "expired", 0, now.UnixMilli()
-    }
-
     // 逐根 K 线扫描（止损优先）
     for _, k := range klines {
         if isLong {
@@ -1244,6 +1260,7 @@ func evalOutcome(record models.AlertRecord, klines []models.Kline, now time.Time
     }
 
     return "", 0, 0 // 仍在观察窗口内，本轮不更新（trackSymbol 检查 outcome == "" 时跳过写库）
+}
 ```
 
 - [ ] **Step 4: 运行测试，确认通过**
@@ -1296,7 +1313,7 @@ if j.outcomeTracker != nil {
 }
 ```
 
-在文件顶部 import 中确认有 `"context"`（已有则无需改动）。
+> `context.Background()` 与 `runOnce` 内现有的 `alertService.EvaluateAll(context.Background(), true)` 保持一致（`runOnce` 当前不接受 ctx 参数，这是已有设计，无需改动）。
 
 - [ ] **Step 2: 更新 main.go 依赖注入**
 
@@ -1429,7 +1446,7 @@ func (s *AlertService) GetAlertStats(symbol string, limit int) AlertStats {
         case "stop_hit":
             stats.StopHit++
             if r.ActualRR != 0 {
-                rrSum += r.ActualRR
+                rrSum += r.ActualRR // 止损记录 actual_rr = -1.0，纳入 avg_rr（含负值的全周期平均）
                 rrCount++
             }
         case "expired":
@@ -1608,7 +1625,30 @@ getKline(symbol: string, interval: string, limit = 48, opts?: { before_ts?: numb
 onReview?: (event: AlertEvent) => void;
 ```
 
-- [ ] **Step 4: 创建 ReviewChartModal**
+- [ ] **Step 4: KlineChart.tsx 先行支持 historicalMode + activeSignal props（ReviewChartModal 依赖此 prop）**
+
+在 `KlineChart.tsx` 主容器中新增 props interface（在现有 props 基础上扩展）：
+
+```typescript
+interface KlineChartProps {
+  historicalMode?: {
+    klines: Kline[];
+    symbol: string;
+    interval: string;
+  };
+  activeSignal?: ActiveSignal | null;
+}
+```
+
+当 `historicalMode` 存在时，使用传入的 `klines` 数据替代 Zustand store 的数据，同时跳过 store 的订阅（`useMarketStore` 调用需要条件保护）。
+
+将 `activeSignal` prop 传递给 `SignalOverlayLayer`（覆盖内部的 fetch 逻辑）。
+
+> **注意：** historicalMode 下不调用 `refreshDashboard`，不触发 store 更新。
+
+- [ ] **Step 5: 创建 ReviewChartModal**
+
+> **前置条件：** Step 4 必须完成，否则 KlineChart 缺少 `historicalMode` 和 `activeSignal` props，本步骤的代码无法编译。
 
 创建 `frontend/components/alerts/ReviewChartModal.tsx`：
 
@@ -1718,27 +1758,6 @@ export default function ReviewChartModal({ event, open, onClose }: ReviewChartMo
   );
 }
 ```
-
-- [ ] **Step 5: KlineChart.tsx 支持 historicalMode prop**
-
-在 `KlineChart.tsx` 主容器中新增 prop：
-
-```typescript
-interface KlineChartProps {
-  historicalMode?: {
-    klines: Kline[];
-    symbol: string;
-    interval: string;
-  };
-  activeSignal?: ActiveSignal | null;
-}
-```
-
-当 `historicalMode` 存在时，使用传入的 `klines` 数据替代 Zustand store 的数据，同时跳过 store 的订阅（`useMarketStore` 调用需要条件保护）。
-
-将 `activeSignal` prop 传递给 `SignalOverlayLayer`（覆盖内部的 fetch 逻辑）。
-
-> **注意：** historicalMode 下不调用 `refreshDashboard`，不触发 store 更新。
 
 - [ ] **Step 6: 更新 Review 页调用 AlertEventCard 的地方，传入 onReview**
 
@@ -1976,7 +1995,7 @@ func TestGetAlertStatsWinRateExcludesPendingFromDenominator(t *testing.T) {
         }
     }
 
-    svc := &AlertService{repo: repo, symbols: []string{"BTCUSDT"}, now: func() interface{} { return nil }}
+    svc := &AlertService{repo: repo, symbols: []string{"BTCUSDT"}, now: time.Now}
     stats := svc.GetAlertStats("BTCUSDT", 50)
 
     if stats.Total != 5 {
@@ -2048,9 +2067,17 @@ cd frontend && npm run build && npm run lint
 
 阅读 `docs/superpowers/specs/2026-03-25-trading-decision-loop-design.md` 的文件改动清单，逐一确认所有文件已实现。
 
-- [ ] **Step 5: Final commit**
+- [ ] **Step 5: Final commit（仅提交未被前序 Task 覆盖的剩余文件）**
 
+先检查是否还有未提交的改动：
 ```bash
-git add -A
+git status --short
+```
+
+按模块分组 add（不使用 `git add -A`）：
+```bash
+# 如有遗漏文件，按模块 add，例如：
+git add frontend/utils/alertUtils.ts \
+        frontend/app/review/page.tsx
 git commit -m "feat: complete trading decision loop - fast & slow lanes"
 ```
