@@ -2,6 +2,7 @@ import KlineChart from "@/components/chart/KlineChart";
 import ChartInsightRail from "@/components/chart/ChartInsightRail";
 import TradingWorkspaceHero from "@/components/layout/TradingWorkspaceHero";
 import MarketSnapshotLoader from "@/components/market/MarketSnapshotLoader";
+import ChartPositionCalcButton from "@/components/trading/ChartPositionCalcButton";
 
 export default function ChartPage() {
   return (
@@ -21,6 +22,7 @@ export default function ChartPage() {
         <KlineChart />
         <ChartInsightRail />
       </div>
+      <ChartPositionCalcButton />
     </div>
   );
 }
