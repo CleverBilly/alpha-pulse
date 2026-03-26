@@ -16,6 +16,7 @@ import {
   PADDING_RIGHT,
   PADDING_TOP,
 } from "./chartTypes";
+import type { Kline } from "@/types/market";
 import { LayerToggle, Legend, toggleLegendFocus } from "./KlineChartControls";
 import {
   buildChartModel,
@@ -28,6 +29,17 @@ import KlineCandleLayer from "./KlineCandleLayer";
 import StructureLiquidityLayer from "./StructureLiquidityLayer";
 import SignalOverlayLayer from "./SignalOverlayLayer";
 import KlineInfoPanels from "./KlineInfoPanels";
+
+interface HistoricalMode {
+  klines: Kline[];
+  symbol: string;
+  interval: string;
+}
+
+interface KlineChartProps {
+  historicalMode?: HistoricalMode;
+  activeSignal?: ActiveSignal | null;
+}
 
 const PRIMARY_MICROSTRUCTURE_TYPES = ["absorption", "iceberg", "aggression_burst"] as const;
 const SECONDARY_MICROSTRUCTURE_LAYERS = [
@@ -74,10 +86,10 @@ const DEFAULT_SECONDARY_LAYER_STATE: Record<SecondaryLayerKey, boolean> = {
   microstructure_confluence: false,
 };
 
-export default function KlineChart() {
+export default function KlineChart({ historicalMode, activeSignal: activeSignalProp }: KlineChartProps = {}) {
   const {
     symbol,
-    klines,
+    klines: storeKlines,
     indicator,
     indicatorSeries,
     microstructureEvents = [],
@@ -91,12 +103,15 @@ export default function KlineChart() {
     error,
     refreshDashboard,
   } = useMarketStore();
+
+  // 无条件调用 hooks，然后条件选择数据（遵守 React Hooks Rules）
+  const klines = historicalMode ? historicalMode.klines : storeKlines;
   const [enabledLayers, setEnabledLayers] = useState<Record<SecondaryLayerKey, boolean>>(DEFAULT_SECONDARY_LAYER_STATE);
   const [hoveredCandleIndex, setHoveredCandleIndex] = useState<number | null>(null);
   const [hoveredMicrostructureMarkerKey, setHoveredMicrostructureMarkerKey] = useState<string | null>(null);
   const [pinnedMicrostructureMarkerKey, setPinnedMicrostructureMarkerKey] = useState<string | null>(null);
   const [focusedLegendKey, setFocusedLegendKey] = useState<LegendFocusKey | null>(null);
-  const [activeSignal, setActiveSignal] = useState<ActiveSignal | null>(null);
+  const [fetchedActiveSignal, setFetchedActiveSignal] = useState<ActiveSignal | null>(null);
   const visibleKlines = klines.slice(-48);
   const visibleMicrostructureTypes = useMemo(() => {
     const types: string[] = [...PRIMARY_MICROSTRUCTURE_TYPES];
@@ -108,7 +123,9 @@ export default function KlineChart() {
     return types;
   }, [enabledLayers]);
 
+  // historicalMode 时使用外部传入的 activeSignal，否则从 API 拉取最近告警
   useEffect(() => {
+    if (historicalMode) return;
     let active = true;
     alertApi
       .getAlertHistory(20)
@@ -121,10 +138,10 @@ export default function KlineChart() {
           )
           .sort((a, b) => b.created_at - a.created_at)[0];
         if (!match) {
-          setActiveSignal(null);
+          setFetchedActiveSignal(null);
           return;
         }
-        setActiveSignal({
+        setFetchedActiveSignal({
           entryPrice: match.entry_price,
           stopLoss: match.stop_loss,
           targetPrice: match.target_price,
@@ -137,7 +154,10 @@ export default function KlineChart() {
     return () => {
       active = false;
     };
-  }, [symbol]);
+  }, [symbol, historicalMode]);
+
+  // 最终使用的 activeSignal：historicalMode 时优先外部 prop，否则使用内部拉取的
+  const activeSignal = historicalMode ? (activeSignalProp ?? null) : fetchedActiveSignal;
 
   const coords = useMemo<ChartCoords | null>(() => {
     if (visibleKlines.length === 0) return null;
@@ -212,28 +232,30 @@ export default function KlineChart() {
   return (
     <section>
       <div className="surface-panel surface-panel--paper">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <Typography.Title level={3} className="!mb-0 !text-[24px] !tracking-[-0.03em]">
-              K 线图
-            </Typography.Title>
-            <p className="mt-2 text-sm text-muted">
-              48 根 K 线，叠加结构点、动态支撑阻力、流动性轨迹、信号位与多指标
-            </p>
+        {!historicalMode && (
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <Typography.Title level={3} className="!mb-0 !text-[24px] !tracking-[-0.03em]">
+                K 线图
+              </Typography.Title>
+              <p className="mt-2 text-sm text-muted">
+                48 根 K 线，叠加结构点、动态支撑阻力、流动性轨迹、信号位与多指标
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                void refreshDashboard(true);
+              }}
+              className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+            >
+              更新K线
+            </button>
           </div>
-          <button
-            onClick={() => {
-              void refreshDashboard(true);
-            }}
-            className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
-          >
-            更新K线
-          </button>
-        </div>
+        )}
 
-        {loading && visibleKlines.length === 0 ? <p className="text-sm text-muted">加载中...</p> : null}
-        {error ? <p className="text-sm text-negative">{error}</p> : null}
-        {!loading && !error && visibleKlines.length === 0 ? (
+        {!historicalMode && loading && visibleKlines.length === 0 ? <p className="text-sm text-muted">加载中...</p> : null}
+        {!historicalMode && error ? <p className="text-sm text-negative">{error}</p> : null}
+        {!historicalMode && !loading && !error && visibleKlines.length === 0 ? (
           <p className="text-sm text-muted">暂无 K 线数据</p>
         ) : null}
 

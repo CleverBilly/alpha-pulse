@@ -5,6 +5,8 @@ export interface AlertDelivery {
   sent_at?: number;
 }
 
+export type AlertOutcome = "pending" | "target_hit" | "stop_hit" | "expired";
+
 export interface AlertEvent {
   id: string;
   symbol: string;
@@ -24,6 +26,24 @@ export interface AlertEvent {
   risk_reward: number;
   created_at: number;
   deliveries: AlertDelivery[];
+  // 复盘追踪字段
+  outcome?: AlertOutcome;
+  outcome_price?: number;
+  outcome_at?: number;
+  actual_rr?: number;
+  interval?: string;
+}
+
+export interface AlertStats {
+  symbol: string;
+  total: number;
+  target_hit: number;
+  stop_hit: number;
+  pending: number;
+  expired: number;
+  win_rate: number;
+  avg_rr: number;
+  sample_size_label: string;
 }
 
 export interface AlertFeed {

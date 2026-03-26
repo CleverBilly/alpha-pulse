@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { HistoryOutlined, SyncOutlined } from "@ant-design/icons";
 import { Button, Card, Empty, Spin, Tag } from "antd";
 import AlertEventCard, { formatAlertTime } from "@/components/alerts/AlertEventCard";
+import ReviewChartModal from "@/components/alerts/ReviewChartModal";
 import { alertApi } from "@/services/apiClient";
 import { useMarketStore } from "@/store/marketStore";
 import type { AlertEvent } from "@/types/alert";
@@ -20,6 +21,7 @@ export default function AlertHistoryBoard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reviewEvent, setReviewEvent] = useState<AlertEvent | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -143,12 +145,18 @@ export default function AlertHistoryBoard() {
           ) : (
             <div className="space-y-3">
               {filteredAlerts.map((item) => (
-                <AlertEventCard key={item.id} item={item} />
+                <AlertEventCard key={item.id} item={item} onReview={setReviewEvent} />
               ))}
             </div>
           )}
         </div>
       </Card>
+
+      <ReviewChartModal
+        event={reviewEvent}
+        open={!!reviewEvent}
+        onClose={() => setReviewEvent(null)}
+      />
     </section>
   );
 }

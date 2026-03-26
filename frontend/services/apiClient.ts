@@ -12,7 +12,7 @@ import {
   LiquiditySeriesResult,
   MicrostructureEventsResult,
 } from "@/types/market";
-import { AlertFeed, AlertPreferences } from "@/types/alert";
+import { AlertFeed, AlertPreferences, AlertStats } from "@/types/alert";
 import { MarketSnapshot } from "@/types/snapshot";
 import { SignalBundle, SignalTimelineResult } from "@/types/signal";
 
@@ -83,8 +83,11 @@ export const marketApi = {
   getPrice(symbol: string) {
     return request<PriceTicker>(`/price?symbol=${symbol}`);
   },
-  getKline(symbol: string, interval: MarketInterval = "1m") {
-    return request<Kline>(`/kline?symbol=${symbol}&interval=${interval}`);
+  getKline(symbol: string, interval: MarketInterval = "1m", limit = 48, opts?: { before_ts?: number; after_ts?: number }) {
+    const params = new URLSearchParams({ symbol, interval, limit: String(limit) });
+    if (opts?.before_ts) params.set("before_ts", String(opts.before_ts));
+    if (opts?.after_ts) params.set("after_ts", String(opts.after_ts));
+    return request<Kline[]>(`/kline?${params.toString()}`);
   },
   getIndicators(symbol: string, interval: MarketInterval = "1m") {
     return request<Indicator>(`/indicators?symbol=${symbol}&interval=${interval}`);
@@ -198,5 +201,11 @@ export const alertApi = {
     return request<AlertFeed>(`/alerts/refresh?limit=${limit}`, {
       method: "POST",
     });
+  },
+  getAlertStats(symbol?: string, limit = 50) {
+    const params = new URLSearchParams();
+    if (symbol) params.set("symbol", symbol);
+    params.set("limit", String(limit));
+    return request<AlertStats>(`/alerts/stats?${params.toString()}`);
   },
 };

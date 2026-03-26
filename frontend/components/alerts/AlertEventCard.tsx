@@ -1,9 +1,15 @@
 "use client";
 
-import { Tag } from "antd";
+import { Button, Tag } from "antd";
+import { HistoryOutlined } from "@ant-design/icons";
 import type { AlertEvent } from "@/types/alert";
 
-export default function AlertEventCard({ item }: { item: AlertEvent }) {
+interface AlertEventCardProps {
+  item: AlertEvent;
+  onReview?: (event: AlertEvent) => void;
+}
+
+export default function AlertEventCard({ item, onReview }: AlertEventCardProps) {
   return (
     <article
       className={`rounded-3xl border px-4 py-4 shadow-[0_12px_30px_rgba(32,42,63,0.05)] ${resolveCardTone(item.severity)}`}
@@ -19,7 +25,19 @@ export default function AlertEventCard({ item }: { item: AlertEvent }) {
           </div>
           <h3 className="mt-2 text-base font-semibold tracking-[-0.02em] text-slate-950">{item.title}</h3>
         </div>
-        <span className="text-xs text-slate-500">{formatAlertTime(item.created_at)}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500">{formatAlertTime(item.created_at)}</span>
+          {onReview && (
+            <Button
+              size="small"
+              icon={<HistoryOutlined />}
+              onClick={() => onReview(item)}
+              style={{ marginLeft: 8 }}
+            >
+              复盘
+            </Button>
+          )}
+        </div>
       </div>
 
       <p className="mt-3 text-sm leading-6 text-slate-700">

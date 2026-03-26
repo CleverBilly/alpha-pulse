@@ -3,7 +3,6 @@
  * Task 5 (KlineChart) 和 Task 11 (ReviewChartModal) 共享此工具函数。
  */
 export function isLongDirection(verdict?: string, tradeabilityLabel?: string): boolean {
-  const verdictLower = verdict?.toLowerCase() ?? "";
-  const tradeLabel = tradeabilityLabel ?? "";
-  return verdictLower.includes("bullish") || tradeLabel.includes("多");
+  const text = `${verdict ?? ""} ${tradeabilityLabel ?? ""}`.toLowerCase();
+  return text.includes("long") || text.includes("多") || text.includes("bullish");
 }
