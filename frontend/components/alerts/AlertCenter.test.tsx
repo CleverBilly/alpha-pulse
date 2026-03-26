@@ -23,7 +23,7 @@ describe("AlertCenter", () => {
       () =>
         ({
           getPropertyValue: () => "",
-        }) as CSSStyleDeclaration,
+        }) as unknown as CSSStyleDeclaration,
     );
   });
 

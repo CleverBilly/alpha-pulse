@@ -29,7 +29,7 @@ describe("WinRatePanel", () => {
       () =>
         ({
           getPropertyValue: () => "",
-        }) as CSSStyleDeclaration,
+        }) as unknown as CSSStyleDeclaration,
     );
     Object.defineProperty(window, "matchMedia", {
       writable: true,

@@ -43,17 +43,16 @@ const MOCK_EVENT: AlertEvent = {
 
 function buildMockKline(openTime: number) {
   return {
+    id: 1,
+    symbol: "BTCUSDT",
+    interval_type: "1h",
+    created_at: new Date(openTime).toISOString(),
     open_time: openTime,
-    close_time: openTime + 3_600_000,
     open_price: 65000,
     close_price: 65200,
     high_price: 65400,
     low_price: 64800,
     volume: 100,
-    quote_volume: 6_500_000,
-    trade_count: 1000,
-    taker_buy_volume: 55,
-    taker_buy_quote_volume: 3_575_000,
   };
 }
 
@@ -63,7 +62,7 @@ describe("ReviewChartModal", () => {
       () =>
         ({
           getPropertyValue: () => "",
-        }) as CSSStyleDeclaration,
+        }) as unknown as CSSStyleDeclaration,
     );
   });
 
