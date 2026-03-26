@@ -143,6 +143,12 @@ func main() {
 		feishuNotifier,
 	)
 
+	outcomeTracker := service.NewOutcomeTrackerService(
+		alertRecordRepo,
+		klineRepo,
+		cfg.MarketSymbols,
+	)
+
 	marketHandler := handler.NewMarketHandler(marketService, signalService)
 	signalHandler := handler.NewSignalHandler(signalService)
 	alertHandler := handler.NewAlertHandler(alertService)
@@ -213,6 +219,7 @@ func main() {
 			marketService,
 			signalService,
 			alertService,
+			outcomeTracker,
 			cfg.MarketSymbols,
 			time.Duration(cfg.SchedulerIntervalSeconds)*time.Second,
 		)

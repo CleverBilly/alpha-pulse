@@ -11,11 +11,12 @@ import (
 
 // Jobs 管理后台定时任务。
 type Jobs struct {
-	marketService *service.MarketService
-	signalService *service.SignalService
-	alertService  *service.AlertService
-	symbols       []string
-	interval      time.Duration
+	marketService  *service.MarketService
+	signalService  *service.SignalService
+	alertService   *service.AlertService
+	outcomeTracker *service.OutcomeTrackerService
+	symbols        []string
+	interval       time.Duration
 }
 
 // NewJobs 创建任务调度器。
@@ -23,6 +24,7 @@ func NewJobs(
 	marketService *service.MarketService,
 	signalService *service.SignalService,
 	alertService *service.AlertService,
+	outcomeTracker *service.OutcomeTrackerService,
 	symbols []string,
 	interval time.Duration,
 ) *Jobs {
@@ -35,11 +37,12 @@ func NewJobs(
 	}
 
 	return &Jobs{
-		marketService: marketService,
-		signalService: signalService,
-		alertService:  alertService,
-		symbols:       normalizedSymbols,
-		interval:      interval,
+		marketService:  marketService,
+		signalService:  signalService,
+		alertService:   alertService,
+		outcomeTracker: outcomeTracker,
+		symbols:        normalizedSymbols,
+		interval:       interval,
 	}
 }
 
@@ -76,6 +79,10 @@ func (j *Jobs) runOnce() {
 		if _, err := j.alertService.EvaluateAll(context.Background(), true); err != nil {
 			log.Printf("alert evaluation failed: %v", err)
 		}
+	}
+
+	if j.outcomeTracker != nil {
+		j.outcomeTracker.TrackAll(context.Background())
 	}
 }
 
