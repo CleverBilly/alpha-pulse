@@ -10,25 +10,25 @@ import { useMarketStore } from '@/store/marketStore';
 
 describe('SignalStatusBadge', () => {
   it('renders BUY badge with confidence', () => {
-    (useMarketStore as ReturnType<typeof vi.fn>).mockReturnValue({
+    vi.mocked(useMarketStore).mockReturnValue({
       signal: { signal: 'BUY', confidence: 82 },
-    });
+    } as never);
     render(<SignalStatusBadge />);
     expect(screen.getByText('BUY · 82%')).toBeInTheDocument();
   });
 
   it('renders SELL badge', () => {
-    (useMarketStore as ReturnType<typeof vi.fn>).mockReturnValue({
+    vi.mocked(useMarketStore).mockReturnValue({
       signal: { signal: 'SELL', confidence: 65 },
-    });
+    } as never);
     render(<SignalStatusBadge />);
     expect(screen.getByText('SELL · 65%')).toBeInTheDocument();
   });
 
   it('renders NEUTRAL when no signal', () => {
-    (useMarketStore as ReturnType<typeof vi.fn>).mockReturnValue({
+    vi.mocked(useMarketStore).mockReturnValue({
       signal: null,
-    });
+    } as never);
     render(<SignalStatusBadge />);
     expect(screen.getByText('NEUTRAL')).toBeInTheDocument();
   });
