@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Spin, Statistic, Table, Tag } from "antd";
+import { Button, Spin, Statistic, Table, Tag, Typography } from "antd";
 import { alertApi } from "@/services/apiClient";
 import type { AlertStats } from "@/types/alert";
 
-const LIMIT_OPTIONS = [20, 50, 0] as const; // 0 = 全部
+const LIMIT_OPTIONS = [20, 50, 999] as const; // 999 = 全部
 type Limit = (typeof LIMIT_OPTIONS)[number];
 
 interface WinRatePanelProps {
@@ -16,13 +16,20 @@ export default function WinRatePanel({ symbols }: WinRatePanelProps) {
   const [limit, setLimit] = useState<Limit>(50);
   const [stats, setStats] = useState<AlertStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     Promise.all(symbols.map((s) => alertApi.getAlertStats(s, limit)))
       .then((results) => {
-        if (active) setStats(results);
+        if (active) {
+          setStats(results);
+          setError(null);
+        }
+      })
+      .catch(() => {
+        if (active) setError("统计数据加载失败，请稍后重试");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -81,7 +88,7 @@ export default function WinRatePanel({ symbols }: WinRatePanelProps) {
             type={limit === l ? "primary" : "default"}
             onClick={() => setLimit(l)}
           >
-            {l === 0 ? "全部" : `近${l}条`}
+            {l === 999 ? "全部" : `近${l}条`}
           </Button>
         ))}
       </div>
@@ -95,6 +102,9 @@ export default function WinRatePanel({ symbols }: WinRatePanelProps) {
           pagination={false}
           size="small"
         />
+      )}
+      {!loading && error && (
+        <Typography.Text type="danger">{error}</Typography.Text>
       )}
     </div>
   );
