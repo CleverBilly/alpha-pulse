@@ -47,13 +47,14 @@ PositionSyncService（每 15s 调度）
 | symbol | varchar(20) | 交易对，如 BTCUSDT |
 | side | varchar(8) | LONG / SHORT |
 | qty | decimal(18,6) | 合约数量（张数） |
-| entry_order_id | varchar(32) | 币安市价开仓订单 ID |
-| sl_order_id | varchar(32) | 币安止损单 ID |
-| tp_order_id | varchar(32) | 币安止盈单 ID |
+| entry_order_id | varchar(64) | 币安市价开仓订单 ID |
+| sl_order_id | varchar(64) | 币安止损单 ID |
+| tp_order_id | varchar(64) | 币安止盈单 ID |
 | filled_price | decimal(18,4) | 实际成交均价 |
 | entry_price | decimal(18,4) | 信号入场价 |
 | stop_loss | decimal(18,4) | 止损价 |
 | target_price | decimal(18,4) | 止盈价 |
+| leverage | int | 下单时账户对该标的设置的杠杆倍数（审计用） |
 | risk_pct | decimal(5,2) | 下单时使用的余额百分比 |
 | source | varchar(16) | system（本系统下单）/ manual（手动） |
 | status | varchar(16) | pending / open / closed / failed |
@@ -70,6 +71,9 @@ PositionSyncService（每 15s 调度）
 ```go
 // GetFuturesBalance 获取 USDT 可用余额
 func (c *Client) GetFuturesBalance() (available float64, err error)
+
+// GetFuturesLeverage 获取指定标的当前账户设置的杠杆倍数
+func (c *Client) GetFuturesLeverage(symbol string) (leverage int, err error)
 
 // PlaceFuturesMarketOrder 市价下单，返回订单 ID 和成交均价
 func (c *Client) PlaceFuturesMarketOrder(symbol, side string, qty float64) (orderID string, filledPrice float64, err error)
@@ -110,18 +114,25 @@ func (r *TradeOrderRepository) FindByAlertID(alertID string) (models.TradeOrder,
 **Execute(alertEvent AlertEvent) error**
 1. 检查 `TRADE_ENABLED`，否则返回错误
 2. 验证 `entry_price > 0 && stop_loss > 0 && target_price > 0`
-3. 查询同标的是否已有 `status=open` 的订单，有则返回 `"already have open position for BTCUSDT"`
-4. 调用 `GetFuturesBalance()` 获取可用余额
-5. 计算手数：`qty = (balance × riskPct / 100) / entryPrice`（合约面值为 1 时；实际按标的精度取整）
-6. 调用 `PlaceFuturesMarketOrder` 开仓
-7. 开仓成功后调用 `PlaceFuturesStopOrder` 挂止损单
-8. 调用 `PlaceFuturesStopOrder` 挂止盈单
-9. 止损/止盈任一挂单失败 → 调用 `CancelFuturesOrder` 撤市价单并平仓，写 `status=failed`
-10. 全部成功 → 写 `status=open`
+3. 验证 `risk_reward >= 1.0`（R:R 下限），否则拒绝执行
+4. 验证 `riskPct > 0 && riskPct <= 10`，超出范围拒绝执行（防止配置错误爆仓）
+5. 查询同标的是否已有 `status=open` 的订单，有则返回 `"already have open position for BTCUSDT"`
+6. 调用 `GetFuturesBalance()` 获取可用余额；余额为 0 或出错则拒绝
+7. 调用 `GetFuturesLeverage(symbol)` 获取当前杠杆倍数
+8. 计算手数：`qty = (balance × riskPct / 100) × leverage / entryPrice`，按标的精度取整
+9. qty 低于标的最小下单量时返回错误（不静默跳过）
+10. 调用 `PlaceFuturesMarketOrder` 开仓
+11. 开仓成功后调用 `PlaceFuturesStopOrder` 挂止损单
+12. 调用 `PlaceFuturesStopOrder` 挂止盈单
+13. 止损/止盈任一挂单失败 → 调用 `CancelFuturesOrder` 撤市价单并平仓，写 `status=failed`
+14. 全部成功 → 写 `status=open`，记录 `leverage` 字段
+
+**Preview(alertEvent AlertEvent) (TradePreview, error)**
+- 执行步骤 1-9 的只读计算（不下单），返回预计 qty、notional_usdt、available_balance、leverage
 
 **CloseOrder(orderID uint64) error**
 1. 查找订单，验证 `status=open`
-2. 撤销 sl_order_id 和 tp_order_id
+2. 撤销 sl_order_id 和 tp_order_id；若订单已成交（`ORDER_ALREADY_CLOSED` 类错误）则忽略，继续执行
 3. 发市价平仓单（方向相反）
 4. 更新 `status=closed`
 
@@ -130,17 +141,18 @@ func (r *TradeOrderRepository) FindByAlertID(alertID string) (models.TradeOrder,
 **SyncAll(ctx context.Context)**
 1. 调用 `GetFuturesPositions()` 获取全部持仓
 2. 查询本地 `status=open` 的订单列表
-3. **币安有，本地无** → 创建记录，`source=manual`，`status=open`
-4. **本地有（system/manual），币安 size=0** → 更新 `status=closed`，`closed_at=now`
+3. **币安有，本地无** → 先检查 `symbol+status=open` 是否已存在（幂等），不存在则创建记录，`source=manual`，`status=open`
+4. **本地有（system/manual），币安 size=0** → 更新 `status=closed`，`closed_at=now`；同时调用 `CancelFuturesOrder` 撤销该订单对应的另一张孤单（SL 触发后撤 TP，TP 触发后撤 SL）；撤单时忽略 `ORDER_ALREADY_CLOSED` 类错误
 
 集成到 `backend/internal/scheduler/jobs.go` 的 `runOnce()` 中，与现有 OutcomeTracker 并列调用。
 
 ### `backend/internal/handler/trade_handler.go`
 
 ```
-POST /api/trades/execute   body: {alert_id: string}  → ExecuteTrade
-GET  /api/trades           query: limit              → ListOrders
-POST /api/trades/:id/close                           → CloseOrder
+POST /api/trades/execute        body: {alert_id: string}         → ExecuteTrade
+GET  /api/trades/preview        query: alert_id                  → PreviewTrade
+GET  /api/trades                query: limit, symbol, status     → ListOrders
+POST /api/trades/:id/close                                       → CloseOrder
 ```
 
 所有接口受 `TRADE_ENABLED` 开关保护，未开启时返回 `403 {"code":403,"message":"auto trading is disabled"}`。
@@ -180,7 +192,7 @@ POST /api/trades/:id/close                           → CloseOrder
 export const tradeApi = {
   preview(alertId: string): Promise<TradePreview>,
   execute(alertId: string): Promise<TradeOrder>,
-  list(limit?: number): Promise<TradeOrder[]>,
+  list(opts?: { limit?: number; symbol?: string; status?: TradeStatus }): Promise<TradeOrder[]>,
   close(orderId: number): Promise<void>,
 };
 ```
@@ -202,6 +214,7 @@ export interface TradeOrder {
   entry_price: number;
   stop_loss: number;
   target_price: number;
+  leverage: number;
   risk_pct: number;
   source: TradeSource;
   status: TradeStatus;
@@ -220,6 +233,7 @@ export interface TradePreview {
   qty: number;
   notional_usdt: number;
   available_balance: number;
+  leverage: number;
   risk_pct: number;
 }
 ```
@@ -244,9 +258,12 @@ TradeRiskPct float64 // TRADE_RISK_PCT, 默认 2.0
 1. **总开关**：`TRADE_ENABLED=false` 时所有下单接口返回 403，绝不触碰币安账户
 2. **重复开仓防护**：同标的已有 `status=open` 时，`Execute` 直接返回错误，不发起任何订单
 3. **价格完整性校验**：`entry_price / stop_loss / target_price` 任一为 0 时拒绝执行
-4. **止损/止盈挂单失败回滚**：开仓后任一条件单失败，立即发反向市价单平仓，避免裸持仓
-5. **最小 qty 限制**：计算出的 qty 低于标的最小下单量时，返回错误（不静默跳过）
-6. **仓位同步幂等**：`PositionSync` 创建 manual 记录前先检查 `symbol+status=open` 是否已存在，避免重复写入
+4. **R:R 最小值校验**：`risk_reward < 1.0` 时拒绝执行
+5. **riskPct 上限校验**：`riskPct <= 0 || riskPct > 10` 时拒绝执行，防止配置错误爆仓
+6. **止损/止盈挂单失败回滚**：开仓后任一条件单失败，立即发反向市价单平仓，避免裸持仓
+7. **最小 qty 限制**：计算出的 qty 低于标的最小下单量时，返回错误（不静默跳过）
+8. **孤单清理**：PositionSync 检测到持仓平仓时，撤销剩余的对手方条件单；撤单时忽略 `ORDER_ALREADY_CLOSED` 类错误
+9. **仓位同步幂等**：`PositionSync` 创建 manual 记录前先检查 `symbol+status=open` 是否已存在，避免重复写入
 
 ## Error Handling
 
