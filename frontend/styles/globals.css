@@ -1193,6 +1193,200 @@ a {
   }
 }
 
+/* ── Cockpit Shell ─────────────────────────────────────────── */
+.cockpit-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.cockpit-shell__sider {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 100;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.82);
+  border-right: 1px solid rgba(23, 32, 51, 0.08);
+  backdrop-filter: blur(16px);
+  box-shadow: 4px 0 24px rgba(15, 23, 42, 0.06);
+  transition: width 220ms ease;
+}
+
+.cockpit-shell__sider--collapsed {
+  width: 64px;
+}
+
+.cockpit-shell__logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid rgba(23, 32, 51, 0.06);
+  flex-shrink: 0;
+}
+
+.cockpit-shell__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.cockpit-shell__brand-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #172033;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+}
+
+.cockpit-shell__brand-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--app-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.cockpit-shell__nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cockpit-shell__nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.cockpit-shell__nav-group-label {
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--app-muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.cockpit-shell__nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  color: #52607a;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 140ms ease, color 140ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.cockpit-shell__nav-item:hover {
+  background: rgba(15, 118, 110, 0.06);
+  color: #172033;
+}
+
+.cockpit-shell__nav-item--active {
+  background: rgba(15, 118, 110, 0.12);
+  color: #0f766e;
+}
+
+.cockpit-shell__nav-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cockpit-shell__nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cockpit-shell__footer {
+  padding: 12px 10px;
+  border-top: 1px solid rgba(23, 32, 51, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cockpit-shell__collapse-btn {
+  position: absolute;
+  top: 22px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(23, 32, 51, 0.1);
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--app-muted);
+  cursor: pointer;
+  transition: box-shadow 140ms ease, color 140ms ease;
+}
+
+.cockpit-shell__collapse-btn:hover {
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.16);
+  color: #172033;
+}
+
+.cockpit-shell__content {
+  flex: 1;
+  margin-left: 220px;
+  min-height: 100vh;
+  background: #f0f2f5;
+  transition: margin-left 220ms ease;
+}
+
+.cockpit-shell__sider--collapsed ~ .cockpit-shell__content,
+.cockpit-shell:has(.cockpit-shell__sider--collapsed) .cockpit-shell__content {
+  margin-left: 64px;
+}
+
+.cockpit-shell__logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--app-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.cockpit-shell__logout-btn:hover {
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
+}
+
+/* ── End Cockpit Shell ─────────────────────────────────────── */
+
 @media (max-width: 767px) {
   .page-hero {
     padding: 20px;
