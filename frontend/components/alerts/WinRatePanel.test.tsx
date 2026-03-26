@@ -79,4 +79,18 @@ describe("WinRatePanel", () => {
       expect(alertApi.getAlertStats).toHaveBeenCalledWith("BTCUSDT", 20),
     );
   });
+
+  it("clears error message on subsequent successful fetch", async () => {
+    vi.mocked(alertApi.getAlertStats)
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValue(mockStats);
+
+    render(<WinRatePanel symbols={["BTCUSDT"]} />);
+    await waitFor(() => expect(screen.getByText(/加载失败/)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "近20条" }));
+    await waitFor(() =>
+      expect(screen.queryByText(/加载失败/)).not.toBeInTheDocument(),
+    );
+  });
 });
