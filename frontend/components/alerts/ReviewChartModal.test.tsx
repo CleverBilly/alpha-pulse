@@ -149,13 +149,16 @@ describe("ReviewChartModal", () => {
     // 卸载时 Promise 仍处于 pending 状态
     unmount();
 
-    // 现在 resolve —— 不应产生任何 React 警告
+    // Resolve after unmount — active flag prevents setState.
+    // React 18 removed the "setState on unmounted component" warning, so this test
+    // verifies the absence of unhandled exceptions rather than console.error output.
     const consoleSpy = vi.spyOn(console, "error");
     resolveKline([buildMockKline(MOCK_EVENT.created_at)]);
 
     // 给 microtask 队列一点时间清空
     await new Promise((resolve) => setTimeout(resolve, 0));
 
+    // Should not throw; consoleSpy is a secondary indicator (React 18+ doesn't emit this warning)
     expect(consoleSpy).not.toHaveBeenCalledWith(
       expect.stringContaining("Can't perform a React state update on an unmounted component"),
     );
