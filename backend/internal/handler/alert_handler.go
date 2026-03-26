@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"alpha-pulse/backend/internal/service"
@@ -100,4 +101,24 @@ func (h *AlertHandler) RefreshAlerts(c *gin.Context) {
 		Items:     h.alertService.ListRecent(limit),
 		Generated: len(generated),
 	}))
+}
+
+// GetAlertStats 处理 GET /api/alerts/stats。
+func (h *AlertHandler) GetAlertStats(c *gin.Context) {
+	symbol := strings.ToUpper(strings.TrimSpace(c.Query("symbol")))
+	if symbol == "" {
+		symbol = "BTCUSDT"
+	}
+	limit := 50
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+	stats, err := h.alertService.GetAlertStats(symbol, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, utils.Error(500, err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, utils.Success(stats))
 }

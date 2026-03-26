@@ -468,6 +468,20 @@ func (s *MarketService) GetLiquiditySeriesWithRefresh(symbol, interval string, l
 	return result, nil
 }
 
+// GetKlineBefore 返回指定时间点之前的 N 根 K 线（升序）。
+func (s *MarketService) GetKlineBefore(symbol, interval string, beforeMs int64, limit int) ([]models.Kline, error) {
+	symbol = normalizeSymbol(symbol)
+	interval = normalizeInterval(interval)
+	return s.klineRepo.FindBefore(symbol, interval, beforeMs, limit)
+}
+
+// GetKlineAfter 返回指定时间点之后的 N 根 K 线（升序）。
+func (s *MarketService) GetKlineAfter(symbol, interval string, afterMs int64, limit int) ([]models.Kline, error) {
+	symbol = normalizeSymbol(symbol)
+	interval = normalizeInterval(interval)
+	return s.klineRepo.FindAfter(symbol, interval, afterMs, limit)
+}
+
 // WarmupSymbol 用于定时任务预热核心数据。
 func (s *MarketService) WarmupSymbol(symbol string) error {
 	symbol = normalizeSymbol(symbol)

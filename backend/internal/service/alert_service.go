@@ -154,6 +154,14 @@ func (s *AlertService) ListHistory(limit int) []AlertEvent {
 	return s.ListRecent(limit)
 }
 
+// GetAlertStats 返回指定标的的告警结果统计。
+func (s *AlertService) GetAlertStats(symbol string, limit int) (repository.AlertStats, error) {
+	if s.repo == nil {
+		return repository.AlertStats{}, fmt.Errorf("alert repository not configured")
+	}
+	return s.repo.GetStats(symbol, limit)
+}
+
 func (s *AlertService) GetPreferences() AlertPreferences {
 	return loadAlertPreferences(s.preferenceRepo, s.symbols)
 }

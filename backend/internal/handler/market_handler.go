@@ -47,6 +47,31 @@ func (h *MarketHandler) GetPrice(c *gin.Context) {
 func (h *MarketHandler) GetKline(c *gin.Context) {
 	symbol := c.DefaultQuery("symbol", "BTCUSDT")
 	interval := c.DefaultQuery("interval", "1m")
+	limit := parseLimit(c.DefaultQuery("limit", "20"), 20)
+
+	beforeTs := parseOptionalInt64(c.Query("before_ts"))
+	afterTs := parseOptionalInt64(c.Query("after_ts"))
+
+	if beforeTs > 0 {
+		result, err := h.marketService.GetKlineBefore(symbol, interval, beforeTs, limit)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, utils.Error(500, err.Error()))
+			return
+		}
+		c.JSON(http.StatusOK, utils.Success(result))
+		return
+	}
+
+	if afterTs > 0 {
+		result, err := h.marketService.GetKlineAfter(symbol, interval, afterTs, limit)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, utils.Error(500, err.Error()))
+			return
+		}
+		c.JSON(http.StatusOK, utils.Success(result))
+		return
+	}
+
 	result, err := h.marketService.GetKline(symbol, interval)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.Error(500, err.Error()))
@@ -211,4 +236,15 @@ func parseRefresh(raw string) bool {
 	default:
 		return false
 	}
+}
+
+func parseOptionalInt64(s string) int64 {
+	if s == "" {
+		return 0
+	}
+	v, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return v
 }
