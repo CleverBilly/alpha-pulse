@@ -1,0 +1,102 @@
+<h2>配色风格</h2>
+<p class="subtitle">整体视觉基调，影响侧边栏、背景、卡片的颜色感受</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="dark-sidebar" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;overflow:hidden;border-radius:8px;min-height:200px;">
+      <div style="display:flex;height:200px;font-size:11px;">
+        <div style="width:64px;background:#0f172a;padding:12px 8px;display:flex;flex-direction:column;gap:6px;">
+          <div style="color:#0f766e;font-weight:700;font-size:10px;letter-spacing:0.1em;margin-bottom:4px;">AP</div>
+          <div style="padding:6px 8px;background:rgba(15,118,110,0.25);border-radius:6px;color:#5eead4;font-size:10px;">驾驶舱</div>
+          <div style="padding:6px 8px;color:#64748b;font-size:10px;">图表</div>
+          <div style="padding:6px 8px;color:#64748b;font-size:10px;">复盘</div>
+          <div style="padding:6px 8px;color:#64748b;font-size:10px;">市场</div>
+          <div style="padding:6px 8px;color:#64748b;font-size:10px;">交易</div>
+          <div style="flex:1;"></div>
+          <div style="width:32px;height:32px;background:#1e293b;border-radius:50%;margin:0 auto;"></div>
+        </div>
+        <div style="flex:1;background:#f1f5f9;padding:12px;display:flex;flex-direction:column;gap:8px;">
+          <div style="height:28px;background:#fff;border-radius:6px;border:1px solid #e2e8f0;display:flex;align-items:center;padding:0 10px;gap:6px;">
+            <div style="width:50px;height:10px;background:#e2e8f0;border-radius:2px;"></div>
+            <div style="flex:1;"></div>
+            <div style="width:14px;height:14px;background:#0f766e;border-radius:3px;opacity:0.7;"></div>
+            <div style="width:14px;height:14px;background:#e2e8f0;border-radius:3px;"></div>
+          </div>
+          <div style="flex:1;background:#fff;border-radius:6px;border:1px solid #e2e8f0;"></div>
+          <div style="display:flex;gap:6px;">
+            <div style="flex:1;height:40px;background:#fff;border-radius:6px;border:1px solid #e2e8f0;"></div>
+            <div style="flex:1;height:40px;background:#fff;border-radius:6px;border:1px solid #e2e8f0;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>深色侧边栏 + 浅色内容区（推荐）</h3>
+      <p>侧边栏深色 #0f172a，内容区浅灰白。专业感强，导航和内容区对比清晰，是 Ant Design Pro 默认风格，数据密度高时最易读。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="all-dark" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;overflow:hidden;border-radius:8px;min-height:200px;">
+      <div style="display:flex;height:200px;font-size:11px;">
+        <div style="width:64px;background:#0d1117;padding:12px 8px;display:flex;flex-direction:column;gap:6px;">
+          <div style="color:#0f766e;font-weight:700;font-size:10px;letter-spacing:0.1em;margin-bottom:4px;">AP</div>
+          <div style="padding:6px 8px;background:rgba(15,118,110,0.3);border-radius:6px;color:#5eead4;font-size:10px;">驾驶舱</div>
+          <div style="padding:6px 8px;color:#475569;font-size:10px;">图表</div>
+          <div style="padding:6px 8px;color:#475569;font-size:10px;">复盘</div>
+          <div style="padding:6px 8px;color:#475569;font-size:10px;">市场</div>
+          <div style="padding:6px 8px;color:#475569;font-size:10px;">交易</div>
+        </div>
+        <div style="flex:1;background:#161b22;padding:12px;display:flex;flex-direction:column;gap:8px;">
+          <div style="height:28px;background:#1c2333;border-radius:6px;border:1px solid #30363d;display:flex;align-items:center;padding:0 10px;gap:6px;">
+            <div style="width:50px;height:10px;background:#30363d;border-radius:2px;"></div>
+            <div style="flex:1;"></div>
+            <div style="width:14px;height:14px;background:#0f766e;border-radius:3px;opacity:0.8;"></div>
+          </div>
+          <div style="flex:1;background:#1c2333;border-radius:6px;border:1px solid #30363d;"></div>
+          <div style="display:flex;gap:6px;">
+            <div style="flex:1;height:40px;background:#1c2333;border-radius:6px;border:1px solid #30363d;"></div>
+            <div style="flex:1;height:40px;background:#1c2333;border-radius:6px;border:1px solid #30363d;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>全深色模式</h3>
+      <p>整体深色背景，适合长时间盯盘。K 线图在深色背景下对比度更好，但 Ant Design 深色主题需要额外配置，部分组件样式需要手动覆盖。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="light-clean" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;overflow:hidden;border-radius:8px;min-height:200px;">
+      <div style="display:flex;height:200px;font-size:11px;">
+        <div style="width:64px;background:#fff;border-right:1px solid #e2e8f0;padding:12px 8px;display:flex;flex-direction:column;gap:6px;">
+          <div style="color:#0f766e;font-weight:700;font-size:10px;letter-spacing:0.1em;margin-bottom:4px;">AP</div>
+          <div style="padding:6px 8px;background:#f0fdf4;border-radius:6px;color:#0f766e;font-size:10px;border-left:2px solid #0f766e;">驾驶舱</div>
+          <div style="padding:6px 8px;color:#94a3b8;font-size:10px;">图表</div>
+          <div style="padding:6px 8px;color:#94a3b8;font-size:10px;">复盘</div>
+          <div style="padding:6px 8px;color:#94a3b8;font-size:10px;">市场</div>
+          <div style="padding:6px 8px;color:#94a3b8;font-size:10px;">交易</div>
+        </div>
+        <div style="flex:1;background:#f8fafc;padding:12px;display:flex;flex-direction:column;gap:8px;">
+          <div style="height:28px;background:#fff;border-radius:6px;border:1px solid #e2e8f0;display:flex;align-items:center;padding:0 10px;gap:6px;">
+            <div style="width:50px;height:10px;background:#e2e8f0;border-radius:2px;"></div>
+            <div style="flex:1;"></div>
+            <div style="width:14px;height:14px;background:#0f766e;border-radius:3px;opacity:0.7;"></div>
+          </div>
+          <div style="flex:1;background:#fff;border-radius:6px;border:1px solid #e2e8f0;"></div>
+          <div style="display:flex;gap:6px;">
+            <div style="flex:1;height:40px;background:#fff;border-radius:6px;border:1px solid #e2e8f0;"></div>
+            <div style="flex:1;height:40px;background:#fff;border-radius:6px;border:1px solid #e2e8f0;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>全浅色简洁</h3>
+      <p>侧边栏白色，内容区浅灰，整体轻盈。视觉噪音最少，但交易工作台长时间使用白色背景容易疲劳。</p>
+    </div>
+  </div>
+
+</div>

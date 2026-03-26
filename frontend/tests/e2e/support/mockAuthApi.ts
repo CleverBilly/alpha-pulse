@@ -11,8 +11,10 @@ interface MockAuthApiOptions {
 export async function mockAuthApi(page: Page, options: MockAuthApiOptions = {}) {
   const username = options.username ?? "alpha-admin";
   const password = options.password ?? "alpha-pass";
-  const cookieName = options.cookieName ?? "alpha_pulse_session";
-  const secret = options.secret ?? "super-secret";
+  const cookieName = options.cookieName ?? process.env.AUTH_COOKIE_NAME ?? "alpha_pulse_session";
+  const secret = options.secret
+    ?? process.env.AUTH_SESSION_SECRET
+    ?? "d4575a42ee72cf727f577f9806537bda7f25ba2cd440143f0d392f3526384127";
 
   await page.route(/http:\/\/(127\.0\.0\.1|localhost):8080\/api\/auth\/login/, async (route) => {
     const body = route.request().postDataJSON() as { username?: string; password?: string };

@@ -3,9 +3,9 @@
 import { useMarketStore } from '@/store/marketStore';
 
 const BADGE_STYLES: Record<string, { background: string; color: string; border: string }> = {
-  BUY:     { background: 'rgba(21, 128, 61, 0.25)',  color: '#4ade80', border: '1px solid rgba(74, 222, 128, 0.4)' },
-  SELL:    { background: 'rgba(190, 18, 60, 0.25)',  color: '#f87171', border: '1px solid rgba(248, 113, 113, 0.4)' },
-  NEUTRAL: { background: 'rgba(100, 116, 139, 0.2)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.3)' },
+  BUY:     { background: 'rgba(236, 253, 245, 0.96)', color: '#15803d', border: '1px solid rgba(21, 128, 61, 0.14)' },
+  SELL:    { background: 'rgba(255, 241, 242, 0.96)', color: '#be123c', border: '1px solid rgba(190, 18, 60, 0.12)' },
+  NEUTRAL: { background: 'rgba(248, 250, 252, 0.96)', color: '#64748b', border: '1px solid rgba(100, 116, 139, 0.12)' },
 };
 
 export default function SignalStatusBadge({ collapsed }: { collapsed?: boolean }) {
@@ -32,6 +32,7 @@ export default function SignalStatusBadge({ collapsed }: { collapsed?: boolean }
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         maxWidth: collapsed ? 36 : 'none',
+        boxShadow: '0 10px 18px rgba(15, 23, 42, 0.04)',
       }}
     >
       {collapsed ? direction.charAt(0) : label}

@@ -53,4 +53,15 @@ describe("DecisionHeader", () => {
     await user.click(screen.getByRole("button", { name: "4h" }));
     expect(setIntervalType).toHaveBeenCalledWith("4h");
   });
+
+  it("exposes dedicated quote and workspace regions for the cockpit layout", () => {
+    mockedUseMarketStore.mockReturnValue(
+      buildMockMarketStoreState() as ReturnType<typeof useMarketStore>,
+    );
+
+    render(<DecisionHeader />);
+
+    expect(screen.getByRole("region", { name: "市场报价" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "交易工作台控件" })).toBeInTheDocument();
+  });
 });

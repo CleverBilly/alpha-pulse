@@ -1,0 +1,62 @@
+<h2>顶部 Header 内容</h2>
+<p class="subtitle">侧边栏确定了，顶部 Header 还需要放什么全局信息？</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="minimal" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:12px;background:#f8fafc;min-height:160px;">
+      <div style="display:flex;height:140px;gap:8px;">
+        <div style="width:56px;background:#0f172a;border-radius:6px;padding:8px 6px;display:flex;flex-direction:column;gap:5px;">
+          <div style="width:20px;height:20px;background:#0f766e;border-radius:4px;margin:0 auto 6px;"></div>
+          <div style="height:20px;background:rgba(15,118,110,0.3);border-radius:4px;"></div>
+          <div style="height:20px;background:rgba(255,255,255,0.08);border-radius:4px;"></div>
+          <div style="height:20px;background:rgba(255,255,255,0.08);border-radius:4px;"></div>
+          <div style="height:20px;background:rgba(255,255,255,0.08);border-radius:4px;"></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+          <div style="height:32px;background:#fff;border-radius:6px;border:1px solid #e2e8f0;display:flex;align-items:center;padding:0 12px;gap:8px;">
+            <div style="font-size:10px;color:#94a3b8;">驾驶舱</div>
+            <div style="flex:1;"></div>
+            <div style="width:60px;height:18px;background:#f0fdf4;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#0f766e;font-weight:700;">BUY 82%</div>
+            <div style="width:24px;height:24px;background:#fef3c7;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;">🔔</div>
+          </div>
+          <div style="flex:1;background:#fff;border-radius:6px;border:1px solid #e2e8f0;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>极简 Header（推荐）</h3>
+      <p>只放面包屑/页面标题、当前信号状态 badge、告警铃铛。干净，内容区最大化，信号状态一眼可见。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="status-bar" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:12px;background:#f8fafc;min-height:160px;">
+      <div style="display:flex;height:140px;gap:8px;">
+        <div style="width:56px;background:#0f172a;border-radius:6px;padding:8px 6px;display:flex;flex-direction:column;gap:5px;">
+          <div style="width:20px;height:20px;background:#0f766e;border-radius:4px;margin:0 auto 6px;"></div>
+          <div style="height:20px;background:rgba(15,118,110,0.3);border-radius:4px;"></div>
+          <div style="height:20px;background:rgba(255,255,255,0.08);border-radius:4px;"></div>
+          <div style="height:20px;background:rgba(255,255,255,0.08);border-radius:4px;"></div>
+          <div style="height:20px;background:rgba(255,255,255,0.08);border-radius:4px;"></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+          <div style="height:36px;background:#fff;border-radius:6px;border:1px solid #e2e8f0;display:flex;align-items:center;padding:0 10px;gap:6px;">
+            <div style="font-size:9px;color:#94a3b8;">驾驶舱</div>
+            <div style="flex:1;"></div>
+            <div style="padding:3px 7px;background:#f0fdf4;border-radius:8px;font-size:9px;color:#0f766e;font-weight:700;">BUY</div>
+            <div style="padding:3px 7px;background:#f1f5f9;border-radius:8px;font-size:9px;color:#475569;">BTCUSDT · 1m</div>
+            <div style="padding:3px 7px;background:#f1f5f9;border-radius:8px;font-size:9px;color:#475569;">WS 实时</div>
+            <div style="width:22px;height:22px;background:#fef3c7;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;">🔔</div>
+          </div>
+          <div style="flex:1;background:#fff;border-radius:6px;border:1px solid #e2e8f0;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>状态栏 Header</h3>
+      <p>保留现有信息密度：信号方向、当前标的+周期、数据连接状态、告警。适合需要随时确认系统状态的场景。</p>
+    </div>
+  </div>
+
+</div>

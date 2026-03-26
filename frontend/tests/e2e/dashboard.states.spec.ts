@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { buildMockMarketSnapshot } from "../../test/fixtures/marketSnapshot";
 import { mockAlertApi } from "./support/mockAlertApi";
+import { loginAsDefaultUser } from "./support/loginAsDefaultUser";
 import { mockMarketSnapshotApi } from "./support/mockMarketApi";
 
 test("dashboard shows api failure state", async ({ page }) => {
@@ -14,7 +15,7 @@ test("dashboard shows api failure state", async ({ page }) => {
     }),
   });
 
-  await page.goto("/dashboard");
+  await loginAsDefaultUser(page);
   await expect(page.getByText("API request failed: 500").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "等待 setup 完整" })).toBeDisabled();
 });
@@ -23,7 +24,7 @@ test("dashboard shows loading state on weak network", async ({ page }) => {
   await mockAlertApi(page);
   await mockMarketSnapshotApi(page, { delayMs: 1800 });
 
-  await page.goto("/dashboard");
+  await loginAsDefaultUser(page);
   await expect(page.getByText("加载中...").first()).toBeVisible();
   await expect(page.getByText("当前判断")).toBeVisible();
   await expect(page.getByRole("heading", { name: "执行方案" })).toBeVisible();
@@ -35,11 +36,11 @@ test("dashboard updates when switching symbol", async ({ page }) => {
   await mockAlertApi(page);
   const controller = await mockMarketSnapshotApi(page);
 
-  await page.goto("/dashboard");
+  await loginAsDefaultUser(page);
   await expect.poll(() => controller.getRequestCount()).toBeGreaterThan(0);
   const baseline = controller.getRequestCount();
 
-  await page.getByLabel("Symbol").selectOption("ETHUSDT");
+  await page.getByLabel("标的").selectOption("ETHUSDT");
   await expect.poll(() => controller.getRequestCount()).toBeGreaterThan(baseline);
 
   await expect(page.getByText("ETHUSDT").first()).toBeVisible();
@@ -49,7 +50,7 @@ test("dashboard manual refresh triggers another snapshot request", async ({ page
   await mockAlertApi(page);
   const controller = await mockMarketSnapshotApi(page);
 
-  await page.goto("/dashboard");
+  await loginAsDefaultUser(page);
   await expect.poll(() => controller.getRequestCount()).toBeGreaterThan(0);
   const baseline = controller.getRequestCount();
 
@@ -71,7 +72,7 @@ test("dashboard does not show fake setup when signal levels are missing", async 
     },
   });
 
-  await page.goto("/dashboard");
+  await loginAsDefaultUser(page);
 
   await expect(page.getByText("等待更完整的入场、止损和目标位后再做执行判断。")).toBeVisible();
   await expect(page.getByRole("button", { name: "等待 setup 完整" })).toBeDisabled();

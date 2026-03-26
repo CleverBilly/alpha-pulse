@@ -86,6 +86,13 @@ describe("PositionCalculator render", () => {
     expect(screen.getByText("仓位计算器")).toBeTruthy();
   });
 
+  it("renders as a cockpit surface region", () => {
+    render(<PositionCalculator />);
+
+    expect(screen.getByRole("region", { name: "仓位计算器" })).toBeInTheDocument();
+    expect(screen.getByText("账户余额 (USDT)")).toBeInTheDocument();
+  });
+
   it("shows error tag when stop equals entry", async () => {
     const user = userEvent.setup();
     render(<PositionCalculator />);

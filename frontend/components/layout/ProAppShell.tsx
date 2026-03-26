@@ -14,7 +14,7 @@ import {
   LogoutOutlined,
 } from '@ant-design/icons';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import AlertCenter from '@/components/alerts/AlertCenter';
 import APLogo from './APLogo';
 import SignalStatusBadge from './SignalStatusBadge';
@@ -46,10 +46,10 @@ function readCollapsed(): boolean {
 
 export default function ProAppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
+  const currentPath = pathname ?? '/dashboard';
   const [collapsed, setCollapsed] = useState<boolean>(readCollapsed);
 
-  if (pathname === '/login') return <>{children}</>;
+  if (currentPath === '/login') return <>{children}</>;
 
   const handleCollapse = () => {
     const next = !collapsed;
@@ -59,38 +59,47 @@ export default function ProAppShell({ children }: { children: ReactNode }) {
 
   const handleLogout = async () => {
     await authApi.logout();
-    router.push('/login');
+    window.location.assign('/login');
   };
 
   return (
-    <div className="cockpit-shell">
-      {/* 侧边栏 */}
+    <div className="cockpit-shell" data-testid="cockpit-shell" data-collapsed={collapsed ? 'true' : 'false'}>
       <aside className={`cockpit-shell__sider${collapsed ? ' cockpit-shell__sider--collapsed' : ''}`}>
-        {/* Logo 区 */}
         <div className="cockpit-shell__logo">
           <APLogo />
           {!collapsed && (
             <div className="cockpit-shell__brand">
               <span className="cockpit-shell__brand-title">Alpha Pulse</span>
-              <span className="cockpit-shell__brand-sub">交易驾驶舱</span>
+              <span className="cockpit-shell__brand-sub">合约方向驾驶舱</span>
             </div>
           )}
+          <button
+            type="button"
+            className="cockpit-shell__logout-btn"
+            aria-label="退出登录"
+            title="退出登录"
+            onClick={() => {
+              void handleLogout();
+            }}
+          >
+            <LogoutOutlined />
+          </button>
         </div>
 
-        {/* 导航菜单 */}
-        <nav className="cockpit-shell__nav">
+        <nav className="cockpit-shell__nav" aria-label="主导航">
           {NAV_GROUPS.map((group) => (
             <div key={group.label} className="cockpit-shell__nav-group">
               {!collapsed && (
                 <span className="cockpit-shell__nav-group-label">{group.label}</span>
               )}
               {group.items.map((item) => {
-                const active = pathname === item.path || pathname.startsWith(item.path + '/');
+                const active = currentPath === item.path || currentPath.startsWith(item.path + '/');
                 return (
                   <Link
                     key={item.path}
                     href={item.path}
                     className={`cockpit-shell__nav-item${active ? ' cockpit-shell__nav-item--active' : ''}`}
+                    data-active={active ? 'true' : 'false'}
                     title={collapsed ? item.name : undefined}
                   >
                     <span className="cockpit-shell__nav-icon">{item.icon}</span>
@@ -102,29 +111,26 @@ export default function ProAppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        {/* 底部状态区 */}
         <div className="cockpit-shell__footer">
-          <SignalStatusBadge collapsed={collapsed} />
-          <AlertCenter />
-          <button
-            className="cockpit-shell__logout-btn"
-            onClick={handleLogout}
-            title="退出登录"
-          >
-            <LogoutOutlined />
-            {!collapsed && <span>退出登录</span>}
-          </button>
+          <div className="cockpit-shell__dock">
+            <SignalStatusBadge collapsed={collapsed} />
+            <AlertCenter />
+          </div>
         </div>
 
-        {/* 折叠按钮 */}
-        <button className="cockpit-shell__collapse-btn" onClick={handleCollapse} aria-label="折叠侧栏">
+        <button
+          className="cockpit-shell__collapse-btn"
+          onClick={handleCollapse}
+          aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}
+        >
           {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
         </button>
       </aside>
 
-      {/* 内容区 */}
       <main className="cockpit-shell__content">
-        {children}
+        <div className="cockpit-shell__canvas">
+          {children}
+        </div>
       </main>
     </div>
   );

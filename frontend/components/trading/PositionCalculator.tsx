@@ -117,89 +117,130 @@ export default function PositionCalculator() {
     : null;
 
   return (
-    <div style={{ padding: 16, background: "#141414", border: "1px solid #303030", borderRadius: 6 }}>
-      <div style={{ fontWeight: 600, marginBottom: 12, color: "#e8e8e8" }}>仓位计算器</div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "8px 12px", alignItems: "center" }}>
-        <label style={{ fontSize: 12, color: "#888" }}>账户余额 (USDT)</label>
-        <InputNumber
-          value={balance}
-          onChange={(value) => value !== null && setBalance(value)}
-          min={0}
-          style={{ width: "100%" }}
-        />
-
-        <label style={{ fontSize: 12, color: "#888" }}>风险比例 %</label>
-        <InputNumber
-          value={riskPct}
-          onChange={(value) => value !== null && setRiskPct(value)}
-          min={0.1}
-          max={10}
-          step={0.5}
-          style={{ width: "100%" }}
-        />
-
-        <label style={{ fontSize: 12, color: "#888" }}>进场价</label>
-        <InputNumber
-          value={entry || undefined}
-          onChange={(value) => value !== null && setEntry(value)}
-          min={0}
-          style={{ width: "100%" }}
-        />
-
-        <label style={{ fontSize: 12, color: "#888" }}>止损价</label>
-        <InputNumber
-          value={stop || undefined}
-          onChange={(value) => value !== null && setStop(value)}
-          min={0}
-          style={{ width: "100%" }}
-        />
-
-        <label style={{ fontSize: 12, color: "#888" }}>目标价（展示）</label>
-        <InputNumber
-          value={target || undefined}
-          onChange={(value) => value !== null && setTarget(value)}
-          min={0}
-          style={{ width: "100%" }}
-        />
+    <section className="position-calculator surface-panel surface-panel--paper" aria-label="仓位计算器">
+      <div className="position-calculator__header">
+        <div>
+          <p className="position-calculator__eyebrow">仓位控制</p>
+          <h2 className="position-calculator__title">仓位计算器</h2>
+        </div>
+        <span className="position-calculator__symbol">{symbol}</span>
       </div>
 
-      <Divider style={{ margin: "12px 0" }} />
+      <div className="position-calculator__grid">
+        <label htmlFor="position-balance" className="position-calculator__field">
+          <span className="position-calculator__label">账户余额 (USDT)</span>
+          <InputNumber
+            id="position-balance"
+            value={balance}
+            onChange={(value) => value !== null && setBalance(value)}
+            min={0}
+            className="position-calculator__input"
+          />
+        </label>
+
+        <label htmlFor="position-risk" className="position-calculator__field">
+          <span className="position-calculator__label">风险比例 %</span>
+          <InputNumber
+            id="position-risk"
+            value={riskPct}
+            onChange={(value) => value !== null && setRiskPct(value)}
+            min={0.1}
+            max={10}
+            step={0.5}
+            className="position-calculator__input"
+          />
+        </label>
+
+        <label htmlFor="position-entry" className="position-calculator__field">
+          <span className="position-calculator__label">进场价</span>
+          <InputNumber
+            id="position-entry"
+            value={entry || undefined}
+            onChange={(value) => value !== null && setEntry(value)}
+            min={0}
+            className="position-calculator__input"
+          />
+        </label>
+
+        <label htmlFor="position-stop" className="position-calculator__field">
+          <span className="position-calculator__label">止损价</span>
+          <InputNumber
+            id="position-stop"
+            value={stop || undefined}
+            onChange={(value) => value !== null && setStop(value)}
+            min={0}
+            className="position-calculator__input"
+          />
+        </label>
+
+        <label htmlFor="position-target" className="position-calculator__field position-calculator__field--wide">
+          <span className="position-calculator__label">目标价（展示）</span>
+          <InputNumber
+            id="position-target"
+            value={target || undefined}
+            onChange={(value) => value !== null && setTarget(value)}
+            min={0}
+            className="position-calculator__input"
+          />
+        </label>
+      </div>
+
+      <Divider className="position-calculator__divider" />
 
       {entryEqualsStop && (
         <Tag color="error">止损价不能等于进场价</Tag>
       )}
 
       {result && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 13 }}>
-          <span style={{ color: "#888" }}>止损距离</span>
-          <span>{result.stopDistPct.toFixed(2)}%</span>
-
-          <span style={{ color: "#888" }}>建议仓位</span>
-          <span style={{ color: result.exceedsBalance ? "#ff7875" : "#52c41a", fontWeight: 600 }}>
-            {result.positionSize.toFixed(0)} USDT
-            {result.exceedsBalance && (
+        <div className="position-calculator__results">
+          <ResultMetric label="止损距离" value={`${result.stopDistPct.toFixed(2)}%`} />
+          <ResultMetric
+            label="建议仓位"
+            value={`${result.positionSize.toFixed(0)} USDT`}
+            tone={result.exceedsBalance ? "warning" : "positive"}
+            extra={result.exceedsBalance ? (
               <Tooltip title="超过账户余额">
                 <Tag color="warning" style={{ marginLeft: 4 }}>
                   超额
                 </Tag>
               </Tooltip>
-            )}
-          </span>
-
-          <span style={{ color: "#888" }}>最大亏损</span>
-          <span style={{ color: "#ff7875" }}>-{result.maxLoss.toFixed(0)} USDT</span>
-
-          {result.maxProfit !== null && (
-            <>
-              <span style={{ color: "#888" }}>预期盈利</span>
-              <span style={{ color: "#52c41a" }}>+{result.maxProfit.toFixed(0)} USDT</span>
-              <span style={{ color: "#888" }}>R:R</span>
-              <span>{result.rr?.toFixed(2)}</span>
-            </>
+            ) : null}
+          />
+          <ResultMetric label="最大亏损" value={`-${result.maxLoss.toFixed(0)} USDT`} tone="negative" />
+          {result.maxProfit !== null ? (
+            <ResultMetric label="预期盈利" value={`+${result.maxProfit.toFixed(0)} USDT`} tone="positive" />
+          ) : (
+            <ResultMetric label="预期盈利" value="--" />
           )}
+          <ResultMetric label="R:R" value={result.rr?.toFixed(2) ?? "--"} tone="accent" />
         </div>
       )}
+
+      {!result && !entryEqualsStop ? (
+        <p className="position-calculator__empty">等待完整的进场、止损和目标位后展示仓位结果。</p>
+      ) : null}
+    </section>
+  );
+}
+
+function ResultMetric({
+  label,
+  value,
+  tone = "default",
+  extra,
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "positive" | "negative" | "warning" | "accent";
+  extra?: React.ReactNode;
+}) {
+  return (
+    <div className={`position-calculator__metric position-calculator__metric--${tone}`}>
+      <span>{label}</span>
+      <strong>
+        {value}
+        {extra}
+      </strong>
     </div>
   );
 }

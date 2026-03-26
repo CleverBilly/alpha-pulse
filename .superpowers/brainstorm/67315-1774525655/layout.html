@@ -1,0 +1,85 @@
+<h2>整体布局结构</h2>
+<p class="subtitle">Alpha Pulse 是一个交易工作台，后续还会加更多功能页面。选择哪种导航布局？</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="sidebar" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:16px;min-height:200px;">
+      <div style="display:flex;gap:8px;height:180px;">
+        <div style="width:56px;background:#0f172a;border-radius:8px;padding:10px 6px;display:flex;flex-direction:column;gap:8px;">
+          <div style="width:32px;height:32px;background:#0f766e;border-radius:6px;margin:0 auto;"></div>
+          <div style="height:1px;background:rgba(255,255,255,0.1);margin:4px 0;"></div>
+          <div style="height:28px;background:rgba(255,255,255,0.15);border-radius:5px;"></div>
+          <div style="height:28px;background:rgba(15,118,110,0.5);border-radius:5px;"></div>
+          <div style="height:28px;background:rgba(255,255,255,0.08);border-radius:5px;"></div>
+          <div style="height:28px;background:rgba(255,255,255,0.08);border-radius:5px;"></div>
+          <div style="height:28px;background:rgba(255,255,255,0.08);border-radius:5px;"></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+          <div style="height:36px;background:#e2e8f0;border-radius:6px;display:flex;align-items:center;padding:0 10px;gap:8px;">
+            <div style="width:60px;height:14px;background:#94a3b8;border-radius:3px;"></div>
+            <div style="flex:1;"></div>
+            <div style="width:40px;height:20px;background:#0f766e;border-radius:10px;"></div>
+          </div>
+          <div style="flex:1;background:#e2e8f0;border-radius:6px;"></div>
+          <div style="height:50px;background:#e2e8f0;border-radius:6px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>侧边栏布局（推荐）</h3>
+      <p>左侧固定导航栏，内容区占满剩余宽度。ProLayout 标准模式，适合功能持续扩展的管理工作台。图表和数据面板有更多横向空间。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="topnav" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:16px;min-height:200px;">
+      <div style="display:flex;flex-direction:column;gap:8px;height:180px;">
+        <div style="height:40px;background:#0f172a;border-radius:8px;display:flex;align-items:center;padding:0 12px;gap:12px;">
+          <div style="width:24px;height:24px;background:#0f766e;border-radius:5px;"></div>
+          <div style="width:50px;height:12px;background:rgba(255,255,255,0.7);border-radius:3px;"></div>
+          <div style="flex:1;display:flex;gap:8px;justify-content:center;">
+            <div style="width:40px;height:12px;background:rgba(255,255,255,0.3);border-radius:3px;"></div>
+            <div style="width:40px;height:12px;background:#0f766e;border-radius:3px;"></div>
+            <div style="width:40px;height:12px;background:rgba(255,255,255,0.3);border-radius:3px;"></div>
+            <div style="width:40px;height:12px;background:rgba(255,255,255,0.3);border-radius:3px;"></div>
+          </div>
+          <div style="width:60px;height:22px;background:rgba(255,255,255,0.15);border-radius:11px;"></div>
+        </div>
+        <div style="flex:1;background:#e2e8f0;border-radius:6px;"></div>
+        <div style="height:40px;background:#e2e8f0;border-radius:6px;"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>顶部导航（现状改良）</h3>
+      <p>保留现有顶栏结构，用 ProComponents 强化内容区组件。改动最小，风险最低，但随着功能增加导航会越来越拥挤。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="mixed" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:16px;min-height:200px;">
+      <div style="display:flex;flex-direction:column;gap:8px;height:180px;">
+        <div style="height:36px;background:#0f172a;border-radius:8px;display:flex;align-items:center;padding:0 12px;gap:8px;">
+          <div style="width:24px;height:24px;background:#0f766e;border-radius:5px;"></div>
+          <div style="width:60px;height:12px;background:rgba(255,255,255,0.7);border-radius:3px;"></div>
+          <div style="flex:1;"></div>
+          <div style="width:80px;height:20px;background:rgba(255,255,255,0.15);border-radius:10px;"></div>
+        </div>
+        <div style="flex:1;display:flex;gap:8px;">
+          <div style="width:48px;background:#1e293b;border-radius:6px;padding:8px 5px;display:flex;flex-direction:column;gap:6px;">
+            <div style="height:24px;background:rgba(15,118,110,0.6);border-radius:4px;"></div>
+            <div style="height:24px;background:rgba(255,255,255,0.1);border-radius:4px;"></div>
+            <div style="height:24px;background:rgba(255,255,255,0.1);border-radius:4px;"></div>
+            <div style="height:24px;background:rgba(255,255,255,0.1);border-radius:4px;"></div>
+          </div>
+          <div style="flex:1;background:#e2e8f0;border-radius:6px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>顶栏 + 图标侧边栏</h3>
+      <p>顶栏放品牌和全局状态，左侧只有图标的迷你侧边栏做页面切换。节省空间，但图标导航需要用户记忆对应关系。</p>
+    </div>
+  </div>
+
+</div>

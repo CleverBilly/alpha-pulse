@@ -1,183 +1,142 @@
-# UI Redesign — ProLayout Shell Design Spec
+# UI Redesign — Light Cockpit Shell Design Spec
 
 ## Goal
 
-将现有自定义 TopBar 布局替换为基于 `@ant-design/pro-components` ProLayout 的侧边栏布局，打造专业交易工作台外观，同时零改动所有业务组件。
+将当前偏向 Ant Design Pro 的深色后台壳层，纠正为参考图中的浅色玻璃态交易驾驶舱：左侧为半透明浅色导航，右侧为大圆角内容画布，仪表盘顶部保持“判断 + 报价 + 控件”一体化布局，整体观感更接近专业交易终端而不是通用后台。
 
 ---
 
-## 1. 背景与约束
+## 1. 问题定义
 
-- **当前问题**：水平顶栏导航随功能增加会越来越拥挤；自定义 `app-shell__*` CSS 约 400 行，维护成本高；整体配色（大量圆角、渐变）缺乏专业感。
-- **约束**：保持 Next.js 14 App Router 路由不变；不引入 UmiJS；不改动任何业务组件（KlineChart、SignalCard、AlertHistoryBoard 等）；Zustand store 不变。
-- **技术选型**：安装 `@ant-design/pro-components@^2.8.10`，使用其 `ProLayout` 组件作为全局 shell，不做全量 Ant Design Pro 迁移。
+- **现状问题**：当前实现严格照着错误的 ProLayout 方案落地，导致出现深色侧边栏、后台式 header、过于规整的管理台结构，和目标图完全不是同一套设计语言。
+- **真实目标**：以用户提供的参考图为唯一视觉基准，保留现有业务数据流和页面结构，但把全局壳层、仪表盘头部、辅助面板样式统一到浅色玻璃态工作台。
+- **实现边界**：不改动 API、Zustand store、业务计算逻辑；优先重用现有 `DecisionHeader`、`KlineChart`、`ExecutionPanel`、`EvidenceRail` 等组件，只修正结构和视觉表达。
 
 ---
 
-## 2. 视觉设计
+## 2. 视觉基准
+
+### 2.1 页面骨架
+
+- 整体背景：浅灰蓝雾化渐变，允许轻微 radial glow，不使用深色后台。
+- 左侧导航：固定宽度浅色半透明侧栏，带柔和描边、模糊和阴影。
+- 主内容：右侧为独立的大圆角“内容画布”，带薄边框、轻阴影和很浅的蓝绿渐变。
+- 组件表面：统一使用白色到近白色的玻璃感 surface，减少纯实色块。
+
+### 2.2 关键视觉参数
 
 | 属性 | 值 |
 |------|---|
-| 侧边栏背景 | `#0f172a` |
-| 侧边栏宽度（展开） | 220px |
-| 侧边栏宽度（折叠） | 48px |
-| 内容区背景 | `#f0f2f5` |
-| 卡片背景 | `#ffffff` |
-| 主色 | `#0f766e`（保持现有 colorPrimary 不变） |
-| Header 高度 | 52px，`#ffffff` 背景，`1px solid #e2e8f0` 下边框 |
-| Header 内容 | 面包屑/页面标题 + 当前信号 badge（BUY/SELL/NEUTRAL）+ 告警铃铛 |
-| 圆角 | borderRadius 从 20 → 8，borderRadiusLG 从 24 → 10 |
+| 页面背景 | `linear-gradient(180deg, #f7fafc 0%, #eef3f8 100%)` + 轻微 radial glow |
+| 侧栏背景 | `rgba(255,255,255,0.72)` |
+| 内容画布背景 | `linear-gradient(180deg, rgba(255,255,255,0.9), rgba(244,248,252,0.9))` |
+| 主色 | `#1b7f79` |
+| 深色文案 | `#172033` |
+| 次级文案 | `#64748b` |
+| 通用大圆角 | `28px` 到 `36px` |
+| 芯片圆角 | `999px` |
+| 主内容区边框 | `1px solid rgba(255,255,255,0.72)` |
+
+### 2.3 交互观感
+
+- 活跃菜单项为深青色实底，不使用后台风格蓝色高亮条。
+- 折叠按钮为悬浮小圆形按钮，贴在侧栏右边缘。
+- 底部状态区固定在侧栏底部，展示信号 badge 与告警按钮。
+- 页面不再展示后台式顶栏 header，当前页面的信息留在内容区自身表达。
 
 ---
 
-## 3. 架构
+## 3. 信息架构
 
-### 前置步骤
+### 3.1 左侧导航
 
-```bash
-npm install @ant-design/pro-components@^2.8.10
-npm ls antd  # 确认无 peer dep 冲突，antd 必须是 5.x
-```
+导航保持现有页面入口，但按参考图分组和语气呈现：
 
-### 3.1 新增文件
+- 主功能
+  - `/dashboard` 驾驶舱
+  - `/chart` 图表
+  - `/review` 复盘
+  - `/market` 市场
+- 交易
+  - `/auto-trading` 自动交易
+  - `/alerts` 持仓记录
 
-| 文件 | 职责 | 备注 |
-|------|------|------|
-| `frontend/components/layout/ProAppShell.tsx` | 新 Shell：`ProLayout` + 菜单定义 + Header 右侧插槽 | **必须** `'use client'` |
-| `frontend/components/layout/SignalStatusBadge.tsx` | Header 右侧信号 badge（从 marketStore 读取） | `'use client'` |
-| `frontend/components/layout/APLogo.tsx` | 侧边栏 Logo（28px 深绿圆角方块 + "AP" 文字） | |
-| `frontend/app/auto-trading/page.tsx` | 自动交易占位页面（功能暂未实现，显示"开发中"） | |
+### 3.2 侧栏底部
 
-### 3.2 修改文件
+- `SignalStatusBadge` 作为绿色/红色/灰色圆角 pill，展示 `BUY · 82%` 这类状态。
+- `AlertCenter` 以白色圆角按钮呈现，保留现有告警抽屉逻辑，不再放入顶栏右上角。
 
-| 文件 | 变更 |
-|------|------|
-| `frontend/components/layout/AppShell.tsx` | **直接删除**，同时将所有 import 引用更新为 `ProAppShell`（共 1 处：`frontend/app/layout.tsx`） |
-| `frontend/components/providers/AntdThemeProvider.tsx` | `borderRadius: 8`，`borderRadiusLG: 10` |
-| `frontend/styles/globals.css` | 仅删除 `.app-shell__*` 和 `.page-hero__*` 规则；`.terminal-hero__*` **本次不动**，后续单独清理 |
-| `frontend/package.json` | 添加 `@ant-design/pro-components` 依赖 |
+### 3.3 主内容区
 
-### 3.3 不改动文件
-
-所有业务组件、页面文件、Next.js routing、Zustand store、API client、类型定义。
+- 所有页面内容包裹在统一的 `cockpit-shell__canvas` 中。
+- `dashboard` 顶部保留当前 `DecisionHeader` 作为首屏大卡。
+- 图表、执行方案、仓位信息、证据链继续留在内容区，不迁移到全局壳层。
 
 ---
 
-## 4. 菜单结构
+## 4. 组件架构
 
-菜单只包含**已存在的路由**（`/dashboard`、`/chart`、`/review`、`/market`、`/alerts`）。`/auto-trading` 作为占位页面新建（见 3.1），菜单中显示但页面内容为"开发中"。
+### 4.1 `frontend/components/layout/ProAppShell.tsx`
 
-```ts
-const menuItems = [
-  { path: '/dashboard', name: '驾驶舱', icon: <DashboardOutlined /> },
-  { path: '/chart',     name: '图表',   icon: <LineChartOutlined /> },
-  { path: '/review',    name: '复盘',   icon: <ThunderboltOutlined /> },
-  { path: '/market',    name: '市场',   icon: <GlobalOutlined /> },
-  {
-    name: '交易',
-    icon: <SwapOutlined />,
-    children: [
-      { path: '/auto-trading', name: '自动交易', icon: <RobotOutlined /> },
-      { path: '/alerts',       name: '持仓记录', icon: <UnorderedListOutlined /> },
-    ],
-  },
-];
-```
+保留文件名以减少调用面变化，但组件职责改为“自定义 Cockpit Shell”，不再依赖 `@ant-design/pro-components`：
 
----
+- 自行渲染 sidebar、collapse trigger、内容画布和 footer dock
+- 使用 `usePathname()` 判定激活菜单
+- 使用 `useState + localStorage` 记住折叠状态
+- 登录页继续 bypass shell
 
-## 5. ProLayout 配置
+### 4.2 `frontend/components/layout/APLogo.tsx`
 
-```tsx
-'use client';  // 必须，因为使用了 usePathname、useState、useRouter
+- 保留现有 Logo 基础结构
+- 微调为更贴近参考图的深青底、白字、配合品牌标题与副标题
 
-// collapsed 状态用 localStorage 持久化，刷新后保留用户选择
-const [collapsed, setCollapsed] = useState<boolean>(() => {
-  if (typeof window === 'undefined') return false;
-  return localStorage.getItem('sidebar-collapsed') === 'true';
-});
+### 4.3 `frontend/components/layout/SignalStatusBadge.tsx`
 
-const handleCollapse = (val: boolean) => {
-  setCollapsed(val);
-  localStorage.setItem('sidebar-collapsed', String(val));
-};
+- 调整为浅色界面可读的 pill 颜色
+- 作为侧栏底部状态组件复用
 
-// ...
+### 4.4 `frontend/components/dashboard/DecisionHeader.tsx`
 
-<ProLayout
-  layout="side"
-  navTheme="realDark"          // 深色侧边栏
-  colorPrimary="#0f766e"
-  siderWidth={220}
-  collapsed={collapsed}
-  onCollapse={handleCollapse}
-  collapsedWidth={48}
-  fixSiderbar
-  headerHeight={52}
-  title="Alpha Pulse"
-  logo={<APLogo />}           // frontend/components/layout/APLogo.tsx
-  route={{ routes: menuItems }}
-  location={{ pathname: usePathname() }}   // usePathname() 在 'use client' 组件中安全调用
-  onMenuHeaderClick={() => router.push('/dashboard')}
-  actionsRender={() => <HeaderActions />}  // 信号badge + 告警铃铛
-  menuItemRender={(item, dom) => (
-    <Link href={item.path ?? '/'}>{dom}</Link>
-  )}
->
-  {children}
-</ProLayout>
-```
+保持现有业务文案与数据来源，但细节调整为参考图结构：
+
+- 左侧：eyebrow、决策标签、大标题、摘要、meta 卡片、原因 chips、时间框架 chips
+- 右侧：小号置信度卡、主报价卡、标的与刷新控件卡、周期按钮排
+- 让顶部大卡的留白、边框、圆角与目标图一致
+
+### 4.5 `frontend/components/trading/PositionCalculator.tsx`
+
+- 从深色调试面板改成白色玻璃面板
+- 保留计算逻辑不变
+- 视觉上与 `ExecutionPanel`、`KlineChart` 同一层级
 
 ---
 
-## 6. Header 右侧插槽（SignalStatusBadge + AlertBell）
+## 5. CSS 策略
 
-- `SignalStatusBadge`：从 `marketStore` 读取 `snapshot.signal.direction` 和 `snapshot.signal.confidence`，渲染绿/红/灰 badge（`BUY · 82%` / `SELL · 65%` / `NEUTRAL`）。
-- AlertBell：通过 `/api/alerts?limit=20` 读取未读告警数（**无 alertStore**，直接 fetch）。未读数 = alerts 中 `read: false` 的条目数。保留现有 AlertBell 组件逻辑，只是将其放入 ProLayout 的 `actionsRender` 插槽。
-
----
-
-## 7. TradingWorkspaceHero / PageHero 处理
-
-当前每个页面顶部有 `TradingWorkspaceHero`（标的选择器、周期按钮、状态芯片）。这些控件**保持位置不变**，作为各页面内容区的第一个组件渲染，不迁移到 Header 或侧边栏。原因：不同页面有不同的标的/周期配置，放在全局 Shell 中会耦合所有页面状态。
+- 新增并使用 `.cockpit-shell__*` 命名空间管理全局壳层。
+- 保留现有 `.surface-panel`、`.dashboard-*`、`.terminal-hero__*` 体系，在此基础上微调，而不是再次引入一套第三方布局系统。
+- 删除或弃用仅为 ProLayout 服务的样式思路；不再新增 `ant-pro-*` 定制规则。
 
 ---
 
-## 8. CSS 清理策略
-
-删除以下前缀的所有 CSS 规则：
-
-- `.app-shell__*`（AppShell 删除后这些类不再被引用）
-- `.page-hero__*`（PageHero 组件不再使用）
-
-**本次不动**：
-- `.terminal-hero__*`（业务组件内部仍有引用，后续单独清理）
-- `.surface-panel`、`.surface-card`（业务组件使用）
-- 所有 `@keyframes`、工具类、Tailwind 相关声明
-
-**操作方法**：删除前先 `grep -r "app-shell__" frontend/` 和 `grep -r "page-hero__" frontend/` 确认无残留引用，再批量删除。
-
----
-
-## 9. 测试计划
+## 6. 测试策略
 
 | 测试项 | 方法 |
-|--------|------|
-| 菜单导航正确跳转 | Playwright e2e：点击每个菜单项，验证 pathname |
-| 侧边栏折叠/展开 | Playwright：点击折叠按钮，验证 `.ant-pro-sider` 宽度变化 |
-| 折叠状态 localStorage 持久化 | Playwright：折叠后刷新页面，验证侧边栏仍为折叠态 |
-| 信号 badge 渲染 | Vitest：mock marketStore，验证 badge 文字和颜色 |
-| 现有业务组件不受影响 | 运行 `npm test`，全部现有 18 个测试仍通过 |
-| 响应式（屏宽 < 768px） | Playwright：viewport 缩小，验证侧边栏自动折叠 |
-| 视觉回归 | Playwright screenshot：对比迁移前后 `/dashboard` 截图，确认内容区业务组件无位移 |
+|------|---|
+| 登录页不包 shell | Vitest：`/login` 路由下只渲染 children |
+| 侧栏折叠持久化 | Vitest：toggle 后 `localStorage` 写入 `true/false` |
+| 活跃菜单渲染 | Vitest：当前 pathname 对应菜单项带 active class |
+| 底部状态区存在 | Vitest：`SignalStatusBadge` 与告警按钮可见 |
+| Dashboard 顶部关键控件保留 | Vitest：标题、刷新、标的选择、周期切换仍可工作 |
+| Dashboard 主路径可见 | Playwright：`/dashboard` 可见“当前判断 / K 线图 / 执行方案 / 证据链” |
 
 ---
 
-## 10. 风险与规避
+## 7. 风险与规避
 
 | 风险 | 规避 |
 |------|------|
-| ProLayout CSS 与 globals.css 冲突 | 迁移后先跑视觉回归截图对比 |
-| Next.js App Router 中 `usePathname` SSR 问题 | 用 `'use client'` 指令包裹 ProAppShell |
-| `@ant-design/pro-components` 与现有 antd 版本冲突 | 安装后立即运行 `npm ls antd` 检查 peer deps |
-| globals.css 删除导致业务组件样式缺失 | 删前逐类 grep 确认无引用再删 |
+| 直接替换 ProLayout 导致现有测试失效 | 先写针对新壳层的失败测试，再逐步实现 |
+| 侧栏重构影响登录页 | 保留登录页 bypass，并加单测覆盖 |
+| 仪表盘样式改动过大影响业务内容可读性 | 优先保留 DOM 结构和文案，只调整布局与 surface 样式 |
+| 仓位计算器视觉切换影响现有行为 | 仅改容器与展示样式，不碰计算逻辑与副作用流程 |

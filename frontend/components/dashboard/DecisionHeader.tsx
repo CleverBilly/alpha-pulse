@@ -62,13 +62,9 @@ export default function DecisionHeader() {
         </div>
 
         <div className="dashboard-decision__title-row">
-          <div>
+          <div className="dashboard-decision__title-copy">
             <h1 className="dashboard-decision__title">{decision.verdict}</h1>
             <p className="dashboard-decision__description">{issue || decision.summary}</p>
-          </div>
-          <div className={`dashboard-decision__confidence dashboard-decision__confidence--${decision.tone}`}>
-            <span>置信度</span>
-            <strong>{decision.confidence.toFixed(0)}%</strong>
           </div>
         </div>
 
@@ -88,8 +84,11 @@ export default function DecisionHeader() {
           {directionLoading && !hasDirectionSnapshots ? (
             <span className="dashboard-decision__reason">方向引擎同步中</span>
           ) : null}
+        </div>
+
+        <div className="dashboard-decision__timeframes">
           {decision.timeframeLabels.map((label) => (
-            <span key={label} className="dashboard-decision__reason">
+            <span key={label} className="dashboard-decision__timeframe">
               {label}
             </span>
           ))}
@@ -97,7 +96,12 @@ export default function DecisionHeader() {
       </div>
 
       <div className="dashboard-decision__workspace">
-        <div className="dashboard-decision__quote">
+        <div className={`dashboard-decision__confidence dashboard-decision__confidence--${decision.tone}`}>
+          <span>置信度</span>
+          <strong>{decision.confidence.toFixed(0)}%</strong>
+        </div>
+
+        <div className="dashboard-decision__quote" role="region" aria-label="市场报价">
           <div className="dashboard-decision__quote-head">
             <span>{symbol}</span>
             <strong>{interval}</strong>
@@ -106,7 +110,7 @@ export default function DecisionHeader() {
           <p className="dashboard-decision__quote-sub">{formatTrendBiasLabel(signal?.trend_bias)}偏向</p>
         </div>
 
-        <div className="dashboard-decision__controls">
+        <div className="dashboard-decision__controls" role="region" aria-label="交易工作台控件">
           <div className="dashboard-decision__control-box">
             <label htmlFor="dashboard-symbol-select" className="dashboard-decision__control-label">
               标的

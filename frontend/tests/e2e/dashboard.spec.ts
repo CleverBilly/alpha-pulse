@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { mockAlertApi } from "./support/mockAlertApi";
+import { loginAsDefaultUser } from "./support/loginAsDefaultUser";
 import { mockMarketSnapshotApi } from "./support/mockMarketApi";
 
 test("dashboard renders cockpit layers and supports 4h interval", async ({ page }) => {
   await mockAlertApi(page);
   const controller = await mockMarketSnapshotApi(page);
-  await page.goto("/dashboard");
+  await loginAsDefaultUser(page);
   await expect.poll(() => controller.getRequestCount()).toBeGreaterThan(0);
 
   await expect(page.getByText("当前判断")).toBeVisible();
