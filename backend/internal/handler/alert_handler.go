@@ -25,6 +25,7 @@ type alertPreferencesRequest struct {
 	QuietHoursEnabled     bool     `json:"quiet_hours_enabled"`
 	QuietHoursStart       int      `json:"quiet_hours_start"`
 	QuietHoursEnd         int      `json:"quiet_hours_end"`
+	SoundEnabled          bool     `json:"sound_enabled"`
 	Symbols               []string `json:"symbols"`
 }
 
@@ -69,6 +70,7 @@ func (h *AlertHandler) UpdateAlertPreferences(c *gin.Context) {
 		QuietHoursEnabled:     request.QuietHoursEnabled,
 		QuietHoursStart:       request.QuietHoursStart,
 		QuietHoursEnd:         request.QuietHoursEnd,
+		SoundEnabled:          request.SoundEnabled,
 		Symbols:               request.Symbols,
 	})
 	if err != nil {

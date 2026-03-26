@@ -22,6 +22,7 @@ type AlertPreferences struct {
 	QuietHoursEnabled     bool     `json:"quiet_hours_enabled"`
 	QuietHoursStart       int      `json:"quiet_hours_start"`
 	QuietHoursEnd         int      `json:"quiet_hours_end"`
+	SoundEnabled          bool     `json:"sound_enabled"`
 	Symbols               []string `json:"symbols"`
 	AvailableSymbols      []string `json:"available_symbols"`
 }
@@ -37,6 +38,7 @@ func defaultAlertPreferences(symbols []string) AlertPreferences {
 		QuietHoursEnabled:     false,
 		QuietHoursStart:       0,
 		QuietHoursEnd:         8,
+		SoundEnabled:          false,
 		Symbols:               append([]string(nil), normalizeAlertSymbols(symbols)...),
 		AvailableSymbols:      append([]string(nil), normalizeAlertSymbols(symbols)...),
 	}
@@ -68,6 +70,7 @@ func sanitizeAlertPreferences(input AlertPreferences, allowedSymbols []string) (
 		QuietHoursEnabled:     input.QuietHoursEnabled,
 		QuietHoursStart:       start,
 		QuietHoursEnd:         end,
+		SoundEnabled:          input.SoundEnabled,
 		Symbols:               symbols,
 		AvailableSymbols:      append([]string(nil), normalizeAlertSymbols(allowedSymbols)...),
 	}, nil
@@ -128,6 +131,7 @@ func projectAlertPreferences(prefs AlertPreferences) models.AlertPreference {
 		QuietHoursEnabled:     prefs.QuietHoursEnabled,
 		QuietHoursStart:       prefs.QuietHoursStart,
 		QuietHoursEnd:         prefs.QuietHoursEnd,
+		SoundEnabled:          prefs.SoundEnabled,
 		WatchedSymbols:        strings.Join(normalizeAlertSymbols(prefs.Symbols), ","),
 	}
 }
@@ -143,6 +147,7 @@ func hydrateAlertPreferences(record models.AlertPreference, allowedSymbols []str
 		QuietHoursEnabled:     record.QuietHoursEnabled,
 		QuietHoursStart:       record.QuietHoursStart,
 		QuietHoursEnd:         record.QuietHoursEnd,
+		SoundEnabled:          record.SoundEnabled,
 		Symbols:               strings.Split(record.WatchedSymbols, ","),
 	}, allowedSymbols)
 	if err != nil {

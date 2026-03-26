@@ -15,6 +15,7 @@ type AlertPreference struct {
 	QuietHoursEnabled     bool      `gorm:"column:quiet_hours_enabled;not null;default:false;comment:是否启用静默时段" json:"quiet_hours_enabled"`
 	QuietHoursStart       int       `gorm:"column:quiet_hours_start;not null;default:0;comment:静默开始小时，0-23" json:"quiet_hours_start"`
 	QuietHoursEnd         int       `gorm:"column:quiet_hours_end;not null;default:8;comment:静默结束小时，0-23" json:"quiet_hours_end"`
+	SoundEnabled          bool      `gorm:"column:sound_enabled;not null;default:false;comment:是否启用声音告警" json:"sound_enabled"`
 	WatchedSymbols        string    `gorm:"column:watched_symbols;type:text;not null;comment:关注标的 CSV" json:"watched_symbols"`
 	CreatedAt             time.Time `gorm:"column:created_at;autoCreateTime;comment:创建时间" json:"created_at"`
 	UpdatedAt             time.Time `gorm:"column:updated_at;autoUpdateTime;comment:更新时间" json:"updated_at"`
