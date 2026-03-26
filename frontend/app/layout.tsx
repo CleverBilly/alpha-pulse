@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
-import AppShell from "@/components/layout/AppShell";
+import ProAppShell from "@/components/layout/ProAppShell";
 import AntdThemeProvider from "@/components/providers/AntdThemeProvider";
 import "../styles/globals.css";
 
@@ -19,7 +19,7 @@ export default function RootLayout({
       <body>
         <AntdRegistry>
           <AntdThemeProvider>
-            <AppShell>{children}</AppShell>
+            <ProAppShell>{children}</ProAppShell>
           </AntdThemeProvider>
         </AntdRegistry>
       </body>
