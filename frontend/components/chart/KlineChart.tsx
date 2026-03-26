@@ -1,11 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Tag, Typography } from "antd";
 import { useMarketStore } from "@/store/marketStore";
+import { alertApi } from "@/services/apiClient";
+import { isLongDirection } from "@/utils/alertUtils";
 import {
   CHART_HEIGHT,
   CHART_WIDTH,
+  ChartCoords,
+  ActiveSignal,
   LegendFocusKey,
   PADDING_BOTTOM,
   PADDING_LEFT,
@@ -72,6 +76,7 @@ const DEFAULT_SECONDARY_LAYER_STATE: Record<SecondaryLayerKey, boolean> = {
 
 export default function KlineChart() {
   const {
+    symbol,
     klines,
     indicator,
     indicatorSeries,
@@ -91,6 +96,7 @@ export default function KlineChart() {
   const [hoveredMicrostructureMarkerKey, setHoveredMicrostructureMarkerKey] = useState<string | null>(null);
   const [pinnedMicrostructureMarkerKey, setPinnedMicrostructureMarkerKey] = useState<string | null>(null);
   const [focusedLegendKey, setFocusedLegendKey] = useState<LegendFocusKey | null>(null);
+  const [activeSignal, setActiveSignal] = useState<ActiveSignal | null>(null);
   const visibleKlines = klines.slice(-48);
   const visibleMicrostructureTypes = useMemo(() => {
     const types: string[] = [...PRIMARY_MICROSTRUCTURE_TYPES];
@@ -101,6 +107,64 @@ export default function KlineChart() {
     }
     return types;
   }, [enabledLayers]);
+
+  useEffect(() => {
+    let active = true;
+    alertApi
+      .getAlertHistory(20)
+      .then((feed) => {
+        if (!active) return;
+        const match = feed.items
+          .filter(
+            (item) =>
+              item.symbol === symbol && item.kind === "setup_ready" && item.entry_price > 0,
+          )
+          .sort((a, b) => b.created_at - a.created_at)[0];
+        if (!match) {
+          setActiveSignal(null);
+          return;
+        }
+        setActiveSignal({
+          entryPrice: match.entry_price,
+          stopLoss: match.stop_loss,
+          targetPrice: match.target_price,
+          direction: isLongDirection(match.verdict, match.tradeability_label) ? "long" : "short",
+        });
+      })
+      .catch(() => {
+        /* 静默降级，不影响主图表渲染 */
+      });
+    return () => {
+      active = false;
+    };
+  }, [symbol]);
+
+  const coords = useMemo<ChartCoords | null>(() => {
+    if (visibleKlines.length === 0) return null;
+    const plotHeight = CHART_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
+    const allPrices = visibleKlines.flatMap((k) => [k.high_price, k.low_price]);
+    const rawMin = Math.min(...allPrices);
+    const rawMax = Math.max(...allPrices);
+    const pricePadding = Math.max((rawMax - rawMin) * 0.08, rawMax * 0.002, 1);
+    const priceMin = rawMin - pricePadding;
+    const priceMax = rawMax + pricePadding;
+    const priceRange = Math.max(priceMax - priceMin, 1);
+    const plotWidth = CHART_WIDTH - PADDING_LEFT - PADDING_RIGHT;
+    const slotWidth = plotWidth / visibleKlines.length;
+    return {
+      toX: (index: number) => PADDING_LEFT + slotWidth * index + slotWidth / 2,
+      toY: (price: number) => PADDING_TOP + ((priceMax - price) / priceRange) * plotHeight,
+      candleWidth: slotWidth,
+      chartWidth: CHART_WIDTH,
+      chartHeight: CHART_HEIGHT,
+      paddingTop: PADDING_TOP,
+      paddingRight: PADDING_RIGHT,
+      paddingBottom: PADDING_BOTTOM,
+      paddingLeft: PADDING_LEFT,
+      priceMin,
+      priceMax,
+    };
+  }, [visibleKlines]);
 
   const chart = useMemo(
     () =>
@@ -295,6 +359,8 @@ export default function KlineChart() {
                   setPinnedMicrostructureMarkerKey={setPinnedMicrostructureMarkerKey}
                   signalOpacity={legendOpacity("signal")}
                   microOpacity={legendOpacity("micro")}
+                  activeSignal={activeSignal}
+                  coords={coords}
                 />
 
                 {chart.timeLabels.map((label) => (

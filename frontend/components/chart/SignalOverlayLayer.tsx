@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import {
   ActiveSignal,
+  ChartCoords,
   MicrostructureMarker,
   MicrostructureTooltip,
   SignalMarker,
@@ -20,6 +21,7 @@ interface SignalOverlayLayerProps {
   signalOpacity: number;
   microOpacity: number;
   activeSignal?: ActiveSignal | null;
+  coords?: ChartCoords | null;
 }
 
 export default function SignalOverlayLayer({
@@ -32,6 +34,8 @@ export default function SignalOverlayLayer({
   setPinnedMicrostructureMarkerKey,
   signalOpacity,
   microOpacity,
+  activeSignal,
+  coords,
 }: SignalOverlayLayerProps) {
   return (
     <g>
@@ -151,6 +155,77 @@ export default function SignalOverlayLayer({
           </g>
         ))}
       </g>
+
+      {activeSignal && coords && (
+        <g>
+          {activeSignal.entryPrice >= coords.priceMin && activeSignal.entryPrice <= coords.priceMax && (
+            <>
+              <line
+                x1={coords.paddingLeft}
+                x2={coords.chartWidth - coords.paddingRight}
+                y1={coords.toY(activeSignal.entryPrice)}
+                y2={coords.toY(activeSignal.entryPrice)}
+                stroke="#52c41a"
+                strokeWidth={1}
+                strokeDasharray="4 3"
+                opacity={0.85}
+              />
+              <text
+                x={coords.chartWidth - coords.paddingRight + 4}
+                y={coords.toY(activeSignal.entryPrice) + 4}
+                fill="#52c41a"
+                fontSize={10}
+              >
+                {`entry ${activeSignal.entryPrice.toFixed(2)}`}
+              </text>
+            </>
+          )}
+          {activeSignal.stopLoss >= coords.priceMin && activeSignal.stopLoss <= coords.priceMax && (
+            <>
+              <line
+                x1={coords.paddingLeft}
+                x2={coords.chartWidth - coords.paddingRight}
+                y1={coords.toY(activeSignal.stopLoss)}
+                y2={coords.toY(activeSignal.stopLoss)}
+                stroke="#ff4d4f"
+                strokeWidth={1}
+                strokeDasharray="4 3"
+                opacity={0.85}
+              />
+              <text
+                x={coords.chartWidth - coords.paddingRight + 4}
+                y={coords.toY(activeSignal.stopLoss) + 4}
+                fill="#ff4d4f"
+                fontSize={10}
+              >
+                {`SL ${activeSignal.stopLoss.toFixed(2)}`}
+              </text>
+            </>
+          )}
+          {activeSignal.targetPrice >= coords.priceMin && activeSignal.targetPrice <= coords.priceMax && (
+            <>
+              <line
+                x1={coords.paddingLeft}
+                x2={coords.chartWidth - coords.paddingRight}
+                y1={coords.toY(activeSignal.targetPrice)}
+                y2={coords.toY(activeSignal.targetPrice)}
+                stroke="#faad14"
+                strokeWidth={1}
+                strokeDasharray="4 3"
+                opacity={0.85}
+              />
+              <text
+                x={coords.chartWidth - coords.paddingRight + 4}
+                y={coords.toY(activeSignal.targetPrice) + 4}
+                fill="#faad14"
+                fontSize={10}
+              >
+                {`TP ${activeSignal.targetPrice.toFixed(2)}`}
+              </text>
+            </>
+          )}
+        </g>
+      )}
     </g>
   );
 }
