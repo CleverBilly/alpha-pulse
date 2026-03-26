@@ -186,22 +186,25 @@ export default function KlineChart({ historicalMode, activeSignal: activeSignalP
     };
   }, [visibleKlines]);
 
+  // historicalMode: indicator series not available for historical timestamps, show clean K-line only.
+  // Passing empty arrays explicitly makes this intentional rather than a silent data mismatch.
   const chart = useMemo(
     () =>
       buildChartModel(
         visibleKlines,
-        indicatorSeries,
-        microstructureEvents,
+        historicalMode ? [] : indicatorSeries,
+        historicalMode ? [] : microstructureEvents,
         visibleMicrostructureTypes,
-        structure,
-        structureSeries,
-        liquidity,
-        liquiditySeries,
-        signal,
-        signalTimeline,
+        historicalMode ? null : structure,
+        historicalMode ? [] : structureSeries,
+        historicalMode ? null : liquidity,
+        historicalMode ? [] : liquiditySeries,
+        historicalMode ? null : signal,
+        historicalMode ? [] : signalTimeline,
       ),
     [
       visibleKlines,
+      historicalMode,
       indicatorSeries,
       microstructureEvents,
       visibleMicrostructureTypes,
