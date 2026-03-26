@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -26,19 +27,26 @@ func TestFindPendingReturnsOnlyPendingRecords(t *testing.T) {
 	repo := NewAlertRecordRepository(db)
 
 	now := time.Now().UnixMilli()
-	_ = db.Create(&models.AlertRecord{Symbol: "BTCUSDT", Kind: "setup_ready", Outcome: "pending", EventTime: now}).Error
-	_ = db.Create(&models.AlertRecord{Symbol: "BTCUSDT", Kind: "setup_ready", Outcome: "target_hit", EventTime: now + 1}).Error
-	_ = db.Create(&models.AlertRecord{Symbol: "ETHUSDT", Kind: "setup_ready", Outcome: "pending", EventTime: now + 2}).Error
+	records := []models.AlertRecord{
+		{AlertID: fmt.Sprintf("alert-%d-1", now), Symbol: "BTCUSDT", Kind: "setup_ready", Outcome: "pending", EventTime: now},
+		{AlertID: fmt.Sprintf("alert-%d-2", now), Symbol: "BTCUSDT", Kind: "setup_ready", Outcome: "target_hit", EventTime: now + 1},
+		{AlertID: fmt.Sprintf("alert-%d-3", now), Symbol: "ETHUSDT", Kind: "setup_ready", Outcome: "pending", EventTime: now + 2},
+	}
+	for _, r := range records {
+		if err := db.Create(&r).Error; err != nil {
+			t.Fatalf("create record %s: %v", r.AlertID, err)
+		}
+	}
 
-	records, err := repo.FindPending("BTCUSDT", 100)
+	result, err := repo.FindPending("BTCUSDT", "setup_ready", 100)
 	if err != nil {
 		t.Fatalf("FindPending: %v", err)
 	}
-	if len(records) != 1 {
-		t.Fatalf("expected 1 pending record for BTCUSDT, got %d", len(records))
+	if len(result) != 1 {
+		t.Fatalf("expected 1 pending record for BTCUSDT, got %d", len(result))
 	}
-	if records[0].Outcome != "pending" {
-		t.Fatalf("expected outcome=pending, got %s", records[0].Outcome)
+	if result[0].Outcome != "pending" {
+		t.Fatalf("expected outcome=pending, got %s", result[0].Outcome)
 	}
 }
 
@@ -48,6 +56,7 @@ func TestUpdateOutcomeDoesNotOverwriteOtherFields(t *testing.T) {
 
 	now := time.Now().UnixMilli()
 	record := &models.AlertRecord{
+		AlertID:    fmt.Sprintf("alert-%d", now),
 		Symbol:     "BTCUSDT",
 		Kind:       "setup_ready",
 		Outcome:    "pending",
@@ -59,17 +68,24 @@ func TestUpdateOutcomeDoesNotOverwriteOtherFields(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	if err := repo.UpdateOutcome(record.ID, "target_hit", 110.0, now+1000, 2.0); err != nil {
+	outcomeAt := now + 1000
+	if err := repo.UpdateOutcome(record.ID, "target_hit", 110.0, outcomeAt, 2.0); err != nil {
 		t.Fatalf("UpdateOutcome: %v", err)
 	}
 
 	var updated models.AlertRecord
 	db.First(&updated, record.ID)
 	if updated.Outcome != "target_hit" {
-		t.Fatalf("expected target_hit, got %s", updated.Outcome)
+		t.Fatalf("expected outcome=target_hit, got %s", updated.Outcome)
 	}
 	if updated.EntryPrice != 100 {
 		t.Fatalf("UpdateOutcome should not change EntryPrice, got %f", updated.EntryPrice)
+	}
+	if updated.OutcomePrice != 110.0 {
+		t.Fatalf("expected outcome_price=110.0, got %f", updated.OutcomePrice)
+	}
+	if updated.OutcomeAt != outcomeAt {
+		t.Fatalf("expected outcome_at=%d, got %d", outcomeAt, updated.OutcomeAt)
 	}
 	if updated.ActualRR != 2.0 {
 		t.Fatalf("expected actual_rr=2.0, got %f", updated.ActualRR)

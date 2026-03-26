@@ -31,7 +31,7 @@ func projectAlertRecord(event AlertEvent, state alertState) (models.AlertRecord,
 		TargetPrice:       event.TargetPrice,
 		RiskReward:        event.RiskReward,
 		EventTime:         event.CreatedAt,
-		Interval:          alertBiasInterval, // "1h"，即触发周期
+		Interval:          alertBiasInterval, // "1h"，即 bias 主判断周期，用于 OutcomeTracker 过期计算
 		PayloadJSON:       string(payload),
 	}, nil
 }

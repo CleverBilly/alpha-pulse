@@ -33,8 +33,8 @@ func TestLoadDefaultsToDevMode(t *testing.T) {
 	if !cfg.AllowMockBinanceData {
 		t.Fatal("expected mock binance data to be enabled in dev mode")
 	}
-	if cfg.SchedulerIntervalSeconds != 60 {
-		t.Fatalf("expected default scheduler interval 60s, got %d", cfg.SchedulerIntervalSeconds)
+	if cfg.SchedulerIntervalSeconds != 15 {
+		t.Fatalf("expected default scheduler interval 15s, got %d", cfg.SchedulerIntervalSeconds)
 	}
 	if !reflect.DeepEqual(cfg.MarketSymbols, []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}) {
 		t.Fatalf("unexpected default market symbols: %#v", cfg.MarketSymbols)

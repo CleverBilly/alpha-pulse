@@ -38,6 +38,7 @@ func (r *AlertRecordRepository) Create(record *models.AlertRecord) error {
 			"target_price",
 			"risk_reward",
 			"event_time",
+			"interval",
 			"payload_json",
 			"created_at",
 		}),
@@ -62,13 +63,13 @@ func (r *AlertRecordRepository) GetLatestBySymbol(symbol string) (models.AlertRe
 	return record, err
 }
 
-// FindPending 返回指定标的中 outcome 为 pending 的记录（按 event_time 升序）。
-func (r *AlertRecordRepository) FindPending(symbol string, limit int) ([]models.AlertRecord, error) {
+// FindPending 返回指定标的中指定类型且 outcome 为 pending 的记录（按 event_time 升序）。
+func (r *AlertRecordRepository) FindPending(symbol, kind string, limit int) ([]models.AlertRecord, error) {
 	if limit <= 0 {
 		limit = 100
 	}
 	records := make([]models.AlertRecord, 0, limit)
-	err := r.db.Where("symbol = ? AND outcome = ?", symbol, "pending").
+	err := r.db.Where("symbol = ? AND kind = ? AND outcome = ?", symbol, kind, "pending").
 		Order("event_time ASC").
 		Limit(limit).
 		Find(&records).Error
