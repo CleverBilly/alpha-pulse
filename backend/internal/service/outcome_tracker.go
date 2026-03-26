@@ -46,7 +46,7 @@ func (t *OutcomeTrackerService) TrackAll(ctx context.Context) {
 	}
 }
 
-func (t *OutcomeTrackerService) trackSymbol(_ context.Context, symbol string) error {
+func (t *OutcomeTrackerService) trackSymbol(ctx context.Context, symbol string) error {
 	records, err := t.alertRecordRepo.FindPending(symbol, "setup_ready", 100)
 	if err != nil {
 		return err
@@ -54,6 +54,12 @@ func (t *OutcomeTrackerService) trackSymbol(_ context.Context, symbol string) er
 
 	now := time.Now()
 	for _, record := range records {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+
 		interval := record.Interval
 		if interval == "" {
 			interval = "1h"
