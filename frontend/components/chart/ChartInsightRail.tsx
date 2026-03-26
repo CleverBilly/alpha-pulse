@@ -114,7 +114,7 @@ export default function ChartInsightRail() {
           showInfo={false}
           className="!mt-4"
           strokeColor="#22c55e"
-          railColor="rgba(255,255,255,0.12)"
+          trailColor="rgba(255,255,255,0.12)"
         />
       </section>
 

@@ -60,7 +60,7 @@ export default function SignalTape() {
           percent={Math.max(0, Math.min(100, featuredConfidence))}
           showInfo={false}
           strokeColor="#38bdf8"
-          railColor="rgba(255,255,255,0.1)"
+          trailColor="rgba(255,255,255,0.1)"
           className="!mt-4"
         />
       </div>
