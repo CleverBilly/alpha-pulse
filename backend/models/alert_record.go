@@ -23,6 +23,11 @@ type AlertRecord struct {
 	TargetPrice       float64   `gorm:"column:target_price;type:decimal(18,8);not null;default:0;comment:目标位" json:"target_price"`
 	RiskReward        float64   `gorm:"column:risk_reward;type:decimal(10,4);not null;default:0;comment:盈亏比" json:"risk_reward"`
 	EventTime         int64     `gorm:"column:event_time;index;not null;default:0;comment:告警产生时间，Unix 毫秒" json:"event_time"`
+	Interval          string    `gorm:"column:interval;size:8;not null;default:'1h';comment:触发告警时的参考周期" json:"interval"`
+	Outcome           string    `gorm:"column:outcome;size:24;index;not null;default:'pending';comment:pending/target_hit/stop_hit/expired" json:"outcome"`
+	OutcomePrice      float64   `gorm:"column:outcome_price;type:decimal(18,8);not null;default:0;comment:结果触发价格" json:"outcome_price"`
+	OutcomeAt         int64     `gorm:"column:outcome_at;not null;default:0;comment:结果触发时间 Unix ms" json:"outcome_at"`
+	ActualRR          float64   `gorm:"column:actual_rr;type:decimal(10,4);not null;default:0;comment:实际盈亏比" json:"actual_rr"`
 	PayloadJSON       string    `gorm:"column:payload_json;type:longtext;not null;comment:完整 alert event JSON" json:"payload_json"`
 	CreatedAt         time.Time `gorm:"column:created_at;autoCreateTime;comment:保存时间" json:"created_at"`
 }

@@ -77,3 +77,38 @@ func klineUpsertClause() clause.OnConflict {
 		}),
 	}
 }
+
+// FindAfter 返回指定时间点（afterMs，Unix 毫秒）之后的 K 线，按时间升序。
+func (r *KlineRepository) FindAfter(symbol, interval string, afterMs int64, limit int) ([]models.Kline, error) {
+	if limit <= 0 {
+		limit = 60
+	}
+	klines := make([]models.Kline, 0, limit)
+	err := r.db.
+		Where("symbol = ? AND interval_type = ? AND open_time > ?", symbol, interval, afterMs).
+		Order("open_time ASC").
+		Limit(limit).
+		Find(&klines).Error
+	return klines, err
+}
+
+// FindBefore 返回指定时间点（beforeMs，Unix 毫秒）之前的最近 N 根 K 线，按时间升序返回。
+func (r *KlineRepository) FindBefore(symbol, interval string, beforeMs int64, limit int) ([]models.Kline, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	klines := make([]models.Kline, 0, limit)
+	err := r.db.
+		Where("symbol = ? AND interval_type = ? AND open_time < ?", symbol, interval, beforeMs).
+		Order("open_time DESC").
+		Limit(limit).
+		Find(&klines).Error
+	if err != nil {
+		return nil, err
+	}
+	// 倒序查最新的，返回时恢复升序
+	for left, right := 0, len(klines)-1; left < right; left, right = left+1, right-1 {
+		klines[left], klines[right] = klines[right], klines[left]
+	}
+	return klines, nil
+}

@@ -61,3 +61,28 @@ func (r *AlertRecordRepository) GetLatestBySymbol(symbol string) (models.AlertRe
 	err := r.db.Where("symbol = ?", symbol).Order("event_time DESC, id DESC").First(&record).Error
 	return record, err
 }
+
+// FindPending 返回指定标的中 outcome 为 pending 的记录（按 event_time 升序）。
+func (r *AlertRecordRepository) FindPending(symbol string, limit int) ([]models.AlertRecord, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	records := make([]models.AlertRecord, 0, limit)
+	err := r.db.Where("symbol = ? AND outcome = ?", symbol, "pending").
+		Order("event_time ASC").
+		Limit(limit).
+		Find(&records).Error
+	return records, err
+}
+
+// UpdateOutcome 更新单条记录的结果字段，不影响其他字段。
+func (r *AlertRecordRepository) UpdateOutcome(id uint64, outcome string, outcomePrice float64, outcomeAt int64, actualRR float64) error {
+	return r.db.Model(&models.AlertRecord{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"outcome":       outcome,
+			"outcome_price": outcomePrice,
+			"outcome_at":    outcomeAt,
+			"actual_rr":     actualRR,
+		}).Error
+}
