@@ -58,9 +58,7 @@ export default function ProAppShell({ children }: { children: ReactNode }) {
       siderWidth={220}
       collapsed={collapsed}
       onCollapse={handleCollapse}
-      collapsedWidth={48}
       fixSiderbar
-      headerHeight={52}
       title="Alpha Pulse"
       logo={<APLogo />}
       route={{ routes: MENU_ROUTES }}

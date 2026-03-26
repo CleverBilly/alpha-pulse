@@ -44,9 +44,7 @@ describe('ProAppShell', () => {
     expect(layout.dataset.collapsed).toBe('true');
   });
 
-  it('skips shell on login route', () => {
-    // login route bypass is tested via Playwright e2e (see tests/e2e/)
-    // Unit test skipped: re-mocking usePathname after module load requires
-    // vi.doMock which conflicts with top-level vi.mock hoisting in vitest
+  it.skip('skips shell on login route — covered by Playwright e2e', () => {
+    // Tested in frontend/tests/e2e/ — vi.doMock conflicts with top-level vi.mock hoisting
   });
 });
