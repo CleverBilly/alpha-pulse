@@ -161,7 +161,7 @@ frontend/
 | `MARKET_SYMBOLS` | `BTCUSDT,ETHUSDT,SOLUSDT` | 逗号分隔的交易对列表 |
 | `MARKET_SNAPSHOT_CACHE_TTL` | `5` | 快照缓存秒数（0 关闭）|
 | `ANALYSIS_VIEW_CACHE_TTL` | `15` | 分析序列缓存秒数 |
-| `SCHEDULER_INTERVAL_SECONDS` | `60` | 调度间隔 |
+| `SCHEDULER_INTERVAL_SECONDS` | `15` | 调度间隔 |
 | `ENABLE_SINGLE_USER_AUTH` | `false` | 开启单用户登录保护 |
 | `AUTH_USERNAME` | `` | 登录用户名 |
 | `AUTH_PASSWORD_HASH` | `` | bcrypt 哈希（单引号包裹）|

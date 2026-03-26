@@ -57,9 +57,9 @@ func Load() Config {
 	mode := normalizeMode(firstNonEmptyEnv("APP_MODE", "APP_ENV"))
 	defaults := defaultsForMode(mode)
 	ginMode := normalizeGinMode(getEnv("GIN_MODE", defaults.ginMode), defaults.ginMode)
-	schedulerInterval := getEnvAsInt("SCHEDULER_INTERVAL_SECONDS", 60)
+	schedulerInterval := getEnvAsInt("SCHEDULER_INTERVAL_SECONDS", 15)
 	if schedulerInterval <= 0 {
-		schedulerInterval = 60
+		schedulerInterval = 15
 	}
 
 	return Config{
