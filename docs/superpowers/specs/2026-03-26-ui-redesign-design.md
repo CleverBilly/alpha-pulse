@@ -32,20 +32,29 @@
 
 ## 3. 架构
 
+### 前置步骤
+
+```bash
+npm install @ant-design/pro-components@^2.8.10
+npm ls antd  # 确认无 peer dep 冲突，antd 必须是 5.x
+```
+
 ### 3.1 新增文件
 
-| 文件 | 职责 |
-|------|------|
-| `frontend/components/layout/ProAppShell.tsx` | 新 Shell：`ProLayout` + 菜单定义 + Header 右侧插槽 |
-| `frontend/components/layout/SignalStatusBadge.tsx` | Header 右侧信号 badge（从 marketStore 读取） |
+| 文件 | 职责 | 备注 |
+|------|------|------|
+| `frontend/components/layout/ProAppShell.tsx` | 新 Shell：`ProLayout` + 菜单定义 + Header 右侧插槽 | **必须** `'use client'` |
+| `frontend/components/layout/SignalStatusBadge.tsx` | Header 右侧信号 badge（从 marketStore 读取） | `'use client'` |
+| `frontend/components/layout/APLogo.tsx` | 侧边栏 Logo（28px 深绿圆角方块 + "AP" 文字） | |
+| `frontend/app/auto-trading/page.tsx` | 自动交易占位页面（功能暂未实现，显示"开发中"） | |
 
 ### 3.2 修改文件
 
 | 文件 | 变更 |
 |------|------|
-| `frontend/components/layout/AppShell.tsx` | 替换为 `ProAppShell` 的重导出（或直接删除并更新引用） |
+| `frontend/components/layout/AppShell.tsx` | **直接删除**，同时将所有 import 引用更新为 `ProAppShell`（共 1 处：`frontend/app/layout.tsx`） |
 | `frontend/components/providers/AntdThemeProvider.tsx` | `borderRadius: 8`，`borderRadiusLG: 10` |
-| `frontend/styles/globals.css` | 删除 `app-shell__*`、`terminal-hero__*`、`page-hero__*` 相关样式（约 400 行），保留通用工具类和业务组件样式 |
+| `frontend/styles/globals.css` | 仅删除 `.app-shell__*` 和 `.page-hero__*` 规则；`.terminal-hero__*` **本次不动**，后续单独清理 |
 | `frontend/package.json` | 添加 `@ant-design/pro-components` 依赖 |
 
 ### 3.3 不改动文件
@@ -55,6 +64,8 @@
 ---
 
 ## 4. 菜单结构
+
+菜单只包含**已存在的路由**（`/dashboard`、`/chart`、`/review`、`/market`、`/alerts`）。`/auto-trading` 作为占位页面新建（见 3.1），菜单中显示但页面内容为"开发中"。
 
 ```ts
 const menuItems = [
@@ -78,20 +89,35 @@ const menuItems = [
 ## 5. ProLayout 配置
 
 ```tsx
+'use client';  // 必须，因为使用了 usePathname、useState、useRouter
+
+// collapsed 状态用 localStorage 持久化，刷新后保留用户选择
+const [collapsed, setCollapsed] = useState<boolean>(() => {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem('sidebar-collapsed') === 'true';
+});
+
+const handleCollapse = (val: boolean) => {
+  setCollapsed(val);
+  localStorage.setItem('sidebar-collapsed', String(val));
+};
+
+// ...
+
 <ProLayout
   layout="side"
   navTheme="realDark"          // 深色侧边栏
   colorPrimary="#0f766e"
   siderWidth={220}
   collapsed={collapsed}
-  onCollapse={setCollapsed}
+  onCollapse={handleCollapse}
   collapsedWidth={48}
   fixSiderbar
   headerHeight={52}
   title="Alpha Pulse"
-  logo={<APLogo />}           // 28px 深绿圆角 logo
+  logo={<APLogo />}           // frontend/components/layout/APLogo.tsx
   route={{ routes: menuItems }}
-  location={{ pathname: usePathname() }}
+  location={{ pathname: usePathname() }}   // usePathname() 在 'use client' 组件中安全调用
   onMenuHeaderClick={() => router.push('/dashboard')}
   actionsRender={() => <HeaderActions />}  // 信号badge + 告警铃铛
   menuItemRender={(item, dom) => (
@@ -107,7 +133,7 @@ const menuItems = [
 ## 6. Header 右侧插槽（SignalStatusBadge + AlertBell）
 
 - `SignalStatusBadge`：从 `marketStore` 读取 `snapshot.signal.direction` 和 `snapshot.signal.confidence`，渲染绿/红/灰 badge（`BUY · 82%` / `SELL · 65%` / `NEUTRAL`）。
-- AlertBell：保留现有告警铃铛逻辑，从 `alertStore` 或通过 `/api/alerts` 读取未读数。
+- AlertBell：通过 `/api/alerts?limit=20` 读取未读告警数（**无 alertStore**，直接 fetch）。未读数 = alerts 中 `read: false` 的条目数。保留现有 AlertBell 组件逻辑，只是将其放入 ProLayout 的 `actionsRender` 插槽。
 
 ---
 
@@ -119,15 +145,17 @@ const menuItems = [
 
 ## 8. CSS 清理策略
 
-删除以下前缀的所有 CSS 规则（保留行内注释标记以便 diff 审查）：
+删除以下前缀的所有 CSS 规则：
 
-- `.app-shell__*`
-- `.terminal-hero__*`（保留业务组件内部用到的子类）
-- `.page-hero__*`
+- `.app-shell__*`（AppShell 删除后这些类不再被引用）
+- `.page-hero__*`（PageHero 组件不再使用）
 
-保留：
+**本次不动**：
+- `.terminal-hero__*`（业务组件内部仍有引用，后续单独清理）
 - `.surface-panel`、`.surface-card`（业务组件使用）
 - 所有 `@keyframes`、工具类、Tailwind 相关声明
+
+**操作方法**：删除前先 `grep -r "app-shell__" frontend/` 和 `grep -r "page-hero__" frontend/` 确认无残留引用，再批量删除。
 
 ---
 
@@ -137,9 +165,11 @@ const menuItems = [
 |--------|------|
 | 菜单导航正确跳转 | Playwright e2e：点击每个菜单项，验证 pathname |
 | 侧边栏折叠/展开 | Playwright：点击折叠按钮，验证 `.ant-pro-sider` 宽度变化 |
+| 折叠状态 localStorage 持久化 | Playwright：折叠后刷新页面，验证侧边栏仍为折叠态 |
 | 信号 badge 渲染 | Vitest：mock marketStore，验证 badge 文字和颜色 |
-| 现有业务组件不受影响 | 运行 `npm test`，全部现有测试仍通过 |
+| 现有业务组件不受影响 | 运行 `npm test`，全部现有 18 个测试仍通过 |
 | 响应式（屏宽 < 768px） | Playwright：viewport 缩小，验证侧边栏自动折叠 |
+| 视觉回归 | Playwright screenshot：对比迁移前后 `/dashboard` 截图，确认内容区业务组件无位移 |
 
 ---
 
