@@ -87,6 +87,17 @@ export default function AlertConfigPanel({
                 />
               }
             />
+            <Row
+              label="声音提示"
+              description="新告警到达时播放提示音（需先点击页面激活音频上下文）。"
+              control={
+                <Switch
+                  checked={current.sound_enabled ?? false}
+                  onChange={(checked) => setDraft(current ? { ...current, sound_enabled: checked } : null)}
+                  size="small"
+                />
+              }
+            />
           </section>
 
           <section className="space-y-3 rounded-[24px] border border-slate-200 bg-white px-4 py-4">

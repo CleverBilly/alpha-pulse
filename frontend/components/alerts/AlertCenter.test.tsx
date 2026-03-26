@@ -182,6 +182,7 @@ function buildPreferences() {
     quiet_hours_enabled: false,
     quiet_hours_start: 0,
     quiet_hours_end: 8,
+    sound_enabled: false,
     symbols: ["BTCUSDT", "ETHUSDT"],
     available_symbols: ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
   };

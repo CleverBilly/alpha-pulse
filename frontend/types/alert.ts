@@ -34,6 +34,7 @@ export interface AlertFeed {
 export interface AlertPreferences {
   feishu_enabled: boolean;
   browser_enabled: boolean;
+  sound_enabled: boolean;
   setup_ready_enabled: boolean;
   direction_shift_enabled: boolean;
   no_trade_enabled: boolean;

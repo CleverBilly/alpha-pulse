@@ -29,10 +29,38 @@ export default function AlertCenter() {
   const initializedRef = useRef(false);
   const notifiedIdsRef = useRef<Set<string>>(new Set());
   const browserEnabledRef = useRef(true);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const soundEnabledRef = useRef(false);
 
   useEffect(() => {
     browserEnabledRef.current = preferences?.browser_enabled ?? true;
   }, [preferences?.browser_enabled]);
+
+  useEffect(() => {
+    soundEnabledRef.current = preferences?.sound_enabled ?? false;
+  }, [preferences?.sound_enabled]);
+
+  const playSoundAlert = () => {
+    if (!soundEnabledRef.current) return;
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new AudioContext();
+      }
+      const ctx = audioCtxRef.current;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.4);
+    } catch {
+      // AudioContext 不可用时静默降级
+    }
+  };
 
   useEffect(() => {
     setPermission(readBrowserPermission());
@@ -94,6 +122,9 @@ export default function AlertCenter() {
           notifiedIdsRef.current.add(item.id);
           notifyBrowser(item, permission, browserEnabledRef.current);
         });
+        if (newItems.length > 0) {
+          playSoundAlert();
+        }
       } catch (loadError) {
         if (!active) {
           return;
@@ -144,7 +175,17 @@ export default function AlertCenter() {
         <Button
           type="default"
           icon={<BellOutlined />}
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            if (!audioCtxRef.current) {
+              try {
+                audioCtxRef.current = new AudioContext();
+                if (audioCtxRef.current.state === "suspended") {
+                  void audioCtxRef.current.resume();
+                }
+              } catch { /* ignore */ }
+            }
+            setOpen(!open);
+          }}
           className="!rounded-full !border-slate-200 !bg-white/85"
           aria-label="打开告警中心"
         >
