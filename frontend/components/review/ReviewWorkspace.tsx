@@ -1,8 +1,11 @@
 import AIAnalysisPanel from "@/components/analysis/AIAnalysisPanel";
 import AlertHistoryBoard from "@/components/alerts/AlertHistoryBoard";
+import WinRatePanel from "@/components/alerts/WinRatePanel";
 import TradingWorkspaceHero from "@/components/layout/TradingWorkspaceHero";
 import MarketSnapshotLoader from "@/components/market/MarketSnapshotLoader";
 import SignalCard from "@/components/signal/SignalCard";
+
+const REVIEW_SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT"] as const;
 
 export default function ReviewWorkspace() {
   return (
@@ -18,6 +21,7 @@ export default function ReviewWorkspace() {
           { label: "输出", value: "可复盘" },
         ]}
       />
+      <WinRatePanel symbols={[...REVIEW_SYMBOLS]} />
       <AlertHistoryBoard />
       <h2 className="text-2xl font-semibold">实时信号上下文</h2>
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.9fr_1.1fr]">
