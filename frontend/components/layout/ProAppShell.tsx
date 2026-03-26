@@ -69,7 +69,7 @@ export default function ProAppShell({ children }: { children: ReactNode }) {
         <AlertCenter key="alert" />,
       ]}
       menuItemRender={(item: MenuDataItem, dom: ReactNode) => (
-        <Link href={(item as MenuDataItem & { path?: string }).path ?? '/'}>{dom}</Link>
+        <Link href={item.path ?? '/'}>{dom}</Link>
       )}
       contentStyle={{ padding: 0, background: '#f0f2f5' }}
     >
