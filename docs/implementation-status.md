@@ -5,21 +5,20 @@
 
 ## 1. 结论
 
-当前系统已经完成 `Spot Analysis MVP` 主线开发。
+当前系统已经完成 `Futures Direction Copilot + Auto Trading Console` 主线开发。
 
 如果目标是以下场景：
 
 - 内部部署
 - 研究型分析终端
 - 演示与灰度上线
-- 现货市场的观察和辅助决策
+- 合约市场的观察和辅助决策
+- 受控的 Binance Futures 自动交易
 
 那么当前版本已经可上线。
 
 如果目标是以下场景：
 
-- `Futures` 数据分析
-- 自动交易
 - 回测平台
 - 多交易所统一研究平台
 - 高频订单簿逐笔重建
@@ -32,8 +31,8 @@
 
 - Monorepo 基础结构
 - Backend 分层架构
-- Binance Spot SDK 接入
-- Spot 数据链路
+- Binance Futures / Spot SDK 接入
+- Futures 数据链路
 - REST + WebSocket 混合采集
 - MySQL / Redis / Docker 基础接入
 - `market-snapshot` 聚合接口
@@ -64,11 +63,13 @@
 - `/chart`
 - `/signals`
 - `/market`
+- `/auto-trading`
 - `BTCUSDT / ETHUSDT` 切换
 - `1m / 5m / 15m / 1h / 4h` 周期切换
 - K 线、结构、流动性、信号、微结构图层
 - `Microstructure Timeline`
 - `AIAnalysisPanel`
+- 自动交易控制台：环境底线、运行时配置、订单面板
 
 ### 2.5 质量与稳定性
 
@@ -89,11 +90,12 @@
 
 当前可直接上线的系统边界是：
 
-- `BTCUSDT / ETHUSDT` 现货分析
+- `BTCUSDT / ETHUSDT / SOLUSDT` 合约方向分析
 - 统一 `market-snapshot` 驱动的前端工作台
 - 图表、信号、订单流、结构、流动性与 AI 解释联动展示
 - Redis 热点缓存与显式刷新
 - `large_trade_events` / `feature_snapshots` 后台持久化
+- 真实 Binance Futures 自动交易与订单状态管理
 
 ### 3.2 上线条件
 
@@ -102,7 +104,8 @@
 1. 使用 `APP_MODE=prod`
 2. 使用真实 MySQL / Redis / Binance 连接
 3. 保持 `ALLOW_MOCK_BINANCE_DATA=false`
-4. 继续以 `market-snapshot` 作为前端主接口
+4. 如启用真实自动交易，显式设置 `TRADE_ENABLED=true` 与 `TRADE_AUTO_EXECUTE=true`
+5. 继续以 `market-snapshot` 作为前端主接口
 
 ### 3.3 上线预期
 
@@ -112,10 +115,10 @@
 - 内部分析平台
 - 演示环境
 - 辅助决策看盘工具
+- 受控的自动交易执行台
 
 当前版本不应被描述为：
 
-- 自动交易平台
 - 完整量化研究平台
 - 多资产 / 多交易所中台
 
@@ -130,8 +133,6 @@
 
 ### 4.2 明确延后
 
-- `Futures`：Funding / Open Interest / Futures 因子
-- 自动下单
 - 回测平台
 - 用户系统 / 权限系统
 - 多交易所接入
@@ -148,6 +149,6 @@
 
 后续文档默认遵守以下口径：
 
-1. 当前系统已完成 `Spot Analysis MVP`
-2. `Futures` 与自动交易类能力不属于当前完成范围
+1. 当前系统已完成 `Futures Direction Copilot + Auto Trading Console`
+2. 自动交易已经进入当前完成范围，但默认仍以安全关闭态部署
 3. 后续工作以“增强项”或“扩边项”表达，不再表述为主线未完成

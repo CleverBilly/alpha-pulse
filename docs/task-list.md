@@ -91,14 +91,17 @@
 - [x] Chart 多图层图表分析
 - [x] Signals 信号列表与解释
 - [x] Market 市场快照与关键价位
+- [x] Auto Trading 控制台与运行时配置
+- [x] 真实 Binance Futures 自动下单、限价挂单管理与持仓同步
 - [x] Microstructure Timeline 事件演化阅读
 - [x] Liquidity wall map / wall evolution 展示
 
 ### 3.3 上线口径说明
 
 - [x] 当前版本适合内部部署、灰度发布或研究终端场景
-- [x] 当前版本不是自动交易系统，也不是完整量化研究平台
+- [x] 当前版本已具备受控自动交易能力，但不是完整量化研究平台
 - [x] 如以真实生产模式部署，应使用 `APP_MODE=prod` 并提供真实 Binance 连接与数据库
+- [x] 如开启真实自动交易，还需显式设置 `TRADE_ENABLED=true`、`TRADE_AUTO_EXECUTE=true`，并在 `/auto-trading` 页面保存运行时开关
 - [-] 如需更强生产可观测性，建议在上线后补 metrics / monitoring
 
 ## 4. 后续增强项

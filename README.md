@@ -18,10 +18,10 @@ AI Crypto Futures Direction Copilot（BTC / ETH / SOL）
 - Alert Center：浏览器通知 + 飞书机器人推送
 - 告警配置中心：事件开关、最小置信度、静默时段、标的过滤
 - 告警历史回放：recent feed + `/review` 复盘
+- Auto Trading：真实 Binance Futures 限价开仓、超时撤单、保护单补挂、持仓同步与 `/auto-trading` 控制台
 
 当前不包含：
 
-- 自动下单
 - 回测平台
 - 多交易所接入
 
@@ -58,6 +58,7 @@ cp frontend/.env.example frontend/.env.local
 - `frontend/.env.local` 用于配置 API 地址和登录拦截开关
 - `./scripts/dev.sh` 默认直接使用本地 MySQL / Redis，不依赖 Docker
 - `./scripts/dev.sh` 会把本地登录所需的鉴权变量从 `backend/.env` 同步给前端进程，避免登录成功后又被 middleware 踢回 `/login`
+- 本地和 Docker 默认都会把自动交易保持关闭，只有显式配置 `TRADE_ENABLED=true`、`TRADE_AUTO_EXECUTE=true` 并在 `/auto-trading` 页面保存运行时开关后，才会碰真实账户
 - 如果你仍想用 Docker 起本地依赖，可使用 `USE_DOCKER_DEPS=1 ./scripts/dev.sh`
 
 ## 服务器部署
@@ -152,12 +153,18 @@ FEISHU_BOT_SECRET=
 
 BINANCE_API_KEY=
 BINANCE_SECRET_KEY=
+TRADE_ENABLED=false
+TRADE_AUTO_EXECUTE=false
+TRADE_ALLOWED_SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT
+TRADE_WATCHER_INTERVAL_SECONDS=3
+TRADE_SYNC_INTERVAL_SECONDS=15
 ```
 
 关键说明：
 
 - `APP_MODE=prod`
 - `ALLOW_MOCK_BINANCE_DATA=false`
+- 如果计划开启真实自动交易，再把 `TRADE_ENABLED=true` 和 `TRADE_AUTO_EXECUTE=true`
 - `AUTO_MIGRATE=true`
   - 第一次上线建议先开启，让系统自动建表
   - 确认表结构稳定后，再改成 `false`
@@ -235,6 +242,7 @@ volumes:
 - 这里把 `3000 / 8080` 只绑定到 `127.0.0.1`，宿主机 Nginx 可以访问，但公网无法直接访问
 - 外部流量统一走 Nginx
 - `frontend` 镜像构建前，`frontend/.env.production` 必须已经存在
+- 真实 Binance 密钥和自动交易开关统一放在 `backend/.env`，不要把敏感值直接硬编码进 `docker-compose.prod.yml`
 
 ### 7. 构建并启动
 
@@ -316,9 +324,22 @@ curl https://app.example.com/healthz
 - 登录页可打开
 - 使用你配置的单用户账号可以成功登录
 - `/dashboard`、`/market`、`/review` 正常打开
+- `/auto-trading` 可正常打开并看到运行时配置页
 - 浏览器开发者工具里 `/api/auth/login` 返回 `200`
 - `docker compose -f docker-compose.prod.yml logs -f backend` 没有持续报错
 - 飞书机器人如果已配置，能收到测试提醒
+
+如果计划开启真实自动交易，再额外确认：
+
+- `backend/.env` 已设置：
+  - `ALLOW_MOCK_BINANCE_DATA=false`
+  - `BINANCE_API_KEY`
+  - `BINANCE_SECRET_KEY`
+  - `TRADE_ENABLED=true`
+  - `TRADE_AUTO_EXECUTE=true`
+- 账号已开通 Binance Futures 权限，API Key 具备期货交易权限
+- `/auto-trading` 页面里已经保存运行时配置，并显式打开“自动执行”
+- 先只放行最少的白名单标的，例如先只开 `BTCUSDT`
 
 ### 11. 常见问题
 
@@ -378,6 +399,11 @@ ENABLE_STREAM_COLLECTOR=true
 ENABLE_SCHEDULER=true
 ALLOW_MOCK_BINANCE_DATA=true
 SCHEDULER_INTERVAL_SECONDS=60
+TRADE_ENABLED=false
+TRADE_AUTO_EXECUTE=false
+TRADE_ALLOWED_SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT
+TRADE_WATCHER_INTERVAL_SECONDS=3
+TRADE_SYNC_INTERVAL_SECONDS=15
 ```
 
 说明：
@@ -385,6 +411,7 @@ SCHEDULER_INTERVAL_SECONDS=60
 - `GIN_MODE` 默认随 `APP_MODE` 推导：`dev -> debug`，`test -> test`，`prod -> release`
 - 所有 mode 默认值都可以被显式环境变量覆盖
 - 本地 `docker compose` 当前默认按 `dev` 模式启动
+- 本地 Docker 默认把自动交易开关保持为关闭态，避免容器一启动就接触真实账户
 
 ## 单用户登录拦截
 
@@ -481,6 +508,72 @@ client := binance.NewClient(apiKey, secretKey)
 ```
 
 当前项目的行情接口主要访问现货公开市场数据，未配置密钥时仍会尝试读取公开接口；后续如果接入下单、账户、用户数据流等签名接口，必须提供有效密钥。
+
+## 自动交易配置
+
+当前仓库已经支持真实 Binance Futures 自动交易，但默认保持关闭。
+真实下单链路为：
+
+- `setup_ready` 告警命中
+- 校验环境底线开关、运行时开关、白名单标的、最小盈亏比、最大持仓数
+- 按信号 `entry_price` 发 `LIMIT` 开仓单
+- 超过超时秒数未成交则撤单并标记 `expired`
+- 成交后自动补挂 `STOP_MARKET` 和 `TAKE_PROFIT_MARKET`
+- 后台循环同步 Binance 持仓，识别手动单和交易所侧已平仓
+
+要启用真实自动交易，后端至少需要这些环境变量：
+
+```bash
+ALLOW_MOCK_BINANCE_DATA=false
+BINANCE_API_KEY=your_binance_api_key
+BINANCE_SECRET_KEY=your_binance_secret_key
+
+TRADE_ENABLED=true
+TRADE_AUTO_EXECUTE=true
+TRADE_ALLOWED_SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT
+TRADE_WATCHER_INTERVAL_SECONDS=3
+TRADE_SYNC_INTERVAL_SECONDS=15
+```
+
+说明：
+
+- `TRADE_ENABLED`
+  - 部署层总开关
+  - 为 `false` 时，交易写接口和后台自动执行都不会触发真实账户操作
+- `TRADE_AUTO_EXECUTE`
+  - 部署层自动执行底线
+  - 为 `false` 时，仍可查看 `/auto-trading` 页面和订单记录，但不会自动下单
+- `TRADE_ALLOWED_SYMBOLS`
+  - 部署层允许触碰的标的全集
+  - `/auto-trading` 页面里的白名单只能从这组标的里再做子集筛选
+- `TRADE_WATCHER_INTERVAL_SECONDS`
+  - LIMIT 开仓单的成交/超时检查频率
+- `TRADE_SYNC_INTERVAL_SECONDS`
+  - Binance 持仓同步频率，用于识别手动单和交易所侧平仓
+
+除了环境变量，运行时还需要去 `/auto-trading` 页面保存一份配置，常用项包括：
+
+- 自动执行开关
+- 允许标的白名单
+- 风险比例 `risk_pct`
+- 最低盈亏比 `min_risk_reward`
+- 限价单超时秒数 `entry_timeout_seconds`
+- 最大持仓数 `max_open_positions`
+- 持仓同步开关
+
+也就是说，真实自动下单必须同时满足三层：
+
+- `TRADE_ENABLED=true`
+- `TRADE_AUTO_EXECUTE=true`
+- `/auto-trading` 页面里的“自动执行”已开启并保存
+
+相关接口：
+
+- `GET /api/trade-settings`
+- `PUT /api/trade-settings`
+- `GET /api/trades`
+- `GET /api/trades/runtime`
+- `POST /api/trades/:id/close`
 
 ## Redis 缓存
 
