@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import { Tag, Typography } from "antd";
+import { Typography } from "antd";
 import { useMarketStore } from "@/store/marketStore";
 import { alertApi } from "@/services/apiClient";
 import { isLongDirection } from "@/utils/alertUtils";
@@ -226,6 +226,8 @@ export default function KlineChart({ historicalMode, activeSignal: activeSignalP
   const hoveredKline = hoveredCandleIndex !== null ? visibleKlines[hoveredCandleIndex] ?? null : null;
   const hoveredCandle = hoveredCandleIndex !== null ? chart.candles[hoveredCandleIndex] ?? null : null;
   const latestKline = visibleKlines[visibleKlines.length - 1] ?? null;
+  const currentSymbol = historicalMode?.symbol ?? symbol;
+  const enabledLayerCount = Object.values(enabledLayers).filter(Boolean).length;
   const microstructureTooltip = activeMicrostructureMarker
     ? buildMicrostructureTooltip(activeMicrostructureMarker)
     : null;
@@ -233,26 +235,43 @@ export default function KlineChart({ historicalMode, activeSignal: activeSignalP
   const highlightedLegendLabel = focusedLegendKey ? resolveLegendFocusLabel(focusedLegendKey) : "全部图层";
 
   return (
-    <section>
-      <div className="surface-panel surface-panel--paper">
+    <section className="kline-screen" data-testid="kline-main-screen">
+      <div className="surface-panel surface-panel--paper kline-screen__surface">
         {!historicalMode && (
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
+          <div className="kline-screen__header" data-testid="kline-screen-header">
+            <div className="kline-screen__header-copy">
+              <p className="kline-screen__eyebrow">主控屏</p>
               <Typography.Title level={3} className="!mb-0 !text-[24px] !tracking-[-0.03em]">
                 K 线图
               </Typography.Title>
-              <p className="mt-2 text-sm text-muted">
+              <p className="kline-screen__description">
                 48 根 K 线，叠加结构点、动态支撑阻力、流动性轨迹、信号位与多指标
               </p>
             </div>
-            <button
-              onClick={() => {
-                void refreshDashboard(true);
-              }}
-              className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
-            >
-              更新K线
-            </button>
+
+            <div className="kline-screen__readouts">
+              <div className="kline-screen__readout">
+                <span>标的</span>
+                <strong>{currentSymbol}</strong>
+              </div>
+              <div className="kline-screen__readout">
+                <span>样本</span>
+                <strong>{visibleKlines.length} 根</strong>
+              </div>
+              <div className="kline-screen__readout">
+                <span>微结构</span>
+                <strong>{chart.microstructureMarkers.length} 个</strong>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  void refreshDashboard(true);
+                }}
+                className="kline-screen__refresh"
+              >
+                更新K线
+              </button>
+            </div>
           </div>
         )}
 
@@ -263,29 +282,46 @@ export default function KlineChart({ historicalMode, activeSignal: activeSignalP
         ) : null}
 
         {visibleKlines.length > 0 ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <Tag>核心图层：ABS / ICE / AGR</Tag>
-              {SECONDARY_MICROSTRUCTURE_LAYERS.map((layer) => (
-                <LayerToggle
-                  key={layer.key}
-                  label={layer.label}
-                  active={enabledLayers[layer.key]}
-                  onClick={() => {
-                    setEnabledLayers((value) => ({ ...value, [layer.key]: !value[layer.key] }));
-                    setHoveredMicrostructureMarkerKey(null);
-                    setPinnedMicrostructureMarkerKey(null);
-                  }}
-                />
-              ))}
+          <div className="kline-screen__body">
+            <div className="kline-screen__controls" data-testid="kline-screen-controls">
+              <div className="kline-screen__controls-copy">
+                <span className="kline-screen__controls-label">核心图层</span>
+                <strong>ABS / ICE / AGR 常驻，次级信号按需展开</strong>
+              </div>
+              <div className="kline-screen__controls-row">
+                <span className="kline-screen__controls-state">已展开 {enabledLayerCount} 个次级层</span>
+                <div className="kline-screen__toggle-grid">
+                  {SECONDARY_MICROSTRUCTURE_LAYERS.map((layer) => (
+                    <LayerToggle
+                      key={layer.key}
+                      label={layer.label}
+                      active={enabledLayers[layer.key]}
+                      onClick={() => {
+                        setEnabledLayers((value) => ({ ...value, [layer.key]: !value[layer.key] }));
+                        setHoveredMicrostructureMarkerKey(null);
+                        setPinnedMicrostructureMarkerKey(null);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <div className="overflow-hidden rounded-[26px] border border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+            <div className="kline-screen__viewport-shell">
+              <div className="kline-screen__viewport-topline">
+                <div>
+                  <p className="kline-screen__viewport-label">主屏视窗</p>
+                  <p className="kline-screen__viewport-caption">当前聚焦 {highlightedLegendLabel}</p>
+                </div>
+                <span className="kline-screen__viewport-chip">KLINE / LIVE</span>
+              </div>
+
+              <div className="kline-screen__viewport" data-testid="kline-screen-viewport">
               <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="h-[360px] w-full">
                 <defs>
                   <linearGradient id="chart-bg" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="rgba(14,165,233,0.08)" />
-                    <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+                    <stop offset="0%" stopColor="rgba(56,189,248,0.12)" />
+                    <stop offset="100%" stopColor="rgba(15,23,42,0)" />
                   </linearGradient>
                 </defs>
 
@@ -398,24 +434,25 @@ export default function KlineChart({ historicalMode, activeSignal: activeSignalP
                 ))}
               </svg>
             </div>
+            </div>
 
-            <div className="flex flex-col gap-3 rounded-[24px] border border-slate-100 bg-white/82 px-4 py-3 shadow-[0_10px_24px_rgba(32,42,63,0.04)] md:flex-row md:items-center md:justify-between">
+            <div className="kline-screen__legend-dock">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">图例聚焦</p>
-                <p className="mt-2 text-sm text-slate-700">
+                <p className="kline-screen__dock-label">图例聚焦</p>
+                <p className="kline-screen__dock-copy">
                   当前聚焦 <span className="font-semibold text-slate-950">{highlightedLegendLabel}</span>。点击图例可以隔离图层。
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setFocusedLegendKey(null)}
-                className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                className="kline-screen__dock-reset"
               >
                 重置视图
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-2 text-xs">
+            <div className="kline-screen__legend-strip">
               {buildLegendItems(indicator, structure, liquidity, signal, chart.microstructureMarkers.length).map((item) => (
                 <Legend
                   key={item.label}
@@ -429,23 +466,24 @@ export default function KlineChart({ historicalMode, activeSignal: activeSignalP
               ))}
             </div>
 
-            <KlineInfoPanels
-              hoveredKline={hoveredKline}
-              latestKline={latestKline}
-              activeMicrostructureMarker={activeMicrostructureMarker}
-              pinnedMicrostructureMarkerKey={pinnedMicrostructureMarkerKey}
-              setHoveredMicrostructureMarkerKey={setHoveredMicrostructureMarkerKey}
-              setPinnedMicrostructureMarkerKey={setPinnedMicrostructureMarkerKey}
-              indicator={indicator}
-              structure={structure}
-              liquidity={liquidity}
-              signal={signal}
-              microstructureMarkerCount={chart.microstructureMarkers.length}
-            />
+            <div className="kline-screen__info-dock">
+              <KlineInfoPanels
+                hoveredKline={hoveredKline}
+                latestKline={latestKline}
+                activeMicrostructureMarker={activeMicrostructureMarker}
+                pinnedMicrostructureMarkerKey={pinnedMicrostructureMarkerKey}
+                setHoveredMicrostructureMarkerKey={setHoveredMicrostructureMarkerKey}
+                setPinnedMicrostructureMarkerKey={setPinnedMicrostructureMarkerKey}
+                indicator={indicator}
+                structure={structure}
+                liquidity={liquidity}
+                signal={signal}
+                microstructureMarkerCount={chart.microstructureMarkers.length}
+              />
+            </div>
           </div>
         ) : null}
       </div>
     </section>
   );
 }
-

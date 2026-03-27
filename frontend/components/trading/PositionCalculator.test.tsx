@@ -89,6 +89,7 @@ describe("PositionCalculator render", () => {
   it("renders as a cockpit surface region", () => {
     render(<PositionCalculator />);
 
+    expect(screen.getByTestId("position-calculator-panel")).toHaveAttribute("data-panel-role", "action");
     expect(screen.getByRole("region", { name: "仓位计算器" })).toBeInTheDocument();
     expect(screen.getByText("账户余额 (USDT)")).toBeInTheDocument();
   });

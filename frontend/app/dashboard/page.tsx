@@ -2,24 +2,30 @@ import KlineChart from "@/components/chart/KlineChart";
 import DecisionHeader from "@/components/dashboard/DecisionHeader";
 import EvidenceRail from "@/components/dashboard/EvidenceRail";
 import ExecutionPanel from "@/components/dashboard/ExecutionPanel";
+import CommandPage from "@/components/layout/CommandPage";
+import OverviewBand from "@/components/layout/OverviewBand";
 import MarketSnapshotLoader from "@/components/market/MarketSnapshotLoader";
 import PositionCalculator from "@/components/trading/PositionCalculator";
 
 export default function DashboardPage() {
   return (
-    <div className="space-y-6">
+    <CommandPage className="dashboard-command-page" data-testid="dashboard-command-page">
       <MarketSnapshotLoader />
-      <DecisionHeader />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="order-2 lg:order-1 lg:col-span-8">
+      <OverviewBand className="dashboard-command-page__overview" data-testid="dashboard-overview-band">
+        <DecisionHeader />
+      </OverviewBand>
+      <div className="dashboard-command-page__workspace" data-testid="dashboard-primary-workspace">
+        <div className="dashboard-command-page__chart-stage" data-testid="dashboard-chart-surface">
           <KlineChart />
         </div>
-        <div className="order-1 lg:order-2 lg:col-span-4 flex flex-col gap-6">
+        <div className="dashboard-command-page__side-rail" data-testid="dashboard-side-rail">
           <ExecutionPanel />
           <PositionCalculator />
         </div>
       </div>
-      <EvidenceRail />
-    </div>
+      <div className="dashboard-command-page__evidence" data-testid="dashboard-evidence-surface">
+        <EvidenceRail />
+      </div>
+    </CommandPage>
   );
 }

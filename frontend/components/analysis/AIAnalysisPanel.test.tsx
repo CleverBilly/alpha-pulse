@@ -159,6 +159,9 @@ describe("AIAnalysisPanel", () => {
 
     render(<AIAnalysisPanel />);
 
+    expect(screen.getByTestId("ai-analysis-panel")).toHaveAttribute("data-surface", "analysis-deck");
+    expect(screen.getByTestId("ai-analysis-playbook")).toBeInTheDocument();
+    expect(screen.getByTestId("ai-analysis-sequences")).toBeInTheDocument();
     expect(screen.getByText("决策备忘")).toBeInTheDocument();
     expect(screen.getByText("当前多头信号由趋势、订单流与流动性共振驱动。")).toBeInTheDocument();
     expect(screen.getByText("多头驱动")).toBeInTheDocument();

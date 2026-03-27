@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=/dev/null
+source "$ROOT_DIR/scripts/dev_env.sh"
 
 echo "using local services from backend/.env or shell env"
 echo "set USE_DOCKER_DEPS=1 if you want to start mysql/redis via docker compose"
@@ -42,6 +44,9 @@ BACKEND_PID=$!
 
 echo "backend started: PID=$BACKEND_PID"
 wait_for_backend
+
+resolve_frontend_auth_env "$ROOT_DIR/backend/.env" "$ROOT_DIR/frontend/.env.local"
+validate_frontend_auth_env
 
 echo "starting frontend..."
 cd "$ROOT_DIR/frontend"

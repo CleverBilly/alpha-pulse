@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { mockAlertApi } from "./support/mockAlertApi";
+import { loginAsDefaultUser } from "./support/loginAsDefaultUser";
 import { mockMarketSnapshotApi } from "./support/mockMarketApi";
 
 test("signals page shows replay board and live signal context", async ({ page }) => {
@@ -28,11 +29,12 @@ test("signals page shows replay board and live signal context", async ({ page })
     ],
   });
   await mockMarketSnapshotApi(page);
+  await loginAsDefaultUser(page);
   await page.goto("/signals");
 
   await expect(page.getByRole("heading", { name: "告警复盘看板" })).toBeVisible();
   await expect(page.getByText("BTCUSDT A 级机会已就绪")).toBeVisible();
-  await expect(page.getByText("实时信号上下文")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "实时信号上下文" })).toBeVisible();
   await expect(page.getByText("决策备忘")).toBeVisible();
   await expect(page.getByText("因子拆解")).toBeVisible();
   await expect(page.getByText("多头驱动")).toBeVisible();

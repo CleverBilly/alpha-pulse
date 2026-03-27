@@ -14,7 +14,7 @@ export default function EvidenceRail() {
   });
 
   return (
-    <section className="dashboard-evidence" aria-label="证据链">
+    <section className="dashboard-evidence" aria-label="证据链" data-panel-role="evidence" data-testid="dashboard-evidence-rail">
       <div className="dashboard-evidence__header">
         <div>
           <p className="dashboard-evidence__eyebrow">证据链</p>
@@ -23,9 +23,16 @@ export default function EvidenceRail() {
         <p className="dashboard-evidence__description">只保留最影响短线判断的三组证据，并直接跳转到各自深页。</p>
       </div>
 
-      <div className="dashboard-evidence__grid">
-        {cards.map((card) => (
-          <article key={card.id} className="dashboard-evidence__card surface-panel surface-panel--paper">
+      <div className="dashboard-evidence__strip" data-testid="dashboard-evidence-strip-shell">
+        {cards.map((card, index) => (
+          <article
+            key={card.id}
+            className={`dashboard-evidence__bay dashboard-evidence__bay--${card.tone}`}
+            data-testid="dashboard-evidence-bay"
+            data-status={card.status}
+          >
+            <div className="dashboard-evidence__bay-index">E-{String(index + 1).padStart(2, "0")}</div>
+
             <div className="dashboard-evidence__card-head">
               <div>
                 <h3 className="dashboard-evidence__card-title">{card.title}</h3>
@@ -38,7 +45,7 @@ export default function EvidenceRail() {
               </Link>
             </div>
 
-            <p className="dashboard-evidence__summary">{card.summary}</p>
+            <p className="dashboard-evidence__summaryline">{card.summary}</p>
 
             <div className="dashboard-evidence__metrics">
               {card.metrics.length > 0 ? (

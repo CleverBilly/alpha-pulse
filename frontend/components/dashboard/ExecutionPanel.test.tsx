@@ -18,6 +18,7 @@ describe("ExecutionPanel", () => {
 
     render(<ExecutionPanel />);
 
+    expect(screen.getByTestId("execution-panel")).toHaveAttribute("data-panel-role", "action");
     expect(screen.getByRole("heading", { name: "执行方案" })).toBeInTheDocument();
     expect(screen.getByText("顺势做多")).toBeInTheDocument();
     expect(screen.getByText("进场区间")).toBeInTheDocument();
@@ -42,6 +43,7 @@ describe("ExecutionPanel", () => {
 
     render(<ExecutionPanel />);
 
+    expect(screen.getByTestId("execution-panel")).toHaveAttribute("data-panel-role", "action");
     expect(screen.getByText("等待更完整的入场、止损和目标位后再做执行判断。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "等待 setup 完整" })).toBeDisabled();
   });

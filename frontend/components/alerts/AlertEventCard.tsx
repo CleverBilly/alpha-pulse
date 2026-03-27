@@ -7,26 +7,32 @@ import type { AlertEvent } from "@/types/alert";
 interface AlertEventCardProps {
   item: AlertEvent;
   onReview?: (event: AlertEvent) => void;
+  variant?: "card" | "row";
 }
 
-export default function AlertEventCard({ item, onReview }: AlertEventCardProps) {
+export default function AlertEventCard({ item, onReview, variant = "card" }: AlertEventCardProps) {
+  const rowMode = variant === "row";
+
   return (
     <article
-      className={`rounded-3xl border px-4 py-4 shadow-[0_12px_30px_rgba(32,42,63,0.05)] ${resolveCardTone(item.severity)}`}
+      className={rowMode
+        ? "alert-event-card alert-event-card--row"
+        : `alert-event-card alert-event-card--card rounded-3xl border px-4 py-4 shadow-[0_12px_30px_rgba(32,42,63,0.05)] ${resolveCardTone(item.severity)}`}
+      data-alert-severity={item.severity}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="alert-event-card__head">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="alert-event-card__meta-row">
             <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{item.symbol}</span>
             <Tag color={resolveSeverityColor(item.severity)}>{resolveSeverityLabel(item.severity)}</Tag>
             <Tag color={item.tradeability_label === "No-Trade" || item.tradeability_label === "禁止交易" ? "warning" : "success"}>
               {item.tradeability_label}
             </Tag>
           </div>
-          <h3 className="mt-2 text-base font-semibold tracking-[-0.02em] text-slate-950">{item.title}</h3>
+          <h3 className="alert-event-card__title">{item.title}</h3>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">{formatAlertTime(item.created_at)}</span>
+        <div className="alert-event-card__actions">
+          <span className="alert-event-card__time">{formatAlertTime(item.created_at)}</span>
           {onReview && (
             <Button
               size="small"
@@ -40,11 +46,11 @@ export default function AlertEventCard({ item, onReview }: AlertEventCardProps) 
         </div>
       </div>
 
-      <p className="mt-3 text-sm leading-6 text-slate-700">
+      <p className="alert-event-card__summary">
         {item.verdict} · {item.summary}
       </p>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="alert-event-card__timeframes">
         {item.timeframe_labels.map((label) => (
           <span
             key={label}
@@ -55,16 +61,16 @@ export default function AlertEventCard({ item, onReview }: AlertEventCardProps) 
         ))}
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <Metric label="置信度" value={`${item.confidence}%`} />
-        <Metric label="风险" value={item.risk_label} />
-        <Metric label="进场位" value={formatLevel(item.entry_price)} />
-        <Metric label="目标位" value={formatLevel(item.target_price)} />
+      <div className="alert-event-card__metrics">
+        <Metric label="置信度" value={`${item.confidence}%`} variant={variant} />
+        <Metric label="风险" value={item.risk_label} variant={variant} />
+        <Metric label="进场位" value={formatLevel(item.entry_price)} variant={variant} />
+        <Metric label="目标位" value={formatLevel(item.target_price)} variant={variant} />
       </div>
 
-      {item.reasons.length > 0 ? <p className="mt-3 text-sm leading-6 text-slate-600">原因：{item.reasons.join("；")}</p> : null}
+      {item.reasons.length > 0 ? <p className="alert-event-card__reasons">原因：{item.reasons.join("；")}</p> : null}
 
-      {item.deliveries.length > 0 ? (
+      {item.deliveries.length > 0 && !rowMode ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {item.deliveries.map((delivery) => (
             <Tag
@@ -80,9 +86,9 @@ export default function AlertEventCard({ item, onReview }: AlertEventCardProps) 
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value, variant }: { label: string; value: string; variant: "card" | "row" }) {
   return (
-    <div className="rounded-2xl border border-white/80 bg-white/80 px-3 py-3">
+    <div className={variant === "row" ? "alert-event-card__metric alert-event-card__metric--row" : "rounded-2xl border border-white/80 bg-white/80 px-3 py-3"}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className="mt-2 text-sm font-semibold text-slate-950">{value}</p>
     </div>

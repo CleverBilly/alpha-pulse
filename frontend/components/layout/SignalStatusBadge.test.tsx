@@ -14,7 +14,7 @@ describe('SignalStatusBadge', () => {
       signal: { signal: 'BUY', confidence: 82 },
     } as never);
     render(<SignalStatusBadge />);
-    expect(screen.getByText('BUY · 82%')).toBeInTheDocument();
+    expect(screen.getByText('BUY · 82%')).toHaveAttribute('data-tone', 'buy');
   });
 
   it('renders SELL badge', () => {
@@ -22,7 +22,7 @@ describe('SignalStatusBadge', () => {
       signal: { signal: 'SELL', confidence: 65 },
     } as never);
     render(<SignalStatusBadge />);
-    expect(screen.getByText('SELL · 65%')).toBeInTheDocument();
+    expect(screen.getByText('SELL · 65%')).toHaveAttribute('data-tone', 'sell');
   });
 
   it('renders NEUTRAL when no signal', () => {
@@ -30,6 +30,6 @@ describe('SignalStatusBadge', () => {
       signal: null,
     } as never);
     render(<SignalStatusBadge />);
-    expect(screen.getByText('NEUTRAL')).toBeInTheDocument();
+    expect(screen.getByText('NEUTRAL')).toHaveAttribute('data-tone', 'neutral');
   });
 });

@@ -61,6 +61,10 @@ describe("DecisionHeader", () => {
 
     render(<DecisionHeader />);
 
+    expect(screen.getByTestId("dashboard-overview-summary")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-decision-strip")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-quote-panel")).toHaveAttribute("data-surface", "instrument");
+    expect(screen.getByTestId("dashboard-action-cluster")).toHaveAttribute("data-surface", "console");
     expect(screen.getByRole("region", { name: "市场报价" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "交易工作台控件" })).toBeInTheDocument();
   });

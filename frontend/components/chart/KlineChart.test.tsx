@@ -23,6 +23,9 @@ describe("KlineChart", () => {
     render(<KlineChart />);
 
     expect(screen.getByText("K 线图")).toBeInTheDocument();
+    expect(screen.getByTestId("kline-screen-header")).toBeInTheDocument();
+    expect(screen.getByTestId("kline-screen-controls")).toBeInTheDocument();
+    expect(screen.getByTestId("kline-screen-viewport")).toBeInTheDocument();
     expect(screen.getAllByText("信号进场").length).toBeGreaterThan(0);
     expect(screen.getAllByText("买方流动性").length).toBeGreaterThan(0);
     expect(screen.getAllByText("内部支撑").length).toBeGreaterThan(0);

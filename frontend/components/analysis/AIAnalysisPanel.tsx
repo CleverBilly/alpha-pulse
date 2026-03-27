@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import { Card, Typography } from "antd";
 import {
   formatAbsorptionBiasLabel,
   formatFactorName,
@@ -48,124 +47,115 @@ export default function AIAnalysisPanel() {
   }, [signal]);
 
   return (
-    <section>
-      <Card
-        variant="borderless"
-        className="surface-card surface-card--analysis"
-      >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
-              AI 分析
-            </p>
-            <Typography.Title level={3} className="!mb-0 !mt-3 !text-[28px] !tracking-[-0.04em]">
-              决策备忘
-            </Typography.Title>
-            <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-              {signal?.explain ?? "当前还没有可用的 AI 分析结果。"}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <SummaryPill
-              label="方向"
-              value={formatTrendBiasLabel(signal?.trend_bias)}
-              tone={biasTone(signal?.trend_bias)}
-            />
-            <SummaryPill
-              label="R/R"
-              value={signal ? signal.risk_reward.toFixed(2) : "-"}
-              tone="bg-violet-50 text-violet-700 border-violet-100"
-            />
-          </div>
+    <section className="ai-analysis" data-surface="analysis-deck" data-testid="ai-analysis-panel">
+      <div className="ai-analysis__header">
+        <div className="ai-analysis__copy">
+          <p className="ai-analysis__eyebrow">AI 分析</p>
+          <h3 className="ai-analysis__title">决策备忘</h3>
+          <p className="ai-analysis__description">
+            {signal?.explain ?? "当前还没有可用的 AI 分析结果。"}
+          </p>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="space-y-6">
-            <PlaybookStrip
-              rows={[
-                {
-                  label: "进场区间",
-                  value: signal ? signal.entry_price.toFixed(2) : "-",
-                  detail: signal ? "围绕当前方向等待确认后再执行。" : "等待新的信号快照。",
-                },
-                {
-                  label: "失效位",
-                  value: signal ? signal.stop_loss.toFixed(2) : "-",
-                  detail: structure?.trend === "uptrend" ? "上行结构失守即降级。" : "结构未确认前避免追单。",
-                },
-                {
-                  label: "目标位",
-                  value: signal ? signal.target_price.toFixed(2) : "-",
-                  detail: liquidity?.sweep_type
-                    ? `重点观察 ${formatSweepLabel(liquidity.sweep_type)} 后续是否延续。`
-                    : "关注流动性回收后的方向选择。",
-                },
-              ]}
-            />
-
-            <InsightBlock
-              title="多头驱动"
-              emptyText="当前没有明显的多头共振因子。"
-              tone="bg-emerald-50 text-emerald-700 border-emerald-100"
-              factors={positives.slice(0, 4).map((factor) => ({
-                name: formatFactorName(factor.name),
-                detail: factor.reason,
-                score: factor.score,
-              }))}
-            />
-
-            <InsightBlock
-              title="风险因子"
-              emptyText="当前没有显著的反向风险因子。"
-              tone="bg-rose-50 text-rose-700 border-rose-100"
-              factors={negatives.slice(0, 4).map((factor) => ({
-                name: formatFactorName(factor.name),
-                detail: factor.reason,
-                score: factor.score,
-              }))}
-            />
-          </div>
-
-          <div className="space-y-6">
-            <ContextPanel
-              title="执行计划"
-              rows={[
-                { label: "执行倾向", value: executionBias },
-                { label: "趋势", value: formatTrendLabel(structure?.trend) },
-                { label: "扫流动性", value: formatSweepLabel(liquidity?.sweep_type) },
-                { label: "吸收", value: formatAbsorptionBiasLabel(orderFlow?.absorption_bias) },
-                { label: "冰山", value: formatIcebergBiasLabel(orderFlow?.iceberg_bias) },
-                { label: "RSI", value: indicator ? indicator.rsi.toFixed(2) : "-" },
-              ]}
-            />
-
-            <ContextPanel
-              title="近期信号序列"
-              rows={
-                latestTimeline.length > 0
-                  ? latestTimeline.map((point) => ({
-                      label: `${formatSignalTime(point.open_time)} ${formatSignalAction(point.signal)}`,
-                      value: `评分 ${point.score} / 置信度 ${point.confidence}%`,
-                    }))
-                  : [{ label: "历史信号", value: "暂无历史信号" }]
-              }
-            />
-
-            <ContextPanel
-              title="微结构序列"
-              rows={
-                latestMicroEvents.length > 0
-                  ? latestMicroEvents.map((event) => ({
-                      label: `${formatMicrostructureEventTypeLabel(event.type)} ${formatEventTime(event.trade_time)}`,
-                      value: `${formatTrendBiasLabel(event.bias)} / ${event.detail}`,
-                    }))
-                  : [{ label: "微结构", value: "暂无微结构事件" }]
-              }
-            />
-          </div>
+        <div className="ai-analysis__summary">
+          <SummaryPill
+            label="方向"
+            value={formatTrendBiasLabel(signal?.trend_bias)}
+            tone={biasTone(signal?.trend_bias)}
+          />
+          <SummaryPill
+            label="R/R"
+            value={signal ? signal.risk_reward.toFixed(2) : "-"}
+            tone="neutral"
+          />
         </div>
-      </Card>
+      </div>
+
+      <div className="ai-analysis__workspace">
+        <div className="ai-analysis__primary">
+          <PlaybookStrip
+            rows={[
+              {
+                label: "进场区间",
+                value: signal ? signal.entry_price.toFixed(2) : "-",
+                detail: signal ? "围绕当前方向等待确认后再执行。" : "等待新的信号快照。",
+              },
+              {
+                label: "失效位",
+                value: signal ? signal.stop_loss.toFixed(2) : "-",
+                detail: structure?.trend === "uptrend" ? "上行结构失守即降级。" : "结构未确认前避免追单。",
+              },
+              {
+                label: "目标位",
+                value: signal ? signal.target_price.toFixed(2) : "-",
+                detail: liquidity?.sweep_type
+                  ? `重点观察 ${formatSweepLabel(liquidity.sweep_type)} 后续是否延续。`
+                  : "关注流动性回收后的方向选择。",
+              },
+            ]}
+          />
+
+          <InsightBlock
+            title="多头驱动"
+            emptyText="当前没有明显的多头共振因子。"
+            tone="accent"
+            factors={positives.slice(0, 4).map((factor) => ({
+              name: formatFactorName(factor.name),
+              detail: factor.reason,
+              score: factor.score,
+            }))}
+          />
+
+          <InsightBlock
+            title="风险因子"
+            emptyText="当前没有显著的反向风险因子。"
+            tone="danger"
+            factors={negatives.slice(0, 4).map((factor) => ({
+              name: formatFactorName(factor.name),
+              detail: factor.reason,
+              score: factor.score,
+            }))}
+          />
+        </div>
+
+        <div className="ai-analysis__secondary" data-testid="ai-analysis-sequences">
+          <ContextPanel
+            title="执行计划"
+            rows={[
+              { label: "执行倾向", value: executionBias },
+              { label: "趋势", value: formatTrendLabel(structure?.trend) },
+              { label: "扫流动性", value: formatSweepLabel(liquidity?.sweep_type) },
+              { label: "吸收", value: formatAbsorptionBiasLabel(orderFlow?.absorption_bias) },
+              { label: "冰山", value: formatIcebergBiasLabel(orderFlow?.iceberg_bias) },
+              { label: "RSI", value: indicator ? indicator.rsi.toFixed(2) : "-" },
+            ]}
+          />
+
+          <ContextPanel
+            title="近期信号序列"
+            rows={
+              latestTimeline.length > 0
+                ? latestTimeline.map((point) => ({
+                    label: `${formatSignalTime(point.open_time)} ${formatSignalAction(point.signal)}`,
+                    value: `评分 ${point.score} / 置信度 ${point.confidence}%`,
+                  }))
+                : [{ label: "历史信号", value: "暂无历史信号" }]
+            }
+          />
+
+          <ContextPanel
+            title="微结构序列"
+            rows={
+              latestMicroEvents.length > 0
+                ? latestMicroEvents.map((event) => ({
+                    label: `${formatMicrostructureEventTypeLabel(event.type)} ${formatEventTime(event.trade_time)}`,
+                    value: `${formatTrendBiasLabel(event.bias)} / ${event.detail}`,
+                  }))
+                : [{ label: "微结构", value: "暂无微结构事件" }]
+            }
+          />
+        </div>
+      </div>
     </section>
   );
 }
@@ -177,12 +167,12 @@ function SummaryPill({
 }: {
   label: string;
   value: string;
-  tone: string;
+  tone: "accent" | "neutral" | "danger";
 }) {
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${tone}`}>
-      <p className="text-[11px] uppercase tracking-[0.12em]">{label}</p>
-      <p className="mt-2 text-lg font-semibold">{value}</p>
+    <div className={`ai-analysis__summary-pill ai-analysis__summary-pill--${tone}`}>
+      <p>{label}</p>
+      <strong>{value}</strong>
     </div>
   );
 }
@@ -195,31 +185,29 @@ function InsightBlock({
 }: {
   title: string;
   emptyText: string;
-  tone: string;
+  tone: "accent" | "danger";
   factors: Array<{ name: string; detail: string; score: number }>;
 }) {
   return (
-    <div className="rounded-[26px] border border-slate-100 bg-white/85 p-5 backdrop-blur">
-      <div className="flex items-center justify-between gap-3">
-        <h4 className="text-sm font-semibold text-slate-900">{title}</h4>
-        <span className="text-xs text-slate-500">{factors.length} 条</span>
+    <div className="ai-analysis__insight">
+      <div className="ai-analysis__block-head">
+        <h4>{title}</h4>
+        <span>{factors.length} 条</span>
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div className="ai-analysis__insight-list">
         {factors.map((factor) => (
-          <div key={`${factor.name}-${factor.score}`} className={`rounded-2xl border px-4 py-3 ${tone}`}>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-semibold">{factor.name}</span>
-              <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold">
-                {factor.score > 0 ? `+${factor.score}` : factor.score}
-              </span>
+          <div key={`${factor.name}-${factor.score}`} className={`ai-analysis__factor ai-analysis__factor--${tone}`}>
+            <div className="ai-analysis__factor-head">
+              <span>{factor.name}</span>
+              <strong>{factor.score > 0 ? `+${factor.score}` : factor.score}</strong>
             </div>
-            <p className="mt-2 text-xs leading-5 text-slate-700">{factor.detail}</p>
+            <p>{factor.detail}</p>
           </div>
         ))}
 
         {factors.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+          <div className="ai-analysis__empty">
             {emptyText}
           </div>
         ) : null}
@@ -234,15 +222,12 @@ function PlaybookStrip({
   rows: Array<{ label: string; value: string; detail: string }>;
 }) {
   return (
-    <div className="grid gap-3 md:grid-cols-3">
+    <div className="ai-analysis__playbook" data-testid="ai-analysis-playbook">
       {rows.map((row) => (
-        <div
-          key={row.label}
-          className="rounded-[24px] border border-slate-100 bg-white/82 px-4 py-4"
-        >
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{row.label}</p>
-          <p className="mt-2 text-xl font-semibold tracking-[-0.03em] text-slate-900">{row.value}</p>
-          <p className="mt-2 text-xs leading-5 text-slate-600">{row.detail}</p>
+        <div key={row.label} className="ai-analysis__playbook-slot">
+          <p>{row.label}</p>
+          <strong>{row.value}</strong>
+          <span>{row.detail}</span>
         </div>
       ))}
     </div>
@@ -257,16 +242,13 @@ function ContextPanel({
   rows: Array<{ label: string; value: string }>;
 }) {
   return (
-    <div className="rounded-[26px] border border-slate-100 bg-slate-950 p-5 text-slate-100">
-      <h4 className="text-sm font-semibold">{title}</h4>
-      <div className="mt-4 space-y-3">
+    <div className="ai-analysis__context-panel">
+      <h4>{title}</h4>
+      <div className="ai-analysis__context-rows">
         {rows.map((row) => (
-          <div
-            key={`${row.label}-${row.value}`}
-            className="flex items-start justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
-          >
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-400">{row.label}</span>
-            <span className="max-w-[62%] text-right text-sm text-slate-100">{row.value}</span>
+          <div key={`${row.label}-${row.value}`} className="ai-analysis__context-row">
+            <span>{row.label}</span>
+            <strong>{row.value}</strong>
           </div>
         ))}
       </div>
@@ -274,14 +256,14 @@ function ContextPanel({
   );
 }
 
-function biasTone(bias?: string) {
+function biasTone(bias?: string): "accent" | "neutral" | "danger" {
   if (bias === "bullish") {
-    return "bg-emerald-50 text-emerald-700 border-emerald-100";
+    return "accent";
   }
   if (bias === "bearish") {
-    return "bg-rose-50 text-rose-700 border-rose-100";
+    return "danger";
   }
-  return "bg-slate-50 text-slate-700 border-slate-200";
+  return "neutral";
 }
 
 function formatSignalTime(timestamp: number) {
@@ -291,10 +273,6 @@ function formatSignalTime(timestamp: number) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function formatEventType(value: string) {
-  return formatMicrostructureEventTypeLabel(value);
 }
 
 function formatEventTime(timestamp: number) {

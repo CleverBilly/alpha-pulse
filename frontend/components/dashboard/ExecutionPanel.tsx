@@ -40,7 +40,11 @@ export default function ExecutionPanel() {
   });
 
   return (
-    <section className="dashboard-setup surface-panel surface-panel--paper">
+    <section
+      className="dashboard-setup command-panel command-panel--control surface-panel surface-panel--paper"
+      data-panel-role="action"
+      data-testid="execution-panel"
+    >
       <div className="dashboard-setup__header">
         <div>
           <p className="dashboard-setup__eyebrow">执行线索</p>

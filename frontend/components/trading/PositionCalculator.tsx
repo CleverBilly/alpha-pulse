@@ -117,7 +117,12 @@ export default function PositionCalculator() {
     : null;
 
   return (
-    <section className="position-calculator surface-panel surface-panel--paper" aria-label="仓位计算器">
+    <section
+      className="position-calculator command-panel command-panel--control surface-panel surface-panel--paper"
+      aria-label="仓位计算器"
+      data-panel-role="action"
+      data-testid="position-calculator-panel"
+    >
       <div className="position-calculator__header">
         <div>
           <p className="position-calculator__eyebrow">仓位控制</p>

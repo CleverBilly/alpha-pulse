@@ -48,6 +48,8 @@ describe("AlertHistoryBoard", () => {
       expect(mockedAlertApi.getAlertHistory).toHaveBeenCalledWith(60);
     });
 
+    expect(screen.getByTestId("alert-history-rail")).toBeInTheDocument();
+    expect(screen.getByTestId("alert-history-summary")).toBeInTheDocument();
     expect(screen.getByText("BTCUSDT A 级机会已就绪")).toBeInTheDocument();
     expect(screen.queryByText("ETHUSDT A 级机会已就绪")).not.toBeInTheDocument();
 

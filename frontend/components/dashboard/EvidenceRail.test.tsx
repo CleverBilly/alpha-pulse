@@ -15,13 +15,19 @@ vi.mock("@/store/marketStore", () => ({
 const mockedUseMarketStore = vi.mocked(useMarketStore);
 
 describe("EvidenceRail", () => {
-  it("renders compact evidence cards with deep links", () => {
+  it("renders a continuous evidence strip with deep links", () => {
     mockedUseMarketStore.mockReturnValue(
       buildMockMarketStoreState() as ReturnType<typeof useMarketStore>,
     );
 
     render(<EvidenceRail />);
 
+    expect(screen.getByTestId("dashboard-evidence-rail")).toHaveAttribute("data-panel-role", "evidence");
+    expect(screen.getByTestId("dashboard-evidence-strip-shell")).toBeInTheDocument();
+    expect(screen.getAllByTestId("dashboard-evidence-bay")).toHaveLength(3);
+    expect(screen.getByText("E-01")).toBeInTheDocument();
+    expect(screen.getByText("E-02")).toBeInTheDocument();
+    expect(screen.getByText("E-03")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "证据链" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "订单流" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "流动性" })).toBeInTheDocument();

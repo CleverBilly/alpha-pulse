@@ -57,6 +57,7 @@ cp frontend/.env.example frontend/.env.local
 - `backend/.env` 会在后端启动时自动加载，适合本地直接调试 MySQL 8
 - `frontend/.env.local` 用于配置 API 地址和登录拦截开关
 - `./scripts/dev.sh` 默认直接使用本地 MySQL / Redis，不依赖 Docker
+- `./scripts/dev.sh` 会把本地登录所需的鉴权变量从 `backend/.env` 同步给前端进程，避免登录成功后又被 middleware 踢回 `/login`
 - 如果你仍想用 Docker 起本地依赖，可使用 `USE_DOCKER_DEPS=1 ./scripts/dev.sh`
 
 ## 服务器部署
@@ -339,6 +340,7 @@ curl https://app.example.com/healthz
 - 确认前后端 `AUTH_SESSION_SECRET` 完全一致
 - 确认 `NEXT_PUBLIC_AUTH_ENABLED=true`
 - HTTPS 上确认 `AUTH_COOKIE_SECURE=true`
+- 如果你使用 `./scripts/dev.sh`，修改 `backend/.env` 或 `frontend/.env.local` 后请重启脚本，让前端重新读取鉴权变量
 
 `后台没有实时数据或告警`
 

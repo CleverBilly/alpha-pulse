@@ -1,6 +1,5 @@
 "use client";
 
-import { Tag } from "antd";
 import { formatTrendBiasLabel } from "@/lib/uiLabels";
 import { MARKET_INTERVALS, MARKET_SYMBOLS } from "@/types/market";
 import { useMarketStore } from "@/store/marketStore";
@@ -50,15 +49,21 @@ export default function DecisionHeader() {
   const issue = error || streamError || directionError;
 
   return (
-    <section className="dashboard-decision surface-panel surface-panel--control" aria-label="决策头部">
+    <section
+      className="dashboard-decision command-panel command-panel--quote surface-panel surface-panel--control"
+      aria-label="决策头部"
+      data-panel-role="overview"
+      data-surface="analysis-deck"
+      data-testid="dashboard-overview-summary"
+    >
       <div className="dashboard-decision__summary">
-        <div className="dashboard-decision__eyebrow-row">
+        <div className="dashboard-decision__signalbar" data-testid="dashboard-decision-strip">
           <p className="dashboard-decision__eyebrow">当前判断</p>
-          <Tag color={resolveAntTone(decision.tone)}>{decision.verdict}</Tag>
-          <Tag color={decision.tradable ? "success" : "warning"}>{decision.tradeabilityLabel}</Tag>
-          <Tag color={streamStatus === "live" ? "success" : streamStatus === "connecting" ? "processing" : "default"}>
-            {formatFeed(streamStatus, transportMode)}
-          </Tag>
+          <div className="dashboard-decision__signalset">
+            <SignalCell label="判定" value={decision.verdict} tone={decision.tone} />
+            <SignalCell label="执行" value={decision.tradeabilityLabel} tone={decision.tradable ? "positive" : "warning"} />
+            <SignalCell label="链路" value={formatFeed(streamStatus, transportMode)} />
+          </div>
         </div>
 
         <div className="dashboard-decision__title-row">
@@ -96,21 +101,50 @@ export default function DecisionHeader() {
       </div>
 
       <div className="dashboard-decision__workspace">
-        <div className={`dashboard-decision__confidence dashboard-decision__confidence--${decision.tone}`}>
+        <div className={`dashboard-decision__confidence command-panel command-panel--status dashboard-decision__confidence--${decision.tone}`}>
           <span>置信度</span>
           <strong>{decision.confidence.toFixed(0)}%</strong>
         </div>
 
-        <div className="dashboard-decision__quote" role="region" aria-label="市场报价">
-          <div className="dashboard-decision__quote-head">
+        <div
+          className="dashboard-decision__quote command-panel command-panel--quote"
+          data-surface="instrument"
+          data-testid="dashboard-quote-panel"
+          role="region"
+          aria-label="市场报价"
+        >
+          <div className="dashboard-decision__quote-kicker">
+            <span>主报价板</span>
             <span>{symbol}</span>
-            <strong>{interval}</strong>
           </div>
-          <div className="dashboard-decision__price">{loading && !price ? "..." : `$${price?.price.toFixed(2) ?? "-"}`}</div>
-          <p className="dashboard-decision__quote-sub">{formatTrendBiasLabel(signal?.trend_bias)}偏向</p>
+          <div className="dashboard-decision__quote-head">
+            <strong>{interval}</strong>
+            <span>{formatTrendBiasLabel(signal?.trend_bias)}偏向</span>
+          </div>
+          <div className="dashboard-decision__quote-body">
+            <div className="dashboard-decision__price">{loading && !price ? "..." : `$${price?.price.toFixed(2) ?? "-"}`}</div>
+            <div className="dashboard-decision__quote-sub">
+              <QuoteCell label="链路" value={formatFeed(streamStatus, transportMode)} />
+              <QuoteCell label="置信度" value={`${decision.confidence.toFixed(0)}%`} />
+            </div>
+          </div>
         </div>
 
-        <div className="dashboard-decision__controls" role="region" aria-label="交易工作台控件">
+        <div
+          className="dashboard-decision__controls command-panel command-panel--control"
+          data-surface="console"
+          data-testid="dashboard-action-cluster"
+          role="region"
+          aria-label="交易工作台控件"
+        >
+          <div className="dashboard-decision__controls-head">
+            <div>
+              <p className="dashboard-decision__controls-eyebrow">控制台</p>
+              <h2 className="dashboard-decision__controls-title">标的与周期</h2>
+            </div>
+            <span className="dashboard-decision__controls-sub">快速切换交易上下文</span>
+          </div>
+
           <div className="dashboard-decision__control-box">
             <label htmlFor="dashboard-symbol-select" className="dashboard-decision__control-label">
               标的
@@ -163,6 +197,23 @@ export default function DecisionHeader() {
   );
 }
 
+function SignalCell({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: DashboardTone;
+}) {
+  return (
+    <div className={`dashboard-decision__signal-cell dashboard-decision__signal-cell--${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
 function MetaChip({
   label,
   value,
@@ -174,6 +225,15 @@ function MetaChip({
 }) {
   return (
     <div className={`dashboard-decision__meta dashboard-decision__meta--${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function QuoteCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="dashboard-decision__quote-cell">
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -209,17 +269,4 @@ function formatUpdated(timestamp: number | null) {
     minute: "2-digit",
     second: "2-digit",
   });
-}
-
-function resolveAntTone(tone: DashboardTone) {
-  if (tone === "positive") {
-    return "success";
-  }
-  if (tone === "negative") {
-    return "error";
-  }
-  if (tone === "warning") {
-    return "warning";
-  }
-  return "default";
 }

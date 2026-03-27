@@ -33,7 +33,10 @@ describe("ProAppShell", () => {
       </ProAppShell>,
     );
 
-    expect(screen.getByTestId("cockpit-shell")).toHaveAttribute("data-collapsed", "false");
+    expect(screen.getByTestId("command-center-shell")).toHaveAttribute("data-collapsed", "false");
+    expect(screen.getByTestId("command-center-shell")).toHaveAttribute("data-shell-style", "integrated");
+    expect(screen.getByTestId("command-center-rail")).toBeInTheDocument();
+    expect(screen.getByTestId("command-center-canvas")).toHaveAttribute("data-shell-surface", "continuous");
     expect(screen.getByRole("link", { name: /驾驶舱/i })).toHaveAttribute("data-active", "true");
     expect(screen.getByRole("link", { name: /图表/i })).toHaveAttribute("data-active", "false");
     expect(screen.getByText("content")).toBeInTheDocument();
@@ -48,7 +51,7 @@ describe("ProAppShell", () => {
       </ProAppShell>,
     );
 
-    const shell = screen.getByTestId("cockpit-shell");
+    const shell = screen.getByTestId("command-center-shell");
     expect(shell).toHaveAttribute("data-collapsed", "false");
 
     await user.click(screen.getByRole("button", { name: "收起侧边栏" }));
@@ -64,6 +67,13 @@ describe("ProAppShell", () => {
       </ProAppShell>,
     );
 
+    expect(screen.getByTestId("command-center-shell-actions")).toContainElement(
+      screen.getByRole("button", { name: "退出登录" }),
+    );
+    expect(screen.getByTestId("command-center-shell-actions")).toContainElement(
+      screen.getByRole("button", { name: "收起侧边栏" }),
+    );
+    expect(screen.getByTestId("command-center-dock")).toBeInTheDocument();
     expect(screen.getByText("BUY · 82%")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "告警" })).toBeInTheDocument();
   });
@@ -78,7 +88,7 @@ describe("ProAppShell", () => {
     );
 
     expect(screen.getByText("login-content")).toBeInTheDocument();
-    expect(screen.queryByTestId("cockpit-shell")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("command-center-shell")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /驾驶舱/i })).not.toBeInTheDocument();
   });
 });

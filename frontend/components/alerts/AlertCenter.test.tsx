@@ -58,6 +58,30 @@ describe("AlertCenter", () => {
     expect(screen.getByText("浏览器通知未授权")).toBeInTheDocument();
   });
 
+  it("renders a page-mode watch desk with live feed", async () => {
+    stubNotification("default");
+    mockedAlertApi.getAlertPreferences.mockResolvedValue(buildPreferences());
+    mockedAlertApi.getAlerts.mockResolvedValue({
+      items: [buildMockAlert()],
+      generated: 0,
+    });
+    mockedAlertApi.refreshAlerts.mockResolvedValue({
+      items: [buildMockAlert()],
+      generated: 1,
+    });
+
+    render(<AlertCenter mode="page" />);
+
+    await waitFor(() => {
+      expect(mockedAlertApi.getAlerts).toHaveBeenCalledWith(20);
+    });
+
+    expect(screen.getByTestId("alert-watch-desk")).toBeInTheDocument();
+    expect(screen.getByTestId("alert-watch-actions")).toBeInTheDocument();
+    expect(screen.getByTestId("alert-watch-feed")).toBeInTheDocument();
+    expect(screen.getByText("BTCUSDT A 级机会已就绪")).toBeInTheDocument();
+  });
+
   it("refreshes alerts and sends browser notification when granted", async () => {
     const requestPermission = vi.fn().mockResolvedValue("granted");
     const notificationSpy = stubNotification("granted", requestPermission);

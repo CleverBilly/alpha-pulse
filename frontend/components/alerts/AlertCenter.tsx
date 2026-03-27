@@ -14,7 +14,12 @@ const LAST_SEEN_STORAGE_KEY = "alpha-pulse:last-seen-alert-at";
 
 type BrowserPermissionState = "unsupported" | "default" | "granted" | "denied";
 
-export default function AlertCenter() {
+interface AlertCenterProps {
+  mode?: "compact" | "page";
+}
+
+export default function AlertCenter({ mode = "compact" }: AlertCenterProps) {
+  const isPageMode = mode === "page";
   const [open, setOpen] = useState(false);
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,8 +156,11 @@ export default function AlertCenter() {
     };
   }, [permission]);
 
+  const isFeedVisible = isPageMode || open;
+  const unreadCount = alerts.filter((item) => item.created_at > lastSeenAt).length;
+
   useEffect(() => {
-    if (!open || alerts.length === 0) {
+    if (!isFeedVisible || alerts.length === 0) {
       return;
     }
 
@@ -165,9 +173,139 @@ export default function AlertCenter() {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(LAST_SEEN_STORAGE_KEY, String(latestTimestamp));
     }
-  }, [alerts, lastSeenAt, open]);
+  }, [alerts, isFeedVisible, lastSeenAt]);
 
-  const unreadCount = alerts.filter((item) => item.created_at > lastSeenAt).length;
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const feed = await alertApi.refreshAlerts(ALERT_LIMIT);
+      setAlerts(feed.items);
+      setError(null);
+      feed.items.forEach((item) => {
+        if (!notifiedIdsRef.current.has(item.id)) {
+          notifiedIdsRef.current.add(item.id);
+          notifyBrowser(item, permission, browserEnabledRef.current);
+        }
+      });
+    } catch (refreshError) {
+      setError(formatError(refreshError));
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const statusTags = (
+    <div className={isPageMode ? "alert-watch-desk__statusbar" : "flex flex-wrap items-center gap-2"}>
+      <Tag color="gold">A 级机会</Tag>
+      <Tag color={permissionTagColor(permission)}>{permissionLabel(permission)}</Tag>
+      {preferences ? (
+        <>
+          <Tag color={preferences.feishu_enabled ? "processing" : "default"}>
+            飞书{preferences.feishu_enabled ? "开启" : "关闭"}
+          </Tag>
+          <Tag color={preferences.browser_enabled ? "success" : "default"}>
+            浏览器{preferences.browser_enabled ? "开启" : "关闭"}
+          </Tag>
+        </>
+      ) : null}
+      {error ? <Tag color="error">{error}</Tag> : null}
+    </div>
+  );
+
+  const actionButtons = (
+    <div className={isPageMode ? "alert-watch-desk__actions" : "flex flex-wrap gap-2"} data-testid={isPageMode ? "alert-watch-actions" : undefined}>
+      <Button
+        icon={<SyncOutlined spin={refreshing} />}
+        onClick={() => {
+          void handleManualRefresh();
+        }}
+      >
+        立即检查
+      </Button>
+      <Button icon={<SettingOutlined />} onClick={() => setConfigOpen(true)}>
+        配置中心
+      </Button>
+      {preferences?.browser_enabled !== false && permission !== "granted" && permission !== "unsupported" ? (
+        <Button
+          icon={<NotificationOutlined />}
+          onClick={async () => {
+            const nextPermission = await requestBrowserPermission();
+            setPermission(nextPermission);
+          }}
+        >
+          开启浏览器通知
+        </Button>
+      ) : null}
+    </div>
+  );
+
+  const feedContent = loading ? (
+    <div className={isPageMode ? "alert-watch-desk__empty" : "flex min-h-[160px] items-center justify-center rounded-3xl border border-slate-200 bg-slate-50/80"}>
+      <Spin />
+    </div>
+  ) : alerts.length === 0 ? (
+    <div className={isPageMode ? "alert-watch-desk__empty" : "rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10"}>
+      <Empty description="最近还没有新的方向告警" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+    </div>
+  ) : (
+    <div className={isPageMode ? "alert-watch-desk__feed-list" : "space-y-3"} data-testid={isPageMode ? "alert-watch-feed" : undefined}>
+      {alerts.map((item) => (
+        <AlertEventCard key={item.id} item={item} variant={isPageMode ? "row" : "card"} />
+      ))}
+    </div>
+  );
+
+  if (isPageMode) {
+    return (
+      <>
+        <section className="alert-watch-desk" data-testid="alert-watch-desk">
+          <div className="alert-watch-desk__intro">
+            <div>
+              <p className="alert-watch-desk__eyebrow">值班台</p>
+              <h3 className="alert-watch-desk__title">实时事件流</h3>
+            </div>
+            <p className="alert-watch-desk__summary">当前 feed 会在这里持续滚动更新，适合快速查看最近需要处理的提醒。</p>
+          </div>
+
+          {statusTags}
+          {actionButtons}
+
+          <div className="alert-watch-desk__feed-shell">
+            <div className="alert-watch-desk__feed-head">
+              <div>
+                <p className="alert-watch-desk__feed-label">实时事件</p>
+                <p className="alert-watch-desk__feed-copy">按时间倒序显示最近 {ALERT_LIMIT} 条提醒，优先暴露真正值得处理的变化。</p>
+              </div>
+              <span className="alert-watch-desk__feed-count">{alerts.length} 条</span>
+            </div>
+            {feedContent}
+          </div>
+        </section>
+
+        <AlertConfigPanel
+          open={configOpen}
+          loading={preferencesLoading}
+          saving={preferencesSaving}
+          preferences={preferences}
+          browserPermission={permission}
+          onClose={() => setConfigOpen(false)}
+          onSave={async (next) => {
+            setPreferencesSaving(true);
+            try {
+              const saved = await alertApi.updateAlertPreferences(next);
+              setPreferences(saved);
+              setError(null);
+              setConfigOpen(false);
+            } catch (saveError) {
+              setError(formatError(saveError));
+            } finally {
+              setPreferencesSaving(false);
+            }
+          }}
+        />
+      </>
+    );
+  }
 
   return (
     <>
@@ -202,77 +340,9 @@ export default function AlertCenter() {
         className="app-shell__drawer"
       >
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Tag color="gold">A 级机会</Tag>
-            <Tag color={permissionTagColor(permission)}>{permissionLabel(permission)}</Tag>
-            {preferences ? (
-              <>
-                <Tag color={preferences.feishu_enabled ? "processing" : "default"}>
-                  飞书{preferences.feishu_enabled ? "开启" : "关闭"}
-                </Tag>
-                <Tag color={preferences.browser_enabled ? "success" : "default"}>
-                  浏览器{preferences.browser_enabled ? "开启" : "关闭"}
-                </Tag>
-              </>
-            ) : null}
-            {error ? <Tag color="error">{error}</Tag> : null}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              icon={<SyncOutlined spin={refreshing} />}
-              onClick={async () => {
-                setRefreshing(true);
-                try {
-                  const feed = await alertApi.refreshAlerts(ALERT_LIMIT);
-                  setAlerts(feed.items);
-                  setError(null);
-                  feed.items.forEach((item) => {
-                    if (!notifiedIdsRef.current.has(item.id)) {
-                      notifiedIdsRef.current.add(item.id);
-                      notifyBrowser(item, permission, browserEnabledRef.current);
-                    }
-                  });
-                } catch (refreshError) {
-                  setError(formatError(refreshError));
-                } finally {
-                  setRefreshing(false);
-                }
-              }}
-            >
-              立即检查
-            </Button>
-            <Button icon={<SettingOutlined />} onClick={() => setConfigOpen(true)}>
-              配置中心
-            </Button>
-            {preferences?.browser_enabled !== false && permission !== "granted" && permission !== "unsupported" ? (
-              <Button
-                icon={<NotificationOutlined />}
-                onClick={async () => {
-                  const nextPermission = await requestBrowserPermission();
-                  setPermission(nextPermission);
-                }}
-              >
-                开启浏览器通知
-              </Button>
-            ) : null}
-          </div>
-
-          {loading ? (
-            <div className="flex min-h-[160px] items-center justify-center rounded-3xl border border-slate-200 bg-slate-50/80">
-              <Spin />
-            </div>
-          ) : alerts.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10">
-              <Empty description="最近还没有新的方向告警" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {alerts.map((item) => (
-                <AlertEventCard key={item.id} item={item} />
-              ))}
-            </div>
-          )}
+          {statusTags}
+          {actionButtons}
+          {feedContent}
         </div>
       </Drawer>
 

@@ -63,30 +63,54 @@ export default function ProAppShell({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="cockpit-shell" data-testid="cockpit-shell" data-collapsed={collapsed ? 'true' : 'false'}>
-      <aside className={`cockpit-shell__sider${collapsed ? ' cockpit-shell__sider--collapsed' : ''}`}>
-        <div className="cockpit-shell__logo">
-          <APLogo />
-          {!collapsed && (
-            <div className="cockpit-shell__brand">
-              <span className="cockpit-shell__brand-title">Alpha Pulse</span>
-              <span className="cockpit-shell__brand-sub">合约方向驾驶舱</span>
-            </div>
-          )}
-          <button
-            type="button"
-            className="cockpit-shell__logout-btn"
-            aria-label="退出登录"
-            title="退出登录"
-            onClick={() => {
-              void handleLogout();
-            }}
+    <div
+      className="command-center-shell cockpit-shell"
+      data-testid="command-center-shell"
+      data-collapsed={collapsed ? 'true' : 'false'}
+      data-shell-style="integrated"
+    >
+      <aside
+        className={`command-center-shell__rail cockpit-shell__sider${collapsed ? ' cockpit-shell__sider--collapsed' : ''}`}
+        data-testid="command-center-rail"
+      >
+        <div className="command-center-shell__logo-row cockpit-shell__logo">
+          <div className="command-center-shell__brand-lockup">
+            <APLogo />
+            {!collapsed && (
+              <div className="cockpit-shell__brand">
+                <span className="cockpit-shell__brand-title">Alpha Pulse</span>
+                <span className="cockpit-shell__brand-sub">合约方向驾驶舱</span>
+              </div>
+            )}
+          </div>
+          <div
+            className="command-center-shell__actions cockpit-shell__shell-actions"
+            data-testid="command-center-shell-actions"
           >
-            <LogoutOutlined />
-          </button>
+            <button
+              type="button"
+              className="cockpit-shell__chrome-btn cockpit-shell__collapse-btn"
+              onClick={handleCollapse}
+              aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}
+              title={collapsed ? '展开侧边栏' : '收起侧边栏'}
+            >
+              {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            </button>
+            <button
+              type="button"
+              className="cockpit-shell__chrome-btn cockpit-shell__logout-btn"
+              aria-label="退出登录"
+              title="退出登录"
+              onClick={() => {
+                void handleLogout();
+              }}
+            >
+              <LogoutOutlined />
+            </button>
+          </div>
         </div>
 
-        <nav className="cockpit-shell__nav" aria-label="主导航">
+        <nav className="command-center-shell__nav cockpit-shell__nav" aria-label="主导航">
           {NAV_GROUPS.map((group) => (
             <div key={group.label} className="cockpit-shell__nav-group">
               {!collapsed && (
@@ -112,23 +136,20 @@ export default function ProAppShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="cockpit-shell__footer">
-          <div className="cockpit-shell__dock">
+          <div className="command-center-shell__dock cockpit-shell__dock" data-testid="command-center-dock">
             <SignalStatusBadge collapsed={collapsed} />
             <AlertCenter />
           </div>
         </div>
 
-        <button
-          className="cockpit-shell__collapse-btn"
-          onClick={handleCollapse}
-          aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}
-        >
-          {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-        </button>
       </aside>
 
-      <main className="cockpit-shell__content">
-        <div className="cockpit-shell__canvas">
+      <main className="command-center-shell__content cockpit-shell__content">
+        <div
+          className="command-center-shell__canvas cockpit-shell__canvas"
+          data-testid="command-center-canvas"
+          data-shell-surface="continuous"
+        >
           {children}
         </div>
       </main>

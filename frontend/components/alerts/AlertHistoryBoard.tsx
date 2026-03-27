@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { HistoryOutlined, SyncOutlined } from "@ant-design/icons";
-import { Button, Card, Empty, Spin, Tag } from "antd";
+import { Button, Empty, Spin, Tag } from "antd";
 import AlertEventCard, { formatAlertTime } from "@/components/alerts/AlertEventCard";
 import ReviewChartModal from "@/components/alerts/ReviewChartModal";
 import { alertApi } from "@/services/apiClient";
@@ -72,18 +72,18 @@ export default function AlertHistoryBoard() {
   }, [filteredAlerts]);
 
   return (
-    <section>
-      <Card variant="borderless" className="surface-card surface-card--paper">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <section className="alert-history" data-testid="alert-history-rail">
+      <div className="alert-history__shell">
+        <div className="alert-history__header">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700">复盘</p>
-            <h2 className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-slate-950">告警复盘看板</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
+            <p className="alert-history__eyebrow">复盘轨道</p>
+            <h2 className="alert-history__title">告警复盘看板</h2>
+            <p className="alert-history__description">
               把 A 级机会、禁止交易和方向切换落成可回看的历史，先看少数真正值得处理的机会，再回看它们为什么出现。
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="alert-history__actions">
             <Button
               type={scope === "current" ? "primary" : "default"}
               onClick={() => setScope("current")}
@@ -117,40 +117,40 @@ export default function AlertHistoryBoard() {
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-2">
+        <div className="alert-history__filters">
           <Tag color="processing">{scope === "current" ? `过滤 ${symbol}` : "过滤全部标的"}</Tag>
           <Tag color="gold">最近 {HISTORY_LIMIT} 条记录</Tag>
           {error ? <Tag color="error">{error}</Tag> : null}
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="alert-history__summary" data-testid="alert-history-summary">
           <SummaryCard label="历史告警" value={String(summary.total)} detail="当前过滤范围内" />
           <SummaryCard label="A 级机会" value={String(summary.setupReady)} detail="优先关注的机会" />
           <SummaryCard label="禁止交易" value={String(summary.noTrade)} detail="被系统挡掉的时刻" />
           <SummaryCard label="最近一条" value={summary.latestLabel} detail="可直接回看原因链" />
         </div>
 
-        <div className="mt-6">
+        <div className="alert-history__feed">
           {loading ? (
-            <div className="flex min-h-[220px] items-center justify-center rounded-[28px] border border-slate-200 bg-slate-50/75">
+            <div className="alert-history__empty">
               <Spin indicator={<HistoryOutlined spin />} />
             </div>
           ) : filteredAlerts.length === 0 ? (
-            <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50/80 px-6 py-12">
+            <div className="alert-history__empty">
               <Empty
                 description={scope === "current" ? `还没有 ${symbol} 的复盘记录` : "还没有可用的告警历史"}
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
               />
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="alert-history__flow">
               {filteredAlerts.map((item) => (
-                <AlertEventCard key={item.id} item={item} onReview={setReviewEvent} />
+                <AlertEventCard key={item.id} item={item} onReview={setReviewEvent} variant="row" />
               ))}
             </div>
           )}
         </div>
-      </Card>
+      </div>
 
       <ReviewChartModal
         event={reviewEvent}
@@ -163,10 +163,10 @@ export default function AlertHistoryBoard() {
 
 function SummaryCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-white/88 px-4 py-4 shadow-[0_12px_30px_rgba(32,42,63,0.04)]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className="mt-3 text-lg font-semibold tracking-[-0.03em] text-slate-950">{value}</p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{detail}</p>
+    <div className="alert-history__summary-item">
+      <p className="alert-history__summary-label">{label}</p>
+      <p className="alert-history__summary-value">{value}</p>
+      <p className="alert-history__summary-detail">{detail}</p>
     </div>
   );
 }
