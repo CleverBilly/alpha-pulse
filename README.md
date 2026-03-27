@@ -63,7 +63,12 @@ cp frontend/.env.example frontend/.env.local
 
 ## 服务器部署
 
-下面这套流程面向 `单台 Linux 服务器 + 公网域名 + Docker + Nginx + HTTPS`。  
+下面这套流程面向 `单台 Linux 服务器 + 公网域名 + Nginx`。
+当前仓库支持两种生产部署方式：
+
+- `宿主机 + PM2`：更适合宝塔面板，绕开容器 DNS、镜像构建和 Node/Go 多层环境问题
+- `Docker Compose`：更适合纯容器化环境
+
 推荐使用 `同一个域名` 对外提供服务，例如 `https://app.example.com`：
 
 - `https://app.example.com/` -> 前端 Next.js
@@ -85,11 +90,9 @@ cp frontend/.env.example frontend/.env.local
 
 - 一台 Linux 服务器，建议 `2C4G` 起步
 - 已解析好的域名，例如 `app.example.com`
-- 已安装：
-  - `docker`
-  - `docker compose`
-  - `nginx`
-  - `certbot`
+- 已安装以下两类组件中的至少一套：
+  - `宿主机方案`：`go`、`node`、`npm`、`pm2`、`nginx`
+  - `Docker 方案`：`docker`、`docker compose`、`nginx`
 - 防火墙只开放：
   - `80`
   - `443`
@@ -201,7 +204,81 @@ AUTH_SESSION_SECRET=<same-secret-as-backend>
 - `AUTH_SESSION_SECRET` 必须和后端完全一致
 - 推荐把 `NEXT_PUBLIC_API_BASE_URL` 保持为 `/api`，让浏览器统一走同域请求
 
-### 6. 准备生产版 Compose 文件
+### 6A. 宿主机 + PM2（推荐给宝塔）
+
+如果你的服务器已经装好了宿主机版 `MySQL / Redis / Go / Node`，而且类似宝塔这种环境里 `docker build` 经常被 DNS 或源站拖慢，优先走宿主机部署会更稳。
+
+先把后端 `.env` 改成宿主机连接：
+
+```bash
+MYSQL_DSN=<db-user>:<db-password>@tcp(127.0.0.1:3306)/<db-name>?charset=utf8mb4&parseTime=True&loc=Local
+REDIS_ADDR=127.0.0.1:6379
+AUTH_COOKIE_SECURE=false
+CORS_ALLOW_ORIGINS=http://app.example.com
+ALERT_PUBLIC_BASE_URL=http://app.example.com
+```
+
+说明：
+
+- 上面这组适用于 `HTTP` 部署；如果已经接好 HTTPS，再把 `AUTH_COOKIE_SECURE=true`
+- 如果你使用的是宝塔自带 MySQL，建议优先使用宝塔自带客户端做检查，例如 `/www/server/mysql/bin/mysql`
+
+然后编译后端：
+
+```bash
+cd /opt/alpha-pulse/backend
+go mod download
+go build -o ./bin/alpha-pulse ./cmd/server
+```
+
+再编译前端：
+
+```bash
+cd /opt/alpha-pulse/frontend
+npm ci
+npm run build
+```
+
+如果你在宝塔环境里，Node 可能不在默认 PATH。常见位置是：
+
+```bash
+/www/server/nodejs/v24.14.1/bin/node
+/www/server/nodejs/v24.14.1/bin/npm
+```
+
+接着复制一份 PM2 配置：
+
+```bash
+cd /opt/alpha-pulse
+mkdir -p logs
+cp deploy/ecosystem.host.example.cjs ecosystem.config.cjs
+```
+
+默认示例会读取：
+
+- `ALPHA_PULSE_ROOT`，默认 `/www/wwwroot/alpha-pulse`
+- `ALPHA_PULSE_NPM_BIN`，默认 `/www/server/nodejs/v24.14.1/bin/npm`
+
+启动并保存进程：
+
+```bash
+cd /opt/alpha-pulse
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup systemd -u root --hp /root
+```
+
+常用运维命令：
+
+```bash
+pm2 status
+pm2 logs alpha-pulse-backend --lines 100
+pm2 logs alpha-pulse-frontend --lines 100
+pm2 restart alpha-pulse-backend
+pm2 restart alpha-pulse-frontend
+```
+
+### 6B. 准备生产版 Compose 文件
 
 建议在服务器上新建 `docker/docker-compose.prod.yml`：
 
