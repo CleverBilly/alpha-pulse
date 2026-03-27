@@ -19,15 +19,15 @@ wait_for_backend() {
   local attempt
 
   for attempt in $(seq 1 20); do
-    if curl -fsS "http://127.0.0.1:8080/healthz" >/dev/null 2>&1; then
-      echo "backend is healthy on http://127.0.0.1:8080"
-      return
-    fi
-
     if ! kill -0 "$BACKEND_PID" >/dev/null 2>&1; then
       echo "backend exited during startup. recent log:" >&2
       tail -n 80 /tmp/alpha-pulse-backend.log >&2 || true
       exit 1
+    fi
+
+    if curl -fsS "http://127.0.0.1:8080/healthz" >/dev/null 2>&1; then
+      echo "backend is healthy on http://127.0.0.1:8080"
+      return
     fi
 
     sleep 1
@@ -37,6 +37,8 @@ wait_for_backend() {
   tail -n 80 /tmp/alpha-pulse-backend.log >&2 || true
   exit 1
 }
+
+ensure_port_available 8080
 
 cd "$ROOT_DIR/backend"
 nohup go run ./cmd/server > /tmp/alpha-pulse-backend.log 2>&1 &

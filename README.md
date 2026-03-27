@@ -67,10 +67,19 @@ cp frontend/.env.example frontend/.env.local
 推荐使用 `同一个域名` 对外提供服务，例如 `https://app.example.com`：
 
 - `https://app.example.com/` -> 前端 Next.js
-- `https://app.example.com/api/` -> 后端 Gin
+- `https://app.example.com/api/` -> 前端同域 API 代理，再转发到后端 Gin
 - `https://app.example.com/healthz` -> 后端健康检查
 
 这样前端、登录 Cookie、浏览器通知和飞书深链都最简单，不需要再拆前后端两个子域名。
+
+推荐的公网链路是：
+
+- 浏览器 -> `Nginx`
+- `Nginx` -> `frontend:3000`
+- 前端 Next.js 通过同域 `/api/*` -> `API_PROXY_TARGET=http://backend:8080`
+- `Nginx` 只额外保留 `/healthz` 直连后端做健康检查
+
+这样部署最稳，浏览器永远只认识一个域名和一套 `/api` 路径，也最不容易出现登录态和 404 混乱。
 
 ### 1. 服务器前置条件
 
@@ -180,7 +189,7 @@ openssl rand -hex 32
 在服务器上创建 `frontend/.env.production`：
 
 ```bash
-NEXT_PUBLIC_API_BASE_URL=https://app.example.com/api
+NEXT_PUBLIC_API_BASE_URL=/api
 NEXT_PUBLIC_AUTH_ENABLED=true
 AUTH_COOKIE_NAME=alpha_pulse_session
 AUTH_SESSION_SECRET=<same-secret-as-backend>
@@ -190,6 +199,7 @@ AUTH_SESSION_SECRET=<same-secret-as-backend>
 
 - 这是前端 `build` 时要读的配置，不是本地开发用的 `frontend/.env.local`
 - `AUTH_SESSION_SECRET` 必须和后端完全一致
+- 推荐把 `NEXT_PUBLIC_API_BASE_URL` 保持为 `/api`，让浏览器统一走同域请求
 
 ### 6. 准备生产版 Compose 文件
 
@@ -228,6 +238,8 @@ services:
       context: ..
       dockerfile: docker/frontend.Dockerfile
     restart: unless-stopped
+    environment:
+      API_PROXY_TARGET: http://backend:8080
     depends_on:
       - backend
     ports:
@@ -243,6 +255,7 @@ volumes:
 - 外部流量统一走 Nginx
 - `frontend` 镜像构建前，`frontend/.env.production` 必须已经存在
 - 真实 Binance 密钥和自动交易开关统一放在 `backend/.env`，不要把敏感值直接硬编码进 `docker-compose.prod.yml`
+- `frontend` 容器会把同域 `/api/*` 请求转发到 `API_PROXY_TARGET`，这样 `/api/trade-settings`、`/api/trades/runtime` 这类接口即使不直接暴露后端给浏览器，也能正常工作
 
 ### 7. 构建并启动
 
@@ -260,6 +273,20 @@ docker compose -f docker-compose.prod.yml logs -f backend
 docker compose -f docker-compose.prod.yml logs -f frontend
 ```
 
+先做两条最重要的本机 smoke check：
+
+```bash
+curl -i http://127.0.0.1:8080/healthz
+curl -i http://127.0.0.1:3000/api/trade-settings
+```
+
+预期：
+
+- `/healthz` 返回 `200`
+- `/api/trade-settings` 在未登录时返回 `401`
+
+如果这里已经是 `401`，说明交易路由、前端 `/api` 代理和鉴权中间件都已经接通了，不应该再出现 `404`。
+
 ### 8. 配置 Nginx 反向代理
 
 新建 `/etc/nginx/sites-available/alpha-pulse.conf`：
@@ -272,15 +299,8 @@ server {
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:8080/api/;
-        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -295,6 +315,27 @@ server {
     }
 }
 ```
+
+说明：
+
+- 推荐把所有业务路径都先交给前端容器，包括 `/api/*`
+- 前端会通过 `API_PROXY_TARGET` 再把 `/api/*` 转发到后端
+- 这样浏览器始终只请求 `https://app.example.com/api/...`，部署和排查都更简单
+
+如果你明确想让 `Nginx` 直接反代 `/api/` 到后端，也可以加一条：
+
+```nginx
+location /api/ {
+    proxy_pass http://127.0.0.1:8080/api/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+但二选一就够了，不要一会儿走前端代理、一会儿走 Nginx 直连，免得排查时路径混乱。
 
 启用站点：
 
@@ -326,6 +367,7 @@ curl https://app.example.com/healthz
 - `/dashboard`、`/market`、`/review` 正常打开
 - `/auto-trading` 可正常打开并看到运行时配置页
 - 浏览器开发者工具里 `/api/auth/login` 返回 `200`
+- 浏览器开发者工具里 `/api/trade-settings`、`/api/trades/runtime` 返回 `200` 或 `401`，但不应是 `404`
 - `docker compose -f docker-compose.prod.yml logs -f backend` 没有持续报错
 - 飞书机器人如果已配置，能收到测试提醒
 
@@ -352,9 +394,27 @@ curl https://app.example.com/healthz
 
 `前端能打开，但请求 /api 失败`
 
-- 确认 `NEXT_PUBLIC_API_BASE_URL=https://app.example.com/api`
-- 确认 Nginx 的 `/api/` 反代已经生效
+- 确认 `NEXT_PUBLIC_API_BASE_URL=/api`
+- 如果由前端容器代理后端，请确认 `API_PROXY_TARGET=http://backend:8080`
+- 如果由 Nginx 直接反代 `/api/`，确认这条规则已经生效；如果你走推荐方案，就不要再额外配这条规则
 - 确认后端容器健康，且 `CORS_ALLOW_ORIGINS=https://app.example.com`
+
+`/auto-trading` 页面里的交易接口返回 `404`
+
+- 先在服务器上执行 `curl -i http://127.0.0.1:3000/api/trade-settings`
+- 如果返回 `401`，说明路由存在，问题不在后端路由表
+- 如果这里返回 `404`，优先检查：
+  - 前端镜像是不是旧构建，没带新的 `/api` 代理路由
+  - 后端是不是旧进程/旧容器，没带交易路由
+  - `./scripts/dev.sh` 本地调试时是否有旧 `8080` 进程占着端口
+- 本地开发里，最新的 [scripts/dev.sh](/Users/billy/go/src/alpha-pulse/scripts/dev.sh) 会在启动前直接拦住 `8080` 端口冲突，避免被旧 `/healthz` 假阳性骗过
+
+`Binance 返回 -2015 Invalid API-key, IP, or permissions for action`
+
+- 先检查 API Key / Secret 是否正确
+- 如果 Binance API 配置了 IP 白名单，把服务器出口 IP 加进去
+- 确认该 API Key 已开启 `Futures` 交易权限
+- 修改 `backend/.env` 后，记得重启后端容器
 
 `浏览器登录成功后又被踢回 /login`
 
@@ -434,7 +494,7 @@ CORS_ALLOW_ORIGINS=https://your-frontend-domain.example.com
 
 ```bash
 NEXT_PUBLIC_AUTH_ENABLED=true
-NEXT_PUBLIC_API_BASE_URL=https://your-backend-domain.example.com/api
+NEXT_PUBLIC_API_BASE_URL=/api
 AUTH_COOKIE_NAME=alpha_pulse_session
 AUTH_SESSION_SECRET=<same-long-random-secret>
 ```
@@ -443,6 +503,7 @@ AUTH_SESSION_SECRET=<same-long-random-secret>
 
 - `AUTH_PASSWORD_HASH` 必须使用 `bcrypt` 哈希，后端不会接受明文密码
 - `AUTH_SESSION_SECRET` 前后端必须一致，供后端签发和前端 middleware 校验登录态
+- 推荐把 `NEXT_PUBLIC_API_BASE_URL` 保持为 `/api`，走同域请求；只有在你明确拆分前后端域名时，才改成完整后端 URL
 - 公网 HTTPS 部署时建议开启 `AUTH_COOKIE_SECURE=true`
 - `CORS_ALLOW_ORIGINS` 必须精确列出允许访问后端的前端域名
 
@@ -512,6 +573,7 @@ client := binance.NewClient(apiKey, secretKey)
 ## 自动交易配置
 
 当前仓库已经支持真实 Binance Futures 自动交易，但默认保持关闭。
+`/api/trade-settings`、`/api/trades/runtime`、`/api/trades` 这类接口默认走同域 `/api`，可由 Nginx 反代，也可由前端容器自身代理到后端。
 真实下单链路为：
 
 - `setup_ready` 告警命中

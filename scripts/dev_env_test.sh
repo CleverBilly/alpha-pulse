@@ -93,4 +93,25 @@ assert_command_fails \
   "validation should fail when frontend auth is enabled without a session secret" \
   validate_frontend_auth_env
 
+get_listening_port_entry() {
+  case "$1" in
+    8080)
+      echo "server 1234 billy 7u IPv6 TCP *:8080 (LISTEN)"
+      ;;
+    *)
+      echo ""
+      ;;
+  esac
+}
+
+assert_command_fails \
+  "port availability check should fail when a listener already exists" \
+  ensure_port_available 8080
+
+get_listening_port_entry() {
+  echo ""
+}
+
+ensure_port_available 8080
+
 echo "dev auth env tests passed"

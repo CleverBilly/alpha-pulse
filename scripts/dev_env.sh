@@ -111,3 +111,24 @@ validate_frontend_auth_env() {
     return 1
   fi
 }
+
+get_listening_port_entry() {
+  local port="$1"
+
+  lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | awk 'NR == 2 { print; exit }'
+}
+
+ensure_port_available() {
+  local port="$1"
+  local entry
+
+  entry="$(get_listening_port_entry "$port")"
+  if [[ -z "$entry" ]]; then
+    return 0
+  fi
+
+  echo "port $port is already in use." >&2
+  echo "stop the existing listener before running ./scripts/dev.sh again." >&2
+  echo "listener: $entry" >&2
+  return 1
+}
