@@ -30,6 +30,16 @@ assert_command_fails() {
   fi
 }
 
+assert_command_succeeds() {
+  local message="$1"
+  shift
+
+  if ! "$@" >/dev/null 2>&1; then
+    echo "assertion failed: $message" >&2
+    exit 1
+  fi
+}
+
 create_env_file() {
   local path="$1"
   shift
@@ -92,6 +102,10 @@ resolve_frontend_auth_env "$tmpdir/missing.env" "$frontend_env"
 assert_command_fails \
   "validation should fail when frontend auth is enabled without a session secret" \
   validate_frontend_auth_env
+
+assert_command_succeeds \
+  "port availability check should allow an unused port under set -euo pipefail" \
+  bash -lc "set -euo pipefail; source '$HELPER_PATH'; lsof() { return 1; }; ensure_port_available 8080"
 
 get_listening_port_entry() {
   case "$1" in

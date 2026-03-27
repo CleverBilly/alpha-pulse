@@ -115,7 +115,7 @@ validate_frontend_auth_env() {
 get_listening_port_entry() {
   local port="$1"
 
-  lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | awk 'NR == 2 { print; exit }'
+  lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | awk 'NR == 2 { print; exit }' || true
 }
 
 ensure_port_available() {
