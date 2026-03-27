@@ -278,6 +278,32 @@ pm2 restart alpha-pulse-backend
 pm2 restart alpha-pulse-frontend
 ```
 
+后续更新代码时，推荐使用仓库自带的一键部署脚本：
+
+```bash
+cd /opt/alpha-pulse
+git pull origin main
+bash scripts/deploy.sh
+```
+
+`scripts/deploy.sh` 会固定完成这些动作：
+
+- 自动补齐宝塔宿主机的 `go / npm / pm2` 路径
+- 检查 `backend/.env`、`frontend/.env.production`、`ecosystem.config.cjs`
+- 编译后端：`go mod download` + `go build`
+- 构建前端：`npm ci` + `npm run build`
+- 重启 `alpha-pulse-backend` 和 `alpha-pulse-frontend`
+- 做三条本机健康检查：
+  - `http://127.0.0.1:8080/healthz` -> `200`
+  - `http://127.0.0.1:3000/login` -> `200`
+  - `http://127.0.0.1:3000/api/trade-settings` -> `401`
+
+说明：
+
+- 脚本不会自动 `git pull`，这样你可以先确认分支和提交再发布
+- 脚本不会修改 `backend/.env`、`frontend/.env.production`、Nginx 或 SSL
+- 失败时会直接退出，并提示查看 `deploy/.tmp/` 里的阶段日志
+
 ### 6B. 准备生产版 Compose 文件
 
 建议在服务器上新建 `docker/docker-compose.prod.yml`：
