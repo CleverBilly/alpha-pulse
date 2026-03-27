@@ -19,22 +19,27 @@ vi.mock("@/components/signal/SignalCard", () => ({
 vi.mock("@/components/analysis/AIAnalysisPanel", () => ({
   default: () => <section data-testid="ai-analysis-panel">AIAnalysisPanel</section>,
 }));
+vi.mock("@/components/trading/TradeOrderRail", () => ({
+  default: () => <section data-testid="trade-order-rail">TradeOrderRail</section>,
+}));
 
 import ReviewWorkspace from "./ReviewWorkspace";
 
 describe("ReviewWorkspace", () => {
-  it("renders overview, history strip, and live context workspace", () => {
+  it("renders overview, history strip, live context workspace, and trade order rail", () => {
     render(<ReviewWorkspace />);
 
     expect(screen.getByTestId("review-command-page")).toBeInTheDocument();
     expect(screen.getByTestId("review-overview-band")).toBeInTheDocument();
     expect(screen.getByTestId("review-history-strip")).toBeInTheDocument();
     expect(screen.getByTestId("review-context-workspace")).toBeInTheDocument();
+    expect(screen.getByTestId("review-trade-rail")).toBeInTheDocument();
 
     expect(within(screen.getByTestId("review-overview-band")).getByTestId("trading-workspace-hero")).toBeInTheDocument();
     expect(within(screen.getByTestId("review-history-strip")).getByTestId("win-rate-panel")).toBeInTheDocument();
     expect(within(screen.getByTestId("review-history-strip")).getByTestId("alert-history-board")).toBeInTheDocument();
     expect(within(screen.getByTestId("review-context-workspace")).getByTestId("signal-card")).toBeInTheDocument();
     expect(within(screen.getByTestId("review-context-workspace")).getByTestId("ai-analysis-panel")).toBeInTheDocument();
+    expect(within(screen.getByTestId("review-trade-rail")).getByTestId("trade-order-rail")).toBeInTheDocument();
   });
 });

@@ -49,6 +49,11 @@ type Config struct {
 	AlertPublicBaseURL   string
 	FeishuBotWebhookURL  string
 	FeishuBotSecret      string
+	TradeEnabled         bool
+	TradeAutoExecute     bool
+	TradeAllowedSymbols  []string
+	TradeWatcherIntervalSeconds int
+	TradeSyncIntervalSeconds    int
 }
 
 // Load 从环境变量加载配置。
@@ -95,6 +100,11 @@ func Load() Config {
 		AlertPublicBaseURL:       getEnv("ALERT_PUBLIC_BASE_URL", ""),
 		FeishuBotWebhookURL:      getEnv("FEISHU_BOT_WEBHOOK_URL", ""),
 		FeishuBotSecret:          getEnv("FEISHU_BOT_SECRET", ""),
+		TradeEnabled:             getEnvAsBool("TRADE_ENABLED", false),
+		TradeAutoExecute:         getEnvAsBool("TRADE_AUTO_EXECUTE", false),
+		TradeAllowedSymbols:      getEnvAsCSV("TRADE_ALLOWED_SYMBOLS", getEnvAsCSV("MARKET_SYMBOLS", []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"})),
+		TradeWatcherIntervalSeconds: getPositiveEnvAsInt("TRADE_WATCHER_INTERVAL_SECONDS", 3),
+		TradeSyncIntervalSeconds:    getPositiveEnvAsInt("TRADE_SYNC_INTERVAL_SECONDS", 15),
 	}
 }
 

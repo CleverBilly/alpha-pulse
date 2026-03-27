@@ -229,6 +229,57 @@ func TestLoadAuthOverrides(t *testing.T) {
 	}
 }
 
+func TestLoadTradeDefaults(t *testing.T) {
+	clearConfigEnv(t)
+
+	cfg := Load()
+
+	if cfg.TradeEnabled {
+		t.Fatal("expected trade to be disabled by default")
+	}
+	if cfg.TradeAutoExecute {
+		t.Fatal("expected trade auto execute to be disabled by default")
+	}
+	expectedSymbols := []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}
+	if !reflect.DeepEqual(cfg.TradeAllowedSymbols, expectedSymbols) {
+		t.Fatalf("unexpected default trade allowed symbols: got=%#v want=%#v", cfg.TradeAllowedSymbols, expectedSymbols)
+	}
+	if cfg.TradeWatcherIntervalSeconds != 3 {
+		t.Fatalf("expected default trade watcher interval 3s, got %d", cfg.TradeWatcherIntervalSeconds)
+	}
+	if cfg.TradeSyncIntervalSeconds != 15 {
+		t.Fatalf("expected default trade sync interval 15s, got %d", cfg.TradeSyncIntervalSeconds)
+	}
+}
+
+func TestLoadTradeOverrides(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("TRADE_ENABLED", "true")
+	t.Setenv("TRADE_AUTO_EXECUTE", "yes")
+	t.Setenv("TRADE_ALLOWED_SYMBOLS", "ethusdt, btcusdt, ethusdt")
+	t.Setenv("TRADE_WATCHER_INTERVAL_SECONDS", "7")
+	t.Setenv("TRADE_SYNC_INTERVAL_SECONDS", "20")
+
+	cfg := Load()
+
+	if !cfg.TradeEnabled {
+		t.Fatal("expected trade enabled override to be honored")
+	}
+	if !cfg.TradeAutoExecute {
+		t.Fatal("expected trade auto execute override to be honored")
+	}
+	expectedSymbols := []string{"ETHUSDT", "BTCUSDT"}
+	if !reflect.DeepEqual(cfg.TradeAllowedSymbols, expectedSymbols) {
+		t.Fatalf("unexpected trade allowed symbols: got=%#v want=%#v", cfg.TradeAllowedSymbols, expectedSymbols)
+	}
+	if cfg.TradeWatcherIntervalSeconds != 7 {
+		t.Fatalf("expected trade watcher interval override 7, got %d", cfg.TradeWatcherIntervalSeconds)
+	}
+	if cfg.TradeSyncIntervalSeconds != 20 {
+		t.Fatalf("expected trade sync interval override 20, got %d", cfg.TradeSyncIntervalSeconds)
+	}
+}
+
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
 
@@ -265,6 +316,11 @@ func clearConfigEnv(t *testing.T) {
 		"ALERT_PUBLIC_BASE_URL",
 		"FEISHU_BOT_WEBHOOK_URL",
 		"FEISHU_BOT_SECRET",
+		"TRADE_ENABLED",
+		"TRADE_AUTO_EXECUTE",
+		"TRADE_ALLOWED_SYMBOLS",
+		"TRADE_WATCHER_INTERVAL_SECONDS",
+		"TRADE_SYNC_INTERVAL_SECONDS",
 	}
 	for _, key := range keys {
 		t.Setenv(key, "")

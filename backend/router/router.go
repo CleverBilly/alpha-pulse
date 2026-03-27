@@ -14,6 +14,7 @@ type HandlerSet struct {
 	Signal           *handler.SignalHandler
 	Auth             *handler.AuthHandler
 	Alert            *handler.AlertHandler
+	Trade            *handler.TradeHandler
 	AuthRequired     gin.HandlerFunc
 	CORSAllowOrigins []string
 }
@@ -66,6 +67,13 @@ func SetupRouter(handlers HandlerSet) *gin.Engine {
 			protected.GET("/alerts/preferences", handlers.Alert.GetAlertPreferences)
 			protected.PUT("/alerts/preferences", handlers.Alert.UpdateAlertPreferences)
 			protected.POST("/alerts/refresh", handlers.Alert.RefreshAlerts)
+		}
+		if handlers.Trade != nil {
+			protected.GET("/trade-settings", handlers.Trade.GetTradeSettings)
+			protected.PUT("/trade-settings", handlers.Trade.UpdateTradeSettings)
+			protected.GET("/trades", handlers.Trade.ListOrders)
+			protected.GET("/trades/runtime", handlers.Trade.GetRuntime)
+			protected.POST("/trades/:id/close", handlers.Trade.CloseOrder)
 		}
 	}
 

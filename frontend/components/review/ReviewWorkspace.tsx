@@ -6,6 +6,7 @@ import OverviewBand from "@/components/layout/OverviewBand";
 import TradingWorkspaceHero from "@/components/layout/TradingWorkspaceHero";
 import MarketSnapshotLoader from "@/components/market/MarketSnapshotLoader";
 import SignalCard from "@/components/signal/SignalCard";
+import TradeOrderRail from "@/components/trading/TradeOrderRail";
 
 const REVIEW_SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT"] as const;
 
@@ -35,6 +36,9 @@ export default function ReviewWorkspace() {
       <div className="review-command-page__context" data-testid="review-context-workspace">
         <SignalCard />
         <AIAnalysisPanel />
+      </div>
+      <div className="review-command-page__trade-rail" data-testid="review-trade-rail">
+        <TradeOrderRail />
       </div>
     </CommandPage>
   );

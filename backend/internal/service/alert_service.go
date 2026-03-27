@@ -63,6 +63,10 @@ type AlertNotifier interface {
 	Notify(ctx context.Context, event AlertEvent) AlertDelivery
 }
 
+type AutoTradeEventHandler interface {
+	HandleEvent(ctx context.Context, event AlertEvent) error
+}
+
 type AlertService struct {
 	fetcher        DirectionSnapshotFetcher
 	repo           *repository.AlertRecordRepository
@@ -70,6 +74,7 @@ type AlertService struct {
 	symbols        []string
 	historyLimit   int
 	notifiers      []AlertNotifier
+	autoTrader     AutoTradeEventHandler
 	now            func() time.Time
 
 	mu            sync.RWMutex
@@ -103,6 +108,10 @@ func NewAlertService(fetcher DirectionSnapshotFetcher, repo *repository.AlertRec
 		recent:         make([]AlertEvent, 0, historyLimit),
 		stateBySymbol:  make(map[string]alertState, len(normalized)),
 	}
+}
+
+func (s *AlertService) SetAutoTradeCoordinator(handler AutoTradeEventHandler) {
+	s.autoTrader = handler
 }
 
 func normalizeAlertSymbols(symbols []string) []string {
@@ -256,6 +265,11 @@ func (s *AlertService) evaluateSymbol(ctx context.Context, symbol string, refres
 	s.recent = append([]AlertEvent{*event}, s.recent...)
 	if len(s.recent) > s.historyLimit {
 		s.recent = s.recent[:s.historyLimit]
+	}
+	if s.autoTrader != nil && event.Kind == "setup_ready" {
+		if err := s.autoTrader.HandleEvent(ctx, *event); err != nil {
+			log.Printf("auto trade coordination failed for %s: %v", event.ID, err)
+		}
 	}
 	return event, nil
 }

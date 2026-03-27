@@ -51,6 +51,34 @@ func TestAlertServiceGeneratesSetupReadyAlertOnce(t *testing.T) {
 	}
 }
 
+func TestAlertServiceInvokesAutoTradeCoordinatorForSetupReady(t *testing.T) {
+	fetcher := &stubDirectionFetcher{
+		snapshots: map[string]MarketSnapshot{
+			"BTCUSDT:4h":  buildDirectionTestSnapshot("BTCUSDT", "4h", 62, 78, "BUY", "uptrend"),
+			"BTCUSDT:1h":  buildDirectionTestSnapshot("BTCUSDT", "1h", 58, 74, "BUY", "uptrend"),
+			"BTCUSDT:15m": buildDirectionTestSnapshot("BTCUSDT", "15m", 56, 70, "BUY", "uptrend"),
+			"BTCUSDT:5m":  buildDirectionTestSnapshot("BTCUSDT", "5m", 54, 68, "BUY", "uptrend"),
+		},
+	}
+	autoTrader := &stubAutoTradeCoordinator{}
+	service := NewAlertService(fetcher, nil, nil, []string{"BTCUSDT"}, 10)
+	service.SetAutoTradeCoordinator(autoTrader)
+
+	events, err := service.EvaluateAll(context.Background(), false)
+	if err != nil {
+		t.Fatalf("evaluate all failed: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 alert event, got=%d", len(events))
+	}
+	if autoTrader.calls != 1 {
+		t.Fatalf("expected auto trader to be called once, got %d", autoTrader.calls)
+	}
+	if autoTrader.lastEvent.Kind != "setup_ready" {
+		t.Fatalf("unexpected auto trader event: %+v", autoTrader.lastEvent)
+	}
+}
+
 func TestAlertServiceGeneratesNoTradeAfterTradableState(t *testing.T) {
 	fetcher := &stubDirectionFetcher{
 		snapshots: map[string]MarketSnapshot{
@@ -84,6 +112,17 @@ func TestAlertServiceGeneratesNoTradeAfterTradableState(t *testing.T) {
 
 type stubDirectionFetcher struct {
 	snapshots map[string]MarketSnapshot
+}
+
+type stubAutoTradeCoordinator struct {
+	calls     int
+	lastEvent AlertEvent
+}
+
+func (s *stubAutoTradeCoordinator) HandleEvent(ctx context.Context, event AlertEvent) error {
+	s.calls++
+	s.lastEvent = event
+	return nil
 }
 
 func (s *stubDirectionFetcher) GetMarketSnapshotWithRefresh(symbol, interval string, limit int, refresh bool) (MarketSnapshot, error) {

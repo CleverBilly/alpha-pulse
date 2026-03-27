@@ -88,6 +88,8 @@ func main() {
 	featureSnapshotRepo := repository.NewFeatureSnapshotRepository(db)
 	alertRecordRepo := repository.NewAlertRecordRepository(db)
 	alertPreferenceRepo := repository.NewAlertPreferenceRepository(db)
+	tradeSettingRepo := repository.NewTradeSettingRepository(db)
+	tradeOrderRepo := repository.NewTradeOrderRepository(db)
 
 	marketService := service.NewMarketService(
 		db,
@@ -142,6 +144,27 @@ func main() {
 		cfg.AlertHistoryLimit,
 		feishuNotifier,
 	)
+	tradeStatic := service.TradeStaticConfig{
+		Enabled:        cfg.TradeEnabled,
+		AutoExecute:    cfg.TradeAutoExecute,
+		AllowedSymbols: cfg.TradeAllowedSymbols,
+	}
+	tradeExecutor := service.NewTradeExecutorService(binanceClient, tradeOrderRepo)
+	tradeRuntime := service.NewTradeRuntime(binanceClient, tradeOrderRepo)
+	autoTradeCoordinator := service.NewAutoTradeCoordinator(
+		tradeStatic,
+		tradeSettingRepo,
+		tradeOrderRepo,
+		tradeExecutor,
+	)
+	alertService.SetAutoTradeCoordinator(autoTradeCoordinator)
+	tradeService := service.NewTradeService(
+		tradeStatic,
+		tradeSettingRepo,
+		tradeOrderRepo,
+		tradeExecutor,
+		tradeRuntime,
+	)
 
 	outcomeTracker := service.NewOutcomeTrackerService(
 		alertRecordRepo,
@@ -152,6 +175,7 @@ func main() {
 	marketHandler := handler.NewMarketHandler(marketService, signalService)
 	signalHandler := handler.NewSignalHandler(signalService)
 	alertHandler := handler.NewAlertHandler(alertService)
+	tradeHandler := handler.NewTradeHandler(tradeService)
 
 	authService, err := authsvc.NewService(authsvc.Options{
 		Enabled:        cfg.EnableSingleUserAuth,
@@ -180,6 +204,7 @@ func main() {
 		Signal:           signalHandler,
 		Auth:             authHandler,
 		Alert:            alertHandler,
+		Trade:            tradeHandler,
 		AuthRequired:     authRequired,
 		CORSAllowOrigins: cfg.CORSAllowOrigins,
 	})
@@ -227,6 +252,12 @@ func main() {
 	} else {
 		log.Printf("scheduler skipped: mode=%s", cfg.AppMode)
 	}
+	if cfg.TradeEnabled {
+		go runTradeLoop(ctx, time.Duration(cfg.TradeWatcherIntervalSeconds)*time.Second, "trade entry watcher", tradeRuntime.ReconcilePendingEntries)
+		go runTradeLoop(ctx, time.Duration(cfg.TradeSyncIntervalSeconds)*time.Second, "trade position sync", tradeRuntime.SyncPositions)
+	} else {
+		log.Printf("trade runtime skipped: trade_enabled=%t", cfg.TradeEnabled)
+	}
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.AppPort,
@@ -253,4 +284,28 @@ func main() {
 	}
 
 	log.Println("alpha-pulse backend stopped")
+}
+
+func runTradeLoop(ctx context.Context, interval time.Duration, name string, fn func(context.Context) error) {
+	if interval <= 0 {
+		interval = 3 * time.Second
+	}
+
+	if err := fn(ctx); err != nil {
+		log.Printf("%s failed: %v", name, err)
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := fn(ctx); err != nil {
+				log.Printf("%s failed: %v", name, err)
+			}
+		}
+	}
 }

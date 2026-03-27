@@ -18,6 +18,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&FeatureSnapshot{},
 		&AlertRecord{},
 		&AlertPreference{},
+		&TradeSetting{},
+		&TradeOrder{},
 	}
 
 	for _, model := range models {

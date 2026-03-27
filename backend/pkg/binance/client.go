@@ -69,6 +69,34 @@ type FuturesMarketData struct {
 	Source            string
 }
 
+// FuturesSymbolRules 表示交易对的价格/数量精度与最小下单约束。
+type FuturesSymbolRules struct {
+	Symbol            string
+	PricePrecision    int
+	QuantityPrecision int
+	MinQty            float64
+	StepSize          float64
+	TickSize          float64
+}
+
+// FuturesOrder 表示期货订单的核心状态。
+type FuturesOrder struct {
+	OrderID     string
+	Status      string
+	FilledPrice float64
+	FilledQty   float64
+}
+
+// FuturesPosition 表示当前真实期货持仓。
+type FuturesPosition struct {
+	Symbol        string
+	Side          string
+	Qty           float64
+	EntryPrice    float64
+	UnrealizedPnL float64
+	Leverage      int
+}
+
 // Client 封装 Binance SDK 调用，并保留离线回退能力。
 type Client struct {
 	sdkClient         *binancesdk.Client
@@ -425,6 +453,272 @@ func (c *Client) GetFuturesMarketData(symbol string) (FuturesMarketData, error) 
 	return result, nil
 }
 
+// GetFuturesBalance 获取 USDT 可用余额。
+func (c *Client) GetFuturesBalance() (float64, error) {
+	ctx, cancel := c.newContext()
+	defer cancel()
+
+	balances, err := c.futuresClient.NewGetBalanceService().Do(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, balance := range balances {
+		if strings.EqualFold(balance.Asset, "USDT") {
+			return strconv.ParseFloat(balance.AvailableBalance, 64)
+		}
+	}
+	return 0, errors.New("USDT futures balance not found")
+}
+
+// GetFuturesLeverage 获取指定标的当前杠杆。
+func (c *Client) GetFuturesLeverage(symbol string) (int, error) {
+	symbol = strings.ToUpper(symbol)
+	ctx, cancel := c.newContext()
+	defer cancel()
+
+	positions, err := c.futuresClient.NewGetPositionRiskService().Symbol(symbol).Do(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, row := range positions {
+		if !strings.EqualFold(row.Symbol, symbol) {
+			continue
+		}
+		return strconv.Atoi(row.Leverage)
+	}
+	return 0, errors.New("futures leverage not found")
+}
+
+// GetFuturesSymbolRules 获取指定交易对的精度与数量规则。
+func (c *Client) GetFuturesSymbolRules(symbol string) (FuturesSymbolRules, error) {
+	symbol = strings.ToUpper(symbol)
+	ctx, cancel := c.newContext()
+	defer cancel()
+
+	info, err := c.futuresClient.NewExchangeInfoService().Do(ctx)
+	if err != nil {
+		return FuturesSymbolRules{}, err
+	}
+
+	for _, row := range info.Symbols {
+		if !strings.EqualFold(row.Symbol, symbol) {
+			continue
+		}
+
+		rules := FuturesSymbolRules{
+			Symbol:            row.Symbol,
+			PricePrecision:    row.PricePrecision,
+			QuantityPrecision: row.QuantityPrecision,
+		}
+		if lot := row.LotSizeFilter(); lot != nil {
+			if rules.MinQty, err = strconv.ParseFloat(lot.MinQuantity, 64); err != nil {
+				return FuturesSymbolRules{}, err
+			}
+			if rules.StepSize, err = strconv.ParseFloat(lot.StepSize, 64); err != nil {
+				return FuturesSymbolRules{}, err
+			}
+		}
+		if priceFilter := row.PriceFilter(); priceFilter != nil {
+			if rules.TickSize, err = strconv.ParseFloat(priceFilter.TickSize, 64); err != nil {
+				return FuturesSymbolRules{}, err
+			}
+		}
+		return rules, nil
+	}
+
+	return FuturesSymbolRules{}, errors.New("futures symbol rules not found")
+}
+
+// PlaceFuturesLimitOrder 提交限价开仓单。
+func (c *Client) PlaceFuturesLimitOrder(symbol, side string, qty, price float64) (FuturesOrder, error) {
+	orderSide, err := resolveFuturesOrderSide(side)
+	if err != nil {
+		return FuturesOrder{}, err
+	}
+
+	ctx, cancel := c.newContext()
+	defer cancel()
+
+	response, err := c.futuresClient.NewCreateOrderService().
+		Symbol(strings.ToUpper(symbol)).
+		Side(orderSide).
+		Type(binancefutures.OrderTypeLimit).
+		TimeInForce(binancefutures.TimeInForceTypeGTC).
+		Quantity(formatFuturesNumber(qty)).
+		Price(formatFuturesNumber(price)).
+		Do(ctx)
+	if err != nil {
+		return FuturesOrder{}, err
+	}
+
+	order := FuturesOrder{
+		OrderID: responseOrderID(response.OrderID),
+		Status:  string(response.Status),
+	}
+	if response.AvgPrice != "" {
+		order.FilledPrice, err = strconv.ParseFloat(response.AvgPrice, 64)
+		if err != nil {
+			return FuturesOrder{}, err
+		}
+	}
+	if response.ExecutedQuantity != "" {
+		order.FilledQty, err = strconv.ParseFloat(response.ExecutedQuantity, 64)
+		if err != nil {
+			return FuturesOrder{}, err
+		}
+	}
+	return order, nil
+}
+
+// GetFuturesOrder 查询指定期货订单状态。
+func (c *Client) GetFuturesOrder(symbol, orderID string) (FuturesOrder, error) {
+	ctx, cancel := c.newContext()
+	defer cancel()
+
+	parsedOrderID, err := strconv.ParseInt(strings.TrimSpace(orderID), 10, 64)
+	if err != nil {
+		return FuturesOrder{}, err
+	}
+
+	response, err := c.futuresClient.NewGetOrderService().
+		Symbol(strings.ToUpper(symbol)).
+		OrderID(parsedOrderID).
+		Do(ctx)
+	if err != nil {
+		return FuturesOrder{}, err
+	}
+
+	order := FuturesOrder{
+		OrderID: responseOrderID(response.OrderID),
+		Status:  string(response.Status),
+	}
+	if response.AvgPrice != "" {
+		order.FilledPrice, err = strconv.ParseFloat(response.AvgPrice, 64)
+		if err != nil {
+			return FuturesOrder{}, err
+		}
+	}
+	if response.ExecutedQuantity != "" {
+		order.FilledQty, err = strconv.ParseFloat(response.ExecutedQuantity, 64)
+		if err != nil {
+			return FuturesOrder{}, err
+		}
+	}
+	return order, nil
+}
+
+// CancelFuturesOrder 撤销指定期货订单。
+func (c *Client) CancelFuturesOrder(symbol string, orderID string) error {
+	ctx, cancel := c.newContext()
+	defer cancel()
+
+	parsedOrderID, err := strconv.ParseInt(strings.TrimSpace(orderID), 10, 64)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.futuresClient.NewCancelOrderService().
+		Symbol(strings.ToUpper(symbol)).
+		OrderID(parsedOrderID).
+		Do(ctx)
+	return err
+}
+
+// PlaceFuturesProtectionOrder 挂止损或止盈保护单。
+func (c *Client) PlaceFuturesProtectionOrder(symbol, side, orderType string, stopPrice float64) (string, error) {
+	orderSide, err := resolveFuturesOrderSide(side)
+	if err != nil {
+		return "", err
+	}
+
+	ctx, cancel := c.newContext()
+	defer cancel()
+
+	response, err := c.futuresClient.NewCreateOrderService().
+		Symbol(strings.ToUpper(symbol)).
+		Side(orderSide).
+		Type(binancefutures.OrderType(strings.ToUpper(strings.TrimSpace(orderType)))).
+		StopPrice(formatFuturesNumber(stopPrice)).
+		ClosePosition(true).
+		WorkingType(binancefutures.WorkingTypeContractPrice).
+		Do(ctx)
+	if err != nil {
+		return "", err
+	}
+	return responseOrderID(response.OrderID), nil
+}
+
+// CloseFuturesPosition 发反向市价单平仓。
+func (c *Client) CloseFuturesPosition(symbol, side string, qty float64) (string, error) {
+	orderSide, err := resolveFuturesOrderSide(side)
+	if err != nil {
+		return "", err
+	}
+
+	ctx, cancel := c.newContext()
+	defer cancel()
+
+	response, err := c.futuresClient.NewCreateOrderService().
+		Symbol(strings.ToUpper(symbol)).
+		Side(orderSide).
+		Type(binancefutures.OrderTypeMarket).
+		Quantity(formatFuturesNumber(qty)).
+		ReduceOnly(true).
+		Do(ctx)
+	if err != nil {
+		return "", err
+	}
+	return responseOrderID(response.OrderID), nil
+}
+
+// GetFuturesPositions 返回当前全部非零持仓。
+func (c *Client) GetFuturesPositions() ([]FuturesPosition, error) {
+	ctx, cancel := c.newContext()
+	defer cancel()
+
+	rows, err := c.futuresClient.NewGetPositionRiskService().Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]FuturesPosition, 0, len(rows))
+	for _, row := range rows {
+		qty, parseErr := strconv.ParseFloat(row.PositionAmt, 64)
+		if parseErr != nil || qty == 0 {
+			continue
+		}
+		entryPrice, err := strconv.ParseFloat(row.EntryPrice, 64)
+		if err != nil {
+			return nil, err
+		}
+		unrealizedPnL, err := strconv.ParseFloat(row.UnRealizedProfit, 64)
+		if err != nil {
+			return nil, err
+		}
+		leverage, err := strconv.Atoi(row.Leverage)
+		if err != nil {
+			return nil, err
+		}
+
+		side := "LONG"
+		if qty < 0 {
+			side = "SHORT"
+		}
+
+		result = append(result, FuturesPosition{
+			Symbol:        row.Symbol,
+			Side:          side,
+			Qty:           math.Abs(qty),
+			EntryPrice:    entryPrice,
+			UnrealizedPnL: unrealizedPnL,
+			Leverage:      leverage,
+		})
+	}
+	return result, nil
+}
+
 func (c *Client) newContext() (context.Context, context.CancelFunc) {
 	if c.timeout <= 0 {
 		return context.Background(), func() {}
@@ -684,4 +978,23 @@ func parseOrderBookLevel(priceValue, quantityValue string) (float64, float64, er
 		return 0, 0, quantityErr
 	}
 	return price, quantity, nil
+}
+
+func resolveFuturesOrderSide(side string) (binancefutures.SideType, error) {
+	switch strings.ToUpper(strings.TrimSpace(side)) {
+	case "LONG", "BUY":
+		return binancefutures.SideTypeBuy, nil
+	case "SHORT", "SELL":
+		return binancefutures.SideTypeSell, nil
+	default:
+		return "", errors.New("unsupported futures side")
+	}
+}
+
+func formatFuturesNumber(value float64) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+func responseOrderID(orderID int64) string {
+	return strconv.FormatInt(orderID, 10)
 }

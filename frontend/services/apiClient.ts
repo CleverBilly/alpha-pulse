@@ -15,6 +15,7 @@ import {
 import { AlertFeed, AlertPreferences, AlertStats } from "@/types/alert";
 import { MarketSnapshot } from "@/types/snapshot";
 import { SignalBundle, SignalTimelineResult } from "@/types/signal";
+import { TradeOrder, TradeRuntimeStatus, TradeSettings } from "@/types/trade";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api";
 const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
@@ -207,5 +208,37 @@ export const alertApi = {
     if (symbol) params.set("symbol", symbol);
     params.set("limit", String(limit));
     return request<AlertStats>(`/alerts/stats?${params.toString()}`);
+  },
+};
+
+export const tradeApi = {
+  getSettings() {
+    return request<TradeSettings>("/trade-settings");
+  },
+  updateSettings(payload: Omit<TradeSettings, "trade_enabled_env" | "trade_auto_execute_env" | "allowed_symbols_env">) {
+    return request<TradeSettings>("/trade-settings", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  },
+  list(opts?: { limit?: number; symbol?: string; status?: string; source?: string }) {
+    const params = new URLSearchParams();
+    if (opts?.limit) params.set("limit", String(opts.limit));
+    if (opts?.symbol) params.set("symbol", opts.symbol);
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.source) params.set("source", opts.source);
+    const suffix = params.toString();
+    return request<TradeOrder[]>(suffix ? `/trades?${suffix}` : "/trades");
+  },
+  getRuntime() {
+    return request<TradeRuntimeStatus>("/trades/runtime");
+  },
+  close(orderId: number) {
+    return request<{ closed: boolean }>(`/trades/${orderId}/close`, {
+      method: "POST",
+    });
   },
 };
