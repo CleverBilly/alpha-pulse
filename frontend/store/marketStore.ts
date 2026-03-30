@@ -79,7 +79,7 @@ export const useMarketStore = create<MarketState>((set, get) => {
 
   return {
   symbol: "BTCUSDT",
-  interval: "1m",
+  interval: "15m",
   lastUpdatedAt: null,
   lastDirectionUpdatedAt: null,
   lastRefreshMode: null,
