@@ -259,6 +259,8 @@ cp deploy/ecosystem.host.example.cjs ecosystem.config.cjs
 - `ALPHA_PULSE_ROOT`，默认 `/www/wwwroot/alpha-pulse`
 - `ALPHA_PULSE_NPM_BIN`，默认 `/www/server/nodejs/v24.14.1/bin/npm`
 
+宿主机模板会把日志固定写到 `logs/` 目录，后面的 `deploy.sh` 会自动接管轮转，不需要你再额外手配系统级 `logrotate`。
+
 启动并保存进程：
 
 ```bash
@@ -290,8 +292,13 @@ bash scripts/deploy.sh
 
 - 自动补齐宝塔宿主机的 `go / npm / pm2` 路径
 - 检查 `backend/.env`、`frontend/.env.production`、`ecosystem.config.cjs`
+- 自动安装并配置 `pm2-logrotate`
+  - 单文件上限：`100MB`
+  - 保留归档：`5`
+  - 历史归档：自动压缩
 - 编译后端：`go mod download` + `go build`
 - 构建前端：`npm ci` + `npm run build`
+- 在重启前截断超过 `100MB` 的当前活动日志，优先回收磁盘
 - 重启 `alpha-pulse-backend` 和 `alpha-pulse-frontend`
 - 做三条本机健康检查：
   - `http://127.0.0.1:8080/healthz` -> `200`
@@ -303,6 +310,9 @@ bash scripts/deploy.sh
 - 脚本不会自动 `git pull`，这样你可以先确认分支和提交再发布
 - 脚本不会修改 `backend/.env`、`frontend/.env.production`、Nginx 或 SSL
 - 失败时会直接退出，并提示查看 `deploy/.tmp/` 里的阶段日志
+- 如果你临时想改日志策略，可以在执行前覆盖：
+  - `ALPHA_PULSE_PM2_LOG_MAX_SIZE_MB`，默认 `100`
+  - `ALPHA_PULSE_PM2_LOG_RETAIN`，默认 `5`
 - 如果你在宝塔面板里给站点开了“反向代理缓存”或 `proxy_cache`，请对 Next.js 主站和 `/api/*` 关闭它；这类接口必须实时回源，否则像 `/api/trade-settings` 这种保存后立即回读的页面会看到旧值
 
 ### 6B. 准备生产版 Compose 文件

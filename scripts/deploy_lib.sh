@@ -85,6 +85,37 @@ ensure_pm2_config() {
   cp "$template_path" "$target_path"
 }
 
+ensure_pm2_logrotate() {
+  local max_size="$1"
+  local retain="$2"
+  local compress="${3:-true}"
+
+  if ! pm2 module:list 2>/dev/null | grep -q "pm2-logrotate"; then
+    pm2 install pm2-logrotate
+  fi
+
+  pm2 set pm2-logrotate:max_size "$max_size"
+  pm2 set pm2-logrotate:retain "$retain"
+  pm2 set pm2-logrotate:compress "$compress"
+}
+
+truncate_log_if_oversize() {
+  local file_path="$1"
+  local max_bytes="$2"
+
+  if [[ ! -f "$file_path" ]]; then
+    return 0
+  fi
+
+  local current_size
+  current_size="$(wc -c < "$file_path" | tr -d '[:space:]')"
+
+  if (( current_size > max_bytes )); then
+    : > "$file_path"
+    echo "truncated oversized log: $file_path (${current_size} bytes)"
+  fi
+}
+
 run_logged_command() {
   local log_path="$1"
   shift
