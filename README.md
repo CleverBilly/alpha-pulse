@@ -303,6 +303,7 @@ bash scripts/deploy.sh
 - 脚本不会自动 `git pull`，这样你可以先确认分支和提交再发布
 - 脚本不会修改 `backend/.env`、`frontend/.env.production`、Nginx 或 SSL
 - 失败时会直接退出，并提示查看 `deploy/.tmp/` 里的阶段日志
+- 如果你在宝塔面板里给站点开了“反向代理缓存”或 `proxy_cache`，请对 Next.js 主站和 `/api/*` 关闭它；这类接口必须实时回源，否则像 `/api/trade-settings` 这种保存后立即回读的页面会看到旧值
 
 ### 6B. 准备生产版 Compose 文件
 
@@ -424,6 +425,7 @@ server {
 - 推荐把所有业务路径都先交给前端容器，包括 `/api/*`
 - 前端会通过 `API_PROXY_TARGET` 再把 `/api/*` 转发到后端
 - 这样浏览器始终只请求 `https://app.example.com/api/...`，部署和排查都更简单
+- 不要再额外给这个反代层配置 `proxy_cache`，也不要忽略上游的 `Cache-Control`; 这会把交易配置、登录态相关接口缓存住，表现出来就是页面保存成功但下一次读取还是旧值
 
 如果你明确想让 `Nginx` 直接反代 `/api/` 到后端，也可以加一条：
 

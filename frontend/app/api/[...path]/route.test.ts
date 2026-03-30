@@ -29,7 +29,15 @@ describe("frontend api proxy route", () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(String(fetchSpy.mock.calls[0]?.[0])).toBe("http://backend:8080/api/trade-settings?limit=24");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(URL),
+      expect.objectContaining({
+        method: "GET",
+        cache: "no-store",
+      }),
+    );
     expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
   it("forwards non-GET methods with body and cookies", async () => {

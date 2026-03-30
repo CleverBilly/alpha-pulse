@@ -15,6 +15,7 @@ type TradeSettingsUpdate = Omit<TradeSettings, "trade_enabled_env" | "trade_auto
 
 export default function AutoTradingControlCenter() {
   const mountedRef = useRef(true);
+  const snapshotRequestIdRef = useRef(0);
   const [settings, setSettings] = useState<TradeSettings | null>(null);
   const [runtime, setRuntime] = useState<TradeRuntimeStatus | null>(null);
   const [orders, setOrders] = useState<TradeOrder[]>([]);
@@ -26,6 +27,9 @@ export default function AutoTradingControlCenter() {
   const [lastSyncedAt, setLastSyncedAt] = useState(0);
 
   const loadSnapshot = useCallback(async ({ silent }: { silent: boolean }) => {
+    const requestId = snapshotRequestIdRef.current + 1;
+    snapshotRequestIdRef.current = requestId;
+
     if (silent) {
       setRefreshing(true);
     } else {
@@ -38,7 +42,7 @@ export default function AutoTradingControlCenter() {
         tradeApi.getRuntime(),
         tradeApi.list({ limit: 24 }),
       ]);
-      if (!mountedRef.current) {
+      if (!mountedRef.current || requestId !== snapshotRequestIdRef.current) {
         return;
       }
       setSettings(nextSettings);
@@ -47,12 +51,12 @@ export default function AutoTradingControlCenter() {
       setLastSyncedAt(Date.now());
       setError(null);
     } catch (loadError) {
-      if (!mountedRef.current) {
+      if (!mountedRef.current || requestId !== snapshotRequestIdRef.current) {
         return;
       }
       setError(formatError(loadError));
     } finally {
-      if (!mountedRef.current) {
+      if (!mountedRef.current || requestId !== snapshotRequestIdRef.current) {
         return;
       }
       setLoading(false);
@@ -80,6 +84,7 @@ export default function AutoTradingControlCenter() {
       if (!mountedRef.current) {
         return;
       }
+      snapshotRequestIdRef.current += 1;
       setSettings(nextSettings);
       setError(null);
       await loadSnapshot({ silent: true });

@@ -60,6 +60,7 @@ async function proxyRequest(request: Request, context: RouteContext) {
     method: request.method,
     headers,
     redirect: "manual",
+    cache: "no-store",
   };
 
   if (!["GET", "HEAD"].includes(request.method.toUpperCase())) {
@@ -72,6 +73,7 @@ async function proxyRequest(request: Request, context: RouteContext) {
     for (const header of HOP_BY_HOP_HEADERS) {
       responseHeaders.delete(header);
     }
+    responseHeaders.set("cache-control", "no-store");
     return new Response(upstream.body, {
       status: upstream.status,
       statusText: upstream.statusText,
