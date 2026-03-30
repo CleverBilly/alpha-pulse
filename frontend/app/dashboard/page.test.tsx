@@ -34,12 +34,15 @@ describe("DashboardPage", () => {
     expect(screen.getByTestId("dashboard-command-page")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-overview-band")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-primary-workspace")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-support-stack")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-chart-surface")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-side-rail")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-evidence-surface")).toBeInTheDocument();
 
     expect(within(screen.getByTestId("dashboard-overview-band")).getByTestId("decision-header")).toBeInTheDocument();
     expect(within(screen.getByTestId("dashboard-chart-surface")).getByTestId("kline-chart")).toBeInTheDocument();
+    expect(within(screen.getByTestId("dashboard-support-stack")).getByTestId("dashboard-side-rail")).toBeInTheDocument();
+    expect(within(screen.getByTestId("dashboard-support-stack")).getByTestId("dashboard-evidence-surface")).toBeInTheDocument();
     expect(within(screen.getByTestId("dashboard-side-rail")).getByTestId("execution-panel")).toBeInTheDocument();
     expect(within(screen.getByTestId("dashboard-side-rail")).getByTestId("position-calculator-panel")).toBeInTheDocument();
     expect(within(screen.getByTestId("dashboard-evidence-surface")).getByTestId("evidence-rail")).toBeInTheDocument();

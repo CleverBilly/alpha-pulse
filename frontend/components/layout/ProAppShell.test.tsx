@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const navigationState = vi.hoisted(() => ({
@@ -36,6 +36,7 @@ describe("ProAppShell", () => {
     expect(screen.getByTestId("command-center-shell")).toHaveAttribute("data-collapsed", "false");
     expect(screen.getByTestId("command-center-shell")).toHaveAttribute("data-shell-style", "integrated");
     expect(screen.getByTestId("command-center-rail")).toBeInTheDocument();
+    expect(screen.getByTestId("command-center-mobile-topbar")).toBeInTheDocument();
     expect(screen.getByTestId("command-center-canvas")).toHaveAttribute("data-shell-surface", "continuous");
     expect(screen.getByRole("link", { name: /驾驶舱/i })).toHaveAttribute("data-active", "true");
     expect(screen.getByRole("link", { name: /图表/i })).toHaveAttribute("data-active", "false");
@@ -68,14 +69,40 @@ describe("ProAppShell", () => {
     );
 
     expect(screen.getByTestId("command-center-shell-actions")).toContainElement(
-      screen.getByRole("button", { name: "退出登录" }),
-    );
-    expect(screen.getByTestId("command-center-shell-actions")).toContainElement(
       screen.getByRole("button", { name: "收起侧边栏" }),
     );
-    expect(screen.getByTestId("command-center-dock")).toBeInTheDocument();
-    expect(screen.getByText("BUY · 82%")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "告警" })).toBeInTheDocument();
+    const dock = screen.getByTestId("command-center-dock");
+    expect(dock).toBeInTheDocument();
+    expect(within(dock).getByText("BUY · 82%")).toBeInTheDocument();
+    expect(within(dock).getByRole("button", { name: "告警" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "退出登录" })).toBeInTheDocument();
+  });
+
+  it("opens and closes the mobile drawer navigation", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ProAppShell>
+        <div>content</div>
+      </ProAppShell>,
+    );
+
+    const shell = screen.getByTestId("command-center-shell");
+    const drawer = screen.getByTestId("command-center-mobile-drawer");
+
+    expect(shell).toHaveAttribute("data-mobile-nav-open", "false");
+    expect(drawer).toHaveAttribute("hidden");
+
+    await user.click(screen.getByRole("button", { name: "打开导航菜单" }));
+
+    expect(shell).toHaveAttribute("data-mobile-nav-open", "true");
+    expect(drawer).not.toHaveAttribute("hidden");
+    expect(screen.getAllByRole("link", { name: /自动交易/i })).toHaveLength(2);
+
+    await user.click(screen.getByRole("button", { name: "关闭导航菜单" }));
+
+    expect(shell).toHaveAttribute("data-mobile-nav-open", "false");
+    expect(drawer).toHaveAttribute("hidden");
   });
 
   it("bypasses the shell on the login route", () => {

@@ -15,16 +15,18 @@ export default function DashboardPage() {
         <DecisionHeader />
       </OverviewBand>
       <div className="dashboard-command-page__workspace" data-testid="dashboard-primary-workspace">
+        <div className="dashboard-command-page__support-stack" data-testid="dashboard-support-stack">
+          <div className="dashboard-command-page__side-rail" data-testid="dashboard-side-rail">
+            <ExecutionPanel />
+            <PositionCalculator />
+          </div>
+          <div className="dashboard-command-page__evidence" data-testid="dashboard-evidence-surface">
+            <EvidenceRail />
+          </div>
+        </div>
         <div className="dashboard-command-page__chart-stage" data-testid="dashboard-chart-surface">
           <KlineChart />
         </div>
-        <div className="dashboard-command-page__side-rail" data-testid="dashboard-side-rail">
-          <ExecutionPanel />
-          <PositionCalculator />
-        </div>
-      </div>
-      <div className="dashboard-command-page__evidence" data-testid="dashboard-evidence-surface">
-        <EvidenceRail />
       </div>
     </CommandPage>
   );
