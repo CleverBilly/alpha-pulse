@@ -10,9 +10,13 @@ import (
 	"alpha-pulse/backend/internal/liquidity"
 	structureengine "alpha-pulse/backend/internal/structure"
 	"alpha-pulse/backend/models"
-	"alpha-pulse/backend/repository"
-	"gorm.io/gorm"
 )
+
+type orderBookSeriesRepository interface {
+	GetSeriesWindow(symbol string, startTime, endTime int64) ([]models.OrderBookSnapshot, error)
+}
+
+const maxOrderBookSeriesSpanMillis int64 = 4 * 60 * 60 * 1000
 
 // buildIndicatorSeries 基于滚动窗口生成指标时间序列，供图表直接使用后端计算结果。
 func buildIndicatorSeries(
@@ -108,7 +112,7 @@ func buildStructureSeries(
 // buildLiquiditySeries 基于滚动窗口生成流动性时间序列，优先使用对应时间点之前的盘口快照。
 func buildLiquiditySeries(
 	engine *liquidity.Engine,
-	orderBookRepo *repository.OrderBookSnapshotRepository,
+	orderBookRepo orderBookSeriesRepository,
 	symbol, interval string,
 	allKlines []models.Kline,
 	limit int,
@@ -125,12 +129,21 @@ func buildLiquiditySeries(
 	start := len(sortedKlines) - clampInt(limit, 1, len(sortedKlines))
 	points := make([]LiquiditySeriesPoint, 0, len(sortedKlines)-start)
 	intervalMillis := intervalDurationMillis(interval)
+	targetTimes := make([]int64, 0, len(sortedKlines)-start)
 
 	for index := start; index < len(sortedKlines); index++ {
-		window := takeLastKlines(sortedKlines[:index+1], engine.HistoryLimit())
-		targetTime := sortedKlines[index].OpenTime + intervalMillis
+		targetTimes = append(targetTimes, sortedKlines[index].OpenTime+intervalMillis)
+	}
 
-		result, err := buildLiquidityPoint(engine, orderBookRepo, symbol, window, targetTime)
+	snapshots, err := loadOrderBookSeriesWindow(orderBookRepo, symbol, targetTimes)
+	if err != nil {
+		return nil, err
+	}
+	resolver := newOrderBookSnapshotResolver(snapshots)
+
+	for pointIndex, index := 0, start; index < len(sortedKlines); index, pointIndex = index+1, pointIndex+1 {
+		window := takeLastKlines(sortedKlines[:index+1], engine.HistoryLimit())
+		result, err := buildLiquidityPoint(engine, symbol, window, resolver.Resolve(targetTimes[pointIndex]))
 		if err != nil {
 			return nil, err
 		}
@@ -155,24 +168,50 @@ func buildLiquiditySeries(
 
 func buildLiquidityPoint(
 	engine *liquidity.Engine,
-	orderBookRepo *repository.OrderBookSnapshotRepository,
 	symbol string,
 	window []models.Kline,
-	targetTime int64,
+	snapshot *models.OrderBookSnapshot,
 ) (models.Liquidity, error) {
-	if orderBookRepo != nil && targetTime > 0 {
-		snapshot, err := orderBookRepo.GetLatestBefore(symbol, targetTime)
-		if err == nil {
-			result, analyzeErr := engine.AnalyzeWithOrderBook(symbol, window, snapshot)
-			if analyzeErr == nil {
-				return result, nil
-			}
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return models.Liquidity{}, err
+	if snapshot != nil {
+		result, analyzeErr := engine.AnalyzeWithOrderBook(symbol, window, *snapshot)
+		if analyzeErr == nil {
+			return result, nil
 		}
 	}
 
 	return engine.Analyze(symbol, window)
+}
+
+func loadOrderBookSeriesWindow(
+	orderBookRepo orderBookSeriesRepository,
+	symbol string,
+	targetTimes []int64,
+) ([]models.OrderBookSnapshot, error) {
+	if orderBookRepo == nil || len(targetTimes) == 0 {
+		return nil, nil
+	}
+	if targetTimes[len(targetTimes)-1]-targetTimes[0] > maxOrderBookSeriesSpanMillis {
+		return nil, nil
+	}
+	return orderBookRepo.GetSeriesWindow(symbol, targetTimes[0], targetTimes[len(targetTimes)-1])
+}
+
+type orderBookSnapshotResolver struct {
+	snapshots []models.OrderBookSnapshot
+	index     int
+	current   *models.OrderBookSnapshot
+}
+
+func newOrderBookSnapshotResolver(snapshots []models.OrderBookSnapshot) *orderBookSnapshotResolver {
+	return &orderBookSnapshotResolver{snapshots: snapshots}
+}
+
+func (r *orderBookSnapshotResolver) Resolve(targetTime int64) *models.OrderBookSnapshot {
+	for r.index < len(r.snapshots) && r.snapshots[r.index].EventTime <= targetTime {
+		r.current = &r.snapshots[r.index]
+		r.index++
+	}
+	return r.current
 }
 
 func clusterStrengths(clusters []models.LiquidityCluster) (float64, float64) {
