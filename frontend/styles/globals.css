@@ -4022,3 +4022,169 @@ a {
     align-items: flex-start;
   }
 }
+
+/* ── Position Calculator: Direction Toggle ────────────────────── */
+.position-calculator__direction-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.position-calculator__direction-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1.5px solid rgba(23, 33, 29, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--cc-muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.position-calculator__direction-btn:hover {
+  transform: translateY(-1px);
+}
+
+.position-calculator__direction-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* 做多 — 绿色激活态 */
+.position-calculator__direction-btn--long.position-calculator__direction-btn--active {
+  border-color: rgba(14, 120, 90, 0.28);
+  background: linear-gradient(180deg, rgba(232, 251, 243, 0.96) 0%, rgba(220, 246, 235, 0.92) 100%);
+  color: #0e7a5a;
+  box-shadow: 0 8px 18px rgba(14, 120, 90, 0.12);
+}
+
+/* 做空 — 红色激活态 */
+.position-calculator__direction-btn--short.position-calculator__direction-btn--active {
+  border-color: rgba(185, 67, 67, 0.28);
+  background: linear-gradient(180deg, rgba(253, 236, 236, 0.96) 0%, rgba(250, 224, 224, 0.92) 100%);
+  color: #b94343;
+  box-shadow: 0 8px 18px rgba(185, 67, 67, 0.10);
+}
+
+/* 未激活的做多按钮悬浮 */
+.position-calculator__direction-btn--long:not(.position-calculator__direction-btn--active):hover {
+  border-color: rgba(14, 120, 90, 0.18);
+  color: #0e7a5a;
+}
+
+/* 未激活的做空按钮悬浮 */
+.position-calculator__direction-btn--short:not(.position-calculator__direction-btn--active):hover {
+  border-color: rgba(185, 67, 67, 0.18);
+  color: #b94343;
+}
+
+/* ── Global Mobile Responsive Fixes (H5) ─────────────────────── */
+
+/* Breakpoint 1100px — 补全中断点的布局折叠 */
+@media (max-width: 1100px) {
+  .market-command-page__primary-grid,
+  .chart-command-page__workspace,
+  .review-command-page__context,
+  .alerts-command-page__workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .market-command-page__secondary-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .market-command-page__diagnostics,
+  .review-command-page__history {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Breakpoint 767px — 全面 H5 布局修复 */
+@media (max-width: 767px) {
+  /* ── 自动交易页面 H5 修复 ── */
+  .auto-trading-console {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .auto-trading-console__title {
+    font-size: clamp(1.6rem, 6vw, 2.2rem);
+  }
+
+  .auto-trading-command-page__workspace {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── 市场页面 H5 ── */
+  .market-command-page__primary-grid,
+  .market-command-page__secondary-rail,
+  .market-command-page__diagnostics {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── 图表页面 H5 ── */
+  .chart-command-page__workspace {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── 复盘页面 H5 ── */
+  .review-command-page__context,
+  .review-command-page__history {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── 告警/持仓页面 H5 ── */
+  .alerts-command-page__workspace {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── 仓位计算器 H5 ── */
+  .position-calculator__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .position-calculator__field--wide {
+    grid-column: 1;
+  }
+
+  .position-calculator__results {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── 通用面板内边距收窄 ── */
+  .command-page {
+    gap: 14px;
+  }
+
+  .overview-band {
+    gap: 12px;
+  }
+
+  .command-panel,
+  .rail-panel {
+    border-radius: 18px;
+  }
+
+  /* ── auto-trading 运行时带展示 ── */
+  .trade-runtime-band__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* ── 告警详情页 ── */
+  .alert-watch-desk__intro {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  /* ── overview band 内的 hero grid ── */
+  .page-hero {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}

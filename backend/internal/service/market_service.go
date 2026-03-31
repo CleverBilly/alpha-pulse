@@ -220,13 +220,25 @@ func (s *MarketService) GetOrderFlow(symbol, interval string) (models.OrderFlow,
 	if err := enrichOrderFlowMicrostructureWithOrderBook(s.orderFlowEngine, s.orderBookRepo, symbol, &result); err != nil {
 		return models.OrderFlow{}, err
 	}
-	if err := s.db.Create(&result).Error; err != nil {
-		return models.OrderFlow{}, err
-	}
-	if err := persistLargeTradeEvents(s.largeTradeRepo, result); err != nil {
-		return models.OrderFlow{}, err
-	}
-	if err := persistMicrostructureEvents(s.microEventRepo, result); err != nil {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		// orderflow 必须先写（autoIncrement 回填 ID，后续从表依赖）
+		if err := tx.Create(&result).Error; err != nil {
+			return err
+		}
+		// large_trade_events（ON DUPLICATE KEY UPDATE）
+		if largeEvents := projectLargeTradeEvents(result); len(largeEvents) > 0 {
+			if err := persistLargeTradeEventsTx(tx, largeEvents); err != nil {
+				return err
+			}
+		}
+		// microstructure_events（INSERT IGNORE）
+		if microEvents := projectMicrostructureEvents(result); len(microEvents) > 0 {
+			if err := persistMicrostructureEventsTx(tx, microEvents); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		return models.OrderFlow{}, err
 	}
 	// 订单流结果不影响 indicator-series 或 liquidity-series，无需清 analysisCache。

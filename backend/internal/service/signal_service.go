@@ -411,37 +411,20 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 
 	if persist {
 		stageStartedAt = time.Now()
-		if err := s.indicatorRepo.Create(&indicatorResult); err != nil {
-			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
-			return MarketSnapshot{}, err
-		}
-		if err := s.db.Create(&orderFlowResult).Error; err != nil {
-			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
-			return MarketSnapshot{}, err
-		}
-		if err := persistLargeTradeEvents(s.largeTradeRepo, orderFlowResult); err != nil {
-			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
-			return MarketSnapshot{}, err
-		}
-		if err := persistMicrostructureEvents(s.microEventRepo, orderFlowResult); err != nil {
-			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
-			return MarketSnapshot{}, err
-		}
-		if err := s.db.Create(&structureResult).Error; err != nil {
-			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
-			return MarketSnapshot{}, err
-		}
-		if err := s.db.Create(&liquidityResult).Error; err != nil {
-			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
-			return MarketSnapshot{}, err
-		}
-		if err := s.signalRepo.Create(&signalResult); err != nil {
+		// 将全部写库操作合并为单个事务，固定加锁顺序，消除并发死锁（MySQL 1213）。
+		// 死锁时自动重试最多 3 次（指数退避 50/100/200ms）。
+		if err := persistSnapshotResults(
+			s.db,
+			&indicatorResult,
+			&orderFlowResult,
+			&structureResult,
+			&liquidityResult,
+			&signalResult,
+		); err != nil {
 			logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 			return MarketSnapshot{}, err
 		}
 		// 只清当前 interval 的 signal-timeline：新信号写入后该视图已过期。
-		// snapshotCache 由调用方（GetMarketSnapshotWithRefresh）负责写入，不在此处清除；
-		// GetSignal（调度器路径）不回写 snapshotCache，若在此清除会导致缓存持续为空。
 		invalidateCacheScopes(s.viewCache, symbol, interval, cacheScopeSignalTimeline)
 		logServiceDuration("signal_service", "market_snapshot.persist", symbol, interval, chartLimit, stageStartedAt, "ok", "")
 	}
@@ -481,12 +464,14 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 		SignalTimeline:       signalTimeline,
 	}
 	if persist {
+		// 将 feature_snapshot 单独 upsert（数据在 snapshot 组装后才完整）。
 		stageStartedAt = time.Now()
 		if err := persistFeatureSnapshot(s.featureRepo, snapshot); err != nil {
 			logServiceDuration("signal_service", "market_snapshot.feature_snapshot", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
-			return MarketSnapshot{}, err
+			// feature_snapshot 写失败不阻断响应，仅记录日志。
+		} else {
+			logServiceDuration("signal_service", "market_snapshot.feature_snapshot", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.String("version", featureSnapshotVersion))
 		}
-		logServiceDuration("signal_service", "market_snapshot.feature_snapshot", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.String("version", featureSnapshotVersion))
 	}
 
 	return snapshot, nil

@@ -32,11 +32,20 @@ describe("calcPosition", () => {
     expect(result).toBeNull();
   });
 
-  it("flags warning when position exceeds balance", () => {
-    // stopDist% = 0.1%, size = 1000*1%/0.1% = 10000 > 1000
-    const result = calcPosition({ balance: 1000, riskPct: 1, entry: 100, stop: 99.9 });
+  it("flags warning when margin exceeds balance", () => {
+    // stopDist% = 0.1%, size = 1000*1%/0.1% = 10000 > 1000, leverage=1 → margin=10000>1000
+    const result = calcPosition({ balance: 1000, riskPct: 1, entry: 100, stop: 99.9, leverage: 1 });
     expect(result).not.toBeNull();
     expect(result!.exceedsBalance).toBe(true);
+  });
+
+  it("leverage reduces margin required", () => {
+    // size=2000, leverage=10 → margin=200
+    const result = calcPosition({ balance: 10000, riskPct: 1, entry: 100, stop: 95, leverage: 10 });
+    expect(result).not.toBeNull();
+    expect(result!.positionSize).toBeCloseTo(2000);
+    expect(result!.marginRequired).toBeCloseTo(200);
+    expect(result!.exceedsBalance).toBe(false);
   });
 
   it("computes R:R when target is provided", () => {
@@ -62,6 +71,18 @@ describe("calcPosition", () => {
   it("returns null when balance is zero", () => {
     const result = calcPosition({ balance: 0, riskPct: 1, entry: 100, stop: 95 });
     expect(result).toBeNull();
+  });
+
+  it("infers long direction when stop < entry", () => {
+    const result = calcPosition({ balance: 10000, riskPct: 1, entry: 100, stop: 95 });
+    expect(result).not.toBeNull();
+    expect(result!.direction).toBe("long");
+  });
+
+  it("infers short direction when stop > entry", () => {
+    const result = calcPosition({ balance: 10000, riskPct: 1, entry: 100, stop: 105 });
+    expect(result).not.toBeNull();
+    expect(result!.direction).toBe("short");
   });
 });
 
@@ -92,6 +113,13 @@ describe("PositionCalculator render", () => {
     expect(screen.getByTestId("position-calculator-panel")).toHaveAttribute("data-panel-role", "action");
     expect(screen.getByRole("region", { name: "仓位计算器" })).toBeInTheDocument();
     expect(screen.getByText("账户余额 (USDT)")).toBeInTheDocument();
+    expect(screen.getByText("杠杆倍数 ×")).toBeInTheDocument();
+  });
+
+  it("renders direction toggle buttons", () => {
+    render(<PositionCalculator />);
+    expect(screen.getByTitle("做多（买入）")).toBeInTheDocument();
+    expect(screen.getByTitle("做空（卖出）")).toBeInTheDocument();
   });
 
   it("shows error tag when stop equals entry", async () => {
@@ -99,11 +127,11 @@ describe("PositionCalculator render", () => {
     render(<PositionCalculator />);
 
     const inputs = screen.getAllByRole("spinbutton");
-    // inputs[0]=balance, inputs[1]=riskPct, inputs[2]=entry, inputs[3]=stop, inputs[4]=target
-    await user.clear(inputs[2]);
-    await user.type(inputs[2], "100");
+    // inputs[0]=balance, inputs[1]=riskPct, inputs[2]=leverage, inputs[3]=entry, inputs[4]=stop, inputs[5]=target
     await user.clear(inputs[3]);
     await user.type(inputs[3], "100");
+    await user.clear(inputs[4]);
+    await user.type(inputs[4], "100");
 
     expect(await screen.findByText("止损价不能等于进场价")).toBeTruthy();
   });
