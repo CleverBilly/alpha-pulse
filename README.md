@@ -193,6 +193,7 @@ openssl rand -hex 32
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=/api
+NEXT_PUBLIC_MARKET_STREAM_BASE_URL=
 NEXT_PUBLIC_AUTH_ENABLED=true
 AUTH_COOKIE_NAME=alpha_pulse_session
 AUTH_SESSION_SECRET=<same-secret-as-backend>
@@ -203,6 +204,7 @@ AUTH_SESSION_SECRET=<same-secret-as-backend>
 - 这是前端 `build` 时要读的配置，不是本地开发用的 `frontend/.env.local`
 - `AUTH_SESSION_SECRET` 必须和后端完全一致
 - 推荐把 `NEXT_PUBLIC_API_BASE_URL` 保持为 `/api`，让浏览器统一走同域请求
+- `NEXT_PUBLIC_MARKET_STREAM_BASE_URL` 留空时，market snapshot websocket 默认走当前站点域名；只有本地开发或测试需要直连后端端口时再显式填写
 
 ### 6A. 宿主机 + PM2（推荐给宝塔）
 
@@ -523,6 +525,12 @@ curl https://app.example.com/healthz
   - 后端是不是旧进程/旧容器，没带交易路由
   - `./scripts/dev.sh` 本地调试时是否有旧 `8080` 进程占着端口
 - 本地开发里，最新的 [scripts/dev.sh](/Users/billy/go/src/alpha-pulse/scripts/dev.sh) 会在启动前直接拦住 `8080` 端口冲突，避免被旧 `/healthz` 假阳性骗过
+
+`market snapshot websocket 一直连接失败`
+
+- 公网部署里，确认 Nginx 把 `/api/market-snapshot/stream` 直接反代到后端，并保留 `Upgrade` / `Connection`
+- 普通 `/api/*` HTTP 请求仍然可以走前端同域代理，但 websocket 不能穿过 Next.js 的 `app/api/[...path]/route.ts`
+- 如果是本地前端 `3000`、后端 `8080` 分端口开发，给前端配置 `NEXT_PUBLIC_MARKET_STREAM_BASE_URL=http://127.0.0.1:8080`
 
 `Binance 返回 -2015 Invalid API-key, IP, or permissions for action`
 

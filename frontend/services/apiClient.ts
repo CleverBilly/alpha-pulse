@@ -18,6 +18,7 @@ import { SignalBundle, SignalTimelineResult } from "@/types/signal";
 import { TradeOrder, TradeRuntimeStatus, TradeSettings } from "@/types/trade";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
+const MARKET_STREAM_BASE_URL = process.env.NEXT_PUBLIC_MARKET_STREAM_BASE_URL?.trim();
 const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
 
 interface ApiEnvelope<T> {
@@ -80,6 +81,14 @@ function buildWebSocketUrl(path: string) {
   return url.toString();
 }
 
+function buildSameOriginWebSocketUrl(path: string) {
+  const fallbackOrigin = typeof window !== "undefined" ? window.location.origin : "http://localhost";
+  const origin = new URL(MARKET_STREAM_BASE_URL || fallbackOrigin, fallbackOrigin);
+  const url = new URL(path.startsWith("/") ? path : `/${path}`, origin);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
+}
+
 export const marketApi = {
   getPrice(symbol: string) {
     return request<PriceTicker>(`/price?symbol=${symbol}`);
@@ -133,10 +142,10 @@ export const marketApi = {
       `/market-snapshot?symbol=${symbol}&interval=${interval}&limit=${limit}${refresh ? "&refresh=1" : ""}`,
     );
   },
-  createMarketSnapshotStreamUrl(symbol: string, interval: MarketInterval = "1m", limit = 48) {
-    return buildWebSocketUrl(`/market-snapshot/stream?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+  createMarketSnapshotStreamUrl(symbol: string, interval: MarketInterval, limit = 48) {
+    return buildSameOriginWebSocketUrl(`/api/market-snapshot/stream?symbol=${symbol}&interval=${interval}&limit=${limit}`);
   },
-  openMarketSnapshotStream(symbol: string, interval: MarketInterval = "1m", limit = 48) {
+  openMarketSnapshotStream(symbol: string, interval: MarketInterval, limit = 48) {
     return new WebSocket(this.createMarketSnapshotStreamUrl(symbol, interval, limit));
   },
 };

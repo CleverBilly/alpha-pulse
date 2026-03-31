@@ -26,6 +26,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       NEXT_PUBLIC_API_BASE_URL: "http://127.0.0.1:8080/api",
+      NEXT_PUBLIC_MARKET_STREAM_BASE_URL: "http://127.0.0.1:8080",
       NEXT_PUBLIC_AUTH_ENABLED: "true",
       AUTH_COOKIE_NAME: DEFAULT_AUTH_COOKIE_NAME,
       AUTH_SESSION_SECRET: DEFAULT_AUTH_SESSION_SECRET,
