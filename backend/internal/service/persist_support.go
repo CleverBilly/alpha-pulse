@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"alpha-pulse/backend/models"
+	"alpha-pulse/backend/repository"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -65,12 +66,15 @@ func runPersistTx(
 ) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		// 1. indicators
-		if err := tx.Create(indicatorResult).Error; err != nil {
+		if err := tx.Clauses(repository.IndicatorUpsertClause()).Create(indicatorResult).Error; err != nil {
 			return err
 		}
 
 		// 2. orderflow — autoIncrement 回填 orderFlowResult.ID，后续从表依赖此 ID
-		if err := tx.Create(orderFlowResult).Error; err != nil {
+		if err := tx.Clauses(repository.OrderFlowUpsertClause()).Create(orderFlowResult).Error; err != nil {
+			return err
+		}
+		if err := hydrateOrderFlowID(tx, orderFlowResult); err != nil {
 			return err
 		}
 
@@ -89,17 +93,17 @@ func runPersistTx(
 		}
 
 		// 5. structure
-		if err := tx.Create(structureResult).Error; err != nil {
+		if err := tx.Clauses(repository.StructureUpsertClause()).Create(structureResult).Error; err != nil {
 			return err
 		}
 
 		// 6. liquidity
-		if err := tx.Create(liquidityResult).Error; err != nil {
+		if err := tx.Clauses(repository.LiquidityUpsertClause()).Create(liquidityResult).Error; err != nil {
 			return err
 		}
 
 		// 7. signals
-		if err := tx.Create(signalResult).Error; err != nil {
+		if err := tx.Clauses(repository.SignalUpsertClause()).Create(signalResult).Error; err != nil {
 			return err
 		}
 
@@ -139,6 +143,24 @@ func persistMicrostructureEventsTx(tx *gorm.DB, events []models.MicrostructureEv
 		return nil
 	}
 	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&events).Error
+}
+
+func hydrateOrderFlowID(tx *gorm.DB, orderFlow *models.OrderFlow) error {
+	if orderFlow == nil {
+		return nil
+	}
+
+	var persisted models.OrderFlow
+	if err := tx.
+		Select("id").
+		Where("symbol = ? AND interval_type = ? AND open_time = ?", orderFlow.Symbol, orderFlow.IntervalType, orderFlow.OpenTime).
+		Order("id DESC").
+		First(&persisted).Error; err != nil {
+		return err
+	}
+
+	orderFlow.ID = persisted.ID
+	return nil
 }
 
 // isDeadlock 判断 err 是否为 MySQL 死锁错误（Error 1213）。

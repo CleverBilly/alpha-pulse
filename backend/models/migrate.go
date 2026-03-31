@@ -28,5 +28,9 @@ func AutoMigrate(db *gorm.DB) error {
 		}
 	}
 
+	if err := ensureSnapshotSeriesUniqueIndexes(db); err != nil {
+		return err
+	}
+
 	return syncMySQLSchemaComments(db, models)
 }

@@ -15,9 +15,9 @@ func NewSignalRepository(db *gorm.DB) *SignalRepository {
 	return &SignalRepository{db: db}
 }
 
-// Create 写入一条交易信号。
+// Create 写入或更新一条交易信号。
 func (r *SignalRepository) Create(signal *models.Signal) error {
-	return r.db.Create(signal).Error
+	return r.db.Clauses(SignalUpsertClause()).Create(signal).Error
 }
 
 // GetLatest 查询指定交易对的最新信号。

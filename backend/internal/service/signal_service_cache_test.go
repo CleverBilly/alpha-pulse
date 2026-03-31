@@ -66,6 +66,78 @@ func TestGetMarketSnapshotUsesCacheAndSkipsDuplicatePersistence(t *testing.T) {
 	assertServiceCount(t, db, &models.Signal{}, "symbol = ?", 1, "BTCUSDT")
 }
 
+func TestSnapshotSeriesUpsertsCoreRowsByIntervalAndOpenTime(t *testing.T) {
+	db := newServiceTestDB(t)
+	openTime := int64(1741300200000)
+
+	firstIndicator := models.Indicator{Symbol: "BTCUSDT", IntervalType: "5m", OpenTime: openTime, RSI: 32, EMA20: 1, EMA50: 1, ATR: 1, BollingerUpper: 2, BollingerMiddle: 1.5, BollingerLower: 1, VWAP: 1.2}
+	secondIndicator := models.Indicator{Symbol: "BTCUSDT", IntervalType: "5m", OpenTime: openTime, RSI: 48, EMA20: 1, EMA50: 1, ATR: 1, BollingerUpper: 2, BollingerMiddle: 1.5, BollingerLower: 1, VWAP: 1.2}
+	firstOrderFlow := models.OrderFlow{Symbol: "BTCUSDT", IntervalType: "5m", OpenTime: openTime, BuyVolume: 10, SellVolume: 8, Delta: 2, CVD: 2, DataSource: "agg_trade"}
+	secondOrderFlow := models.OrderFlow{Symbol: "BTCUSDT", IntervalType: "5m", OpenTime: openTime, BuyVolume: 14, SellVolume: 9, Delta: 5, CVD: 5, DataSource: "agg_trade"}
+	firstStructure := models.Structure{Symbol: "BTCUSDT", IntervalType: "5m", OpenTime: openTime, Trend: "uptrend", Support: 1, Resistance: 2}
+	secondStructure := models.Structure{Symbol: "BTCUSDT", IntervalType: "5m", OpenTime: openTime, Trend: "range", Support: 1.1, Resistance: 2.1}
+	firstLiquidity := models.Liquidity{Symbol: "BTCUSDT", IntervalType: "5m", OpenTime: openTime, BuyLiquidity: 1, SellLiquidity: 2, SweepType: "sell_sweep", DataSource: "kline"}
+	secondLiquidity := models.Liquidity{Symbol: "BTCUSDT", IntervalType: "5m", OpenTime: openTime, BuyLiquidity: 1.2, SellLiquidity: 2.2, SweepType: "buy_sweep", DataSource: "kline"}
+	firstSignal := models.Signal{Symbol: "BTCUSDT", IntervalType: "5m", OpenTime: openTime, Action: "BUY", Score: 60, Confidence: 72, EntryPrice: 100, StopLoss: 95, TargetPrice: 110}
+	secondSignal := models.Signal{Symbol: "BTCUSDT", IntervalType: "5m", OpenTime: openTime, Action: "SELL", Score: -40, Confidence: 55, EntryPrice: 101, StopLoss: 106, TargetPrice: 92}
+
+	for _, operation := range []func() error{
+		func() error { return db.Clauses(repository.IndicatorUpsertClause()).Create(&firstIndicator).Error },
+		func() error { return db.Clauses(repository.IndicatorUpsertClause()).Create(&secondIndicator).Error },
+		func() error { return db.Clauses(repository.OrderFlowUpsertClause()).Create(&firstOrderFlow).Error },
+		func() error { return db.Clauses(repository.OrderFlowUpsertClause()).Create(&secondOrderFlow).Error },
+		func() error { return db.Clauses(repository.StructureUpsertClause()).Create(&firstStructure).Error },
+		func() error { return db.Clauses(repository.StructureUpsertClause()).Create(&secondStructure).Error },
+		func() error { return db.Clauses(repository.LiquidityUpsertClause()).Create(&firstLiquidity).Error },
+		func() error { return db.Clauses(repository.LiquidityUpsertClause()).Create(&secondLiquidity).Error },
+		func() error { return db.Clauses(repository.SignalUpsertClause()).Create(&firstSignal).Error },
+		func() error { return db.Clauses(repository.SignalUpsertClause()).Create(&secondSignal).Error },
+	} {
+		if err := operation(); err != nil {
+			t.Fatalf("snapshot series upsert failed: %v", err)
+		}
+	}
+
+	assertServiceCount(t, db, &models.Indicator{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "5m", openTime)
+	assertServiceCount(t, db, &models.OrderFlow{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "5m", openTime)
+	assertServiceCount(t, db, &models.Structure{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "5m", openTime)
+	assertServiceCount(t, db, &models.Liquidity{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "5m", openTime)
+	assertServiceCount(t, db, &models.Signal{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "5m", openTime)
+
+	var persistedIndicator models.Indicator
+	if err := db.Where("symbol = ? AND interval_type = ? AND open_time = ?", "BTCUSDT", "5m", openTime).First(&persistedIndicator).Error; err != nil {
+		t.Fatalf("load persisted indicator failed: %v", err)
+	}
+	if persistedIndicator.RSI != secondIndicator.RSI {
+		t.Fatalf("expected indicator upsert to keep latest RSI: got=%v want=%v", persistedIndicator.RSI, secondIndicator.RSI)
+	}
+}
+
+func TestGetMarketSnapshotPersistsDistinctRowsPerInterval(t *testing.T) {
+	db := newServiceTestDB(t)
+	service := newTestSignalService(t, db, nil, 0)
+
+	fiveMinute, err := service.GetMarketSnapshotWithRefresh("BTCUSDT", "5m", 24, true)
+	if err != nil {
+		t.Fatalf("5m refresh GetMarketSnapshot failed: %v", err)
+	}
+	fifteenMinute, err := service.GetMarketSnapshotWithRefresh("BTCUSDT", "15m", 24, true)
+	if err != nil {
+		t.Fatalf("15m refresh GetMarketSnapshot failed: %v", err)
+	}
+
+	assertServiceCount(t, db, &models.Indicator{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "5m", fiveMinute.Signal.OpenTime)
+	assertServiceCount(t, db, &models.Indicator{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "15m", fifteenMinute.Signal.OpenTime)
+	assertServiceCount(t, db, &models.Structure{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "5m", fiveMinute.Signal.OpenTime)
+	assertServiceCount(t, db, &models.Structure{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "15m", fifteenMinute.Signal.OpenTime)
+	assertServiceCount(t, db, &models.Liquidity{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "5m", fiveMinute.Signal.OpenTime)
+	assertServiceCount(t, db, &models.Liquidity{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "15m", fifteenMinute.Signal.OpenTime)
+	assertServiceCount(t, db, &models.OrderFlow{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "5m", fiveMinute.Signal.OpenTime)
+	assertServiceCount(t, db, &models.OrderFlow{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "15m", fifteenMinute.Signal.OpenTime)
+	assertServiceCount(t, db, &models.Signal{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "5m", fiveMinute.Signal.OpenTime)
+	assertServiceCount(t, db, &models.Signal{}, "symbol = ? AND interval_type = ? AND open_time = ?", 1, "BTCUSDT", "15m", fifteenMinute.Signal.OpenTime)
+}
+
 func TestGetSignalTimelineUsesCache(t *testing.T) {
 	db := newServiceTestDB(t)
 	snapshotCache := &memorySnapshotCache{
@@ -262,7 +334,6 @@ func TestGetSignalDoesNotEvictSnapshotCache(t *testing.T) {
 		t.Fatalf("expected no additional cache writes after GetSignal: setCalls got=%d want=%d", cache.setCalls, setCalls)
 	}
 }
-
 
 func TestGetMarketSnapshotEmitsUnifiedDurationLogs(t *testing.T) {
 	db := newServiceTestDB(t)

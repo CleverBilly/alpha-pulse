@@ -117,6 +117,9 @@ func (s *MarketService) GetIndicators(symbol, interval string) (models.Indicator
 	if err != nil {
 		return models.Indicator{}, err
 	}
+	latestKline := klines[len(klines)-1]
+	result.IntervalType = interval
+	result.OpenTime = latestKline.OpenTime
 
 	if err := s.indicatorRepo.Create(&result); err != nil {
 		return models.Indicator{}, err
@@ -222,7 +225,10 @@ func (s *MarketService) GetOrderFlow(symbol, interval string) (models.OrderFlow,
 	}
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		// orderflow 必须先写（autoIncrement 回填 ID，后续从表依赖）
-		if err := tx.Create(&result).Error; err != nil {
+		if err := tx.Clauses(repository.OrderFlowUpsertClause()).Create(&result).Error; err != nil {
+			return err
+		}
+		if err := hydrateOrderFlowID(tx, &result); err != nil {
 			return err
 		}
 		// large_trade_events（ON DUPLICATE KEY UPDATE）
@@ -285,7 +291,9 @@ func (s *MarketService) GetStructure(symbol, interval string) (models.Structure,
 	if err != nil {
 		return models.Structure{}, err
 	}
-	if err := s.db.Create(&result).Error; err != nil {
+	result.IntervalType = interval
+	result.OpenTime = klines[len(klines)-1].OpenTime
+	if err := s.db.Clauses(repository.StructureUpsertClause()).Create(&result).Error; err != nil {
 		return models.Structure{}, err
 	}
 	// 结构分析结果不影响 indicator-series 或 liquidity-series，无需清 analysisCache。
@@ -373,7 +381,12 @@ func (s *MarketService) GetLiquidity(symbol, interval string) (models.Liquidity,
 		&result,
 		nil,
 	)
-	if err := s.db.Create(&result).Error; err != nil {
+	latestKline, latestErr := s.klineRepo.GetLatest(symbol, interval)
+	if latestErr == nil {
+		result.IntervalType = interval
+		result.OpenTime = latestKline.OpenTime
+	}
+	if err := s.db.Clauses(repository.LiquidityUpsertClause()).Create(&result).Error; err != nil {
 		return models.Liquidity{}, err
 	}
 	// 新流动性结果只影响流动性序列视图。

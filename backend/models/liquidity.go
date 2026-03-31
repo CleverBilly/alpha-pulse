@@ -57,6 +57,8 @@ type LiquidityWallEvolution struct {
 type Liquidity struct {
 	ID                 uint64    `gorm:"primaryKey;autoIncrement;comment:主键 ID" json:"id"`
 	Symbol             string    `gorm:"size:20;index;not null;comment:交易对代码，如 BTCUSDT" json:"symbol"`
+	IntervalType       string    `gorm:"column:interval_type;size:10;index;not null;default:'1m';comment:流动性所属周期" json:"interval_type"`
+	OpenTime           int64     `gorm:"column:open_time;index;not null;default:0;comment:对齐的 K 线起始时间，Unix 毫秒" json:"open_time"`
 	BuyLiquidity       float64   `gorm:"column:buy_liquidity;type:decimal(18,8);not null;comment:下方主要买方流动性位" json:"buy_liquidity"`
 	SellLiquidity      float64   `gorm:"column:sell_liquidity;type:decimal(18,8);not null;comment:上方主要卖方流动性位" json:"sell_liquidity"`
 	SweepType          string    `gorm:"column:sweep_type;size:20;not null;comment:最近识别到的扫流动性类型" json:"sweep_type"`

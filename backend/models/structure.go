@@ -13,14 +13,16 @@ type StructureEvent struct {
 
 // Structure 对应 structure 表，保存市场结构分析结果。
 type Structure struct {
-	ID         uint64    `gorm:"primaryKey;autoIncrement;comment:主键 ID" json:"id"`
-	Symbol     string    `gorm:"size:20;index;not null;comment:交易对代码，如 BTCUSDT" json:"symbol"`
-	Trend      string    `gorm:"size:20;not null;comment:当前市场结构趋势，如 uptrend、downtrend、range" json:"trend"`
-	Support    float64   `gorm:"type:decimal(18,8);not null;comment:当前主支撑位" json:"support"`
-	Resistance float64   `gorm:"type:decimal(18,8);not null;comment:当前主阻力位" json:"resistance"`
-	BOS        bool      `gorm:"column:bos;not null;comment:是否出现结构突破 BOS" json:"bos"`
-	Choch      bool      `gorm:"column:choch;not null;comment:是否出现角色转换 CHOCH" json:"choch"`
-	CreatedAt  time.Time `gorm:"column:created_at;autoCreateTime;comment:结构分析入库时间" json:"created_at"`
+	ID           uint64    `gorm:"primaryKey;autoIncrement;comment:主键 ID" json:"id"`
+	Symbol       string    `gorm:"size:20;index;not null;comment:交易对代码，如 BTCUSDT" json:"symbol"`
+	IntervalType string    `gorm:"column:interval_type;size:10;index;not null;default:'1m';comment:结构所属周期" json:"interval_type"`
+	OpenTime     int64     `gorm:"column:open_time;index;not null;default:0;comment:对齐的 K 线起始时间，Unix 毫秒" json:"open_time"`
+	Trend        string    `gorm:"size:20;not null;comment:当前市场结构趋势，如 uptrend、downtrend、range" json:"trend"`
+	Support      float64   `gorm:"type:decimal(18,8);not null;comment:当前主支撑位" json:"support"`
+	Resistance   float64   `gorm:"type:decimal(18,8);not null;comment:当前主阻力位" json:"resistance"`
+	BOS          bool      `gorm:"column:bos;not null;comment:是否出现结构突破 BOS" json:"bos"`
+	Choch        bool      `gorm:"column:choch;not null;comment:是否出现角色转换 CHOCH" json:"choch"`
+	CreatedAt    time.Time `gorm:"column:created_at;autoCreateTime;comment:结构分析入库时间" json:"created_at"`
 
 	// PrimaryTier 不落库，用于说明当前 support/resistance 采用的 swing hierarchy 层级。
 	PrimaryTier string `gorm:"-" json:"primary_tier,omitempty"`

@@ -283,6 +283,8 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 		logServiceDuration("signal_service", "market_snapshot.indicator", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
+	indicatorResult.IntervalType = interval
+	indicatorResult.OpenTime = latestKline.OpenTime
 	logServiceDuration("signal_service", "market_snapshot.indicator", symbol, interval, chartLimit, stageStartedAt, "ok", "")
 
 	stageStartedAt = time.Now()
@@ -317,6 +319,8 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 		logServiceDuration("signal_service", "market_snapshot.structure", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
+	structureResult.IntervalType = interval
+	structureResult.OpenTime = latestKline.OpenTime
 	logServiceDuration("signal_service", "market_snapshot.structure", symbol, interval, chartLimit, stageStartedAt, "ok", "")
 
 	stageStartedAt = time.Now()
@@ -341,6 +345,8 @@ func (s *SignalService) buildMarketSnapshot(symbol, interval string, limit int, 
 		logServiceDuration("signal_service", "market_snapshot.liquidity", symbol, interval, chartLimit, stageStartedAt, "error", err.Error())
 		return MarketSnapshot{}, err
 	}
+	liquidityResult.IntervalType = interval
+	liquidityResult.OpenTime = latestKline.OpenTime
 	logServiceDuration("signal_service", "market_snapshot.liquidity", symbol, interval, chartLimit, stageStartedAt, "ok", "", observability.String("source", liquidityResult.DataSource))
 
 	stageStartedAt = time.Now()
