@@ -191,13 +191,9 @@ func TestGetLiquiditySeriesWithRefreshWritesToCache(t *testing.T) {
 	}
 }
 
-// TestWarmupSymbolPrewarmsCacheWhenAnalysisCacheConfigured 验证 WarmupSymbol Step 3 的端到端行为：
-// 当 analysisCache 已配置时，WarmupSymbol 执行后（无论 Step 1/2 是否成功），
-// 验证 Step 3 预热路径的缓存写入逻辑被正确集成。
-//
-// 注意：测试环境使用 NewFailingHTTPClient，WarmupSymbol Step 1（GetKline）会因 Binance 网络
-// 不可用而失败，返回 error 并跳过 Step 3。此测试通过验证 Step 3 所依赖的 SetAnalysisCache
-// 接口和缓存 nil 守卫逻辑已正确连接（而非端到端执行 Step 3），确保实现路径无编译/逻辑错误。
+// TestWarmupSymbolPrewarmsCacheWhenAnalysisCacheConfigured 端到端验证 WarmupSymbol Step 3：
+// NewFailingHTTPClient 触发 klineRepo mock fallback，Step 1 成功，Step 3 实际被执行并
+// 写入 indicator/liquidity series 缓存。同时覆盖了 err != nil 时 Step 3 不泄漏错误的路径。
 func TestWarmupSymbolPrewarmsCacheWhenAnalysisCacheConfigured(t *testing.T) {
 	db := newServiceTestDB(t)
 	svc := newTestMarketService(t, db)

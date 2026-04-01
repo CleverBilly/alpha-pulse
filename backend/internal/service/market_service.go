@@ -556,10 +556,10 @@ func (s *MarketService) WarmupSymbol(symbol string) error {
 		const prewarmInterval = "1m"
 		const prewarmLimit = 30
 		if _, err := s.GetIndicatorSeriesWithRefresh(symbol, prewarmInterval, prewarmLimit, true); err != nil {
-			log.Printf("component=market_service stage=prewarm symbol=%s series=indicator err=%v", symbol, err)
+			log.Printf("prewarm indicator series failed: symbol=%s err=%v", symbol, err)
 		}
 		if _, err := s.GetLiquiditySeriesWithRefresh(symbol, prewarmInterval, prewarmLimit, true); err != nil {
-			log.Printf("component=market_service stage=prewarm symbol=%s series=liquidity err=%v", symbol, err)
+			log.Printf("prewarm liquidity series failed: symbol=%s err=%v", symbol, err)
 		}
 	}
 
