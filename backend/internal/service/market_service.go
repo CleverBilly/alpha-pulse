@@ -518,6 +518,8 @@ func (s *MarketService) WarmupSymbol(symbol string) error {
 	}
 	if s.orderBookRepo != nil {
 		if snapshot, err := s.collector.GetDepthSnapshot(symbol, 20); err == nil {
+			// 盘口快照落库采用 best-effort 策略：失败不阻断四引擎并发预热，
+			// 引擎在盘口数据缺失时有降级逻辑。
 			_ = s.orderBookRepo.Create(&snapshot)
 		}
 	}
