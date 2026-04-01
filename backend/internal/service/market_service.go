@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log"
 	"strings"
 	"time"
 
@@ -544,7 +545,25 @@ func (s *MarketService) WarmupSymbol(symbol string) error {
 		return err
 	})
 
-	return g.Wait()
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	// Step 3: 主动预热分析序列缓存（write-through）。
+	// 四引擎写库完成后立即重建序列缓存，后续请求 100% 命中，消除 DB 压力峰值（G-05）。
+	// 预热失败只记录日志，不影响主流程返回值。
+	if s.analysisCache != nil && s.analysisCacheTTL > 0 {
+		const prewarmInterval = "1m"
+		const prewarmLimit = 30
+		if _, err := s.GetIndicatorSeriesWithRefresh(symbol, prewarmInterval, prewarmLimit, true); err != nil {
+			log.Printf("component=market_service stage=prewarm symbol=%s series=indicator err=%v", symbol, err)
+		}
+		if _, err := s.GetLiquiditySeriesWithRefresh(symbol, prewarmInterval, prewarmLimit, true); err != nil {
+			log.Printf("component=market_service stage=prewarm symbol=%s series=liquidity err=%v", symbol, err)
+		}
+	}
+
+	return nil
 }
 
 func normalizeSymbol(symbol string) string {
