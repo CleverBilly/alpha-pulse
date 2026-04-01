@@ -34,12 +34,15 @@ func (cb *CircuitBreaker) IsOpen() bool {
 	return true
 }
 
-// RecordFailure 记录一次失败，达到阈值时打开熔断器。
+// RecordFailure 记录一次失败，达到阈值时打开熔断器。已打开时不再累加计数。
 func (cb *CircuitBreaker) RecordFailure(err error) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
+	if !cb.openedAt.IsZero() {
+		return // 熔断已打开，避免计数无限累加
+	}
 	cb.consecutiveFails++
-	if cb.consecutiveFails >= cb.threshold && cb.openedAt.IsZero() {
+	if cb.consecutiveFails >= cb.threshold {
 		cb.openedAt = time.Now()
 	}
 }
