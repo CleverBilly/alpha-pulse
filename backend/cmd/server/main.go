@@ -224,6 +224,14 @@ func main() {
 	// 启动定时任务。
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// 当 StreamCollector 和 Scheduler 同时开启时，建立 K线收盘事件 channel，
+	// 驱动 Scheduler 在 K线收盘时立即触发分析，将信号延迟从 ~15s 压缩至 <1s。
+	var klineEvents chan collector.KlineClosedEvent
+	if cfg.EnableStreamCollector && cfg.EnableScheduler {
+		klineEvents = make(chan collector.KlineClosedEvent, 32)
+	}
+
 	if cfg.EnableStreamCollector {
 		streamCollector := collector.NewBinanceStreamCollector(
 			cfg.MarketSymbols,
@@ -234,22 +242,27 @@ func main() {
 					cacheInvalidator.InvalidateSymbol(symbol)
 				}
 			},
-			nil, // klineEvents: Task 3 会替换为真实 channel 以驱动事件触发分析
+			klineEvents, // 事件驱动模式；仅 EnableScheduler=true 时非 nil
 		)
 		streamCollector.Start(ctx)
 	} else {
 		log.Printf("stream collector skipped: mode=%s", cfg.AppMode)
 	}
 	if cfg.EnableScheduler {
+		schedulerInterval := time.Duration(cfg.SchedulerIntervalSeconds) * time.Second
+		if cfg.EnableStreamCollector && klineEvents != nil {
+			// 事件驱动模式下兜底间隔放宽至 60s，减少轮询对 DB 的压力。
+			schedulerInterval = 60 * time.Second
+		}
 		jobs := scheduler.NewJobs(
 			marketService,
 			signalService,
 			alertService,
 			outcomeTracker,
 			cfg.MarketSymbols,
-			time.Duration(cfg.SchedulerIntervalSeconds)*time.Second,
+			schedulerInterval,
 		)
-		go jobs.Start(ctx)
+		go jobs.StartWithKlineEvents(ctx, klineEvents)
 	} else {
 		log.Printf("scheduler skipped: mode=%s", cfg.AppMode)
 	}

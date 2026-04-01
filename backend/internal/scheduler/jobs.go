@@ -6,12 +6,18 @@ import (
 	"strings"
 	"time"
 
+	"alpha-pulse/backend/internal/collector"
 	"alpha-pulse/backend/internal/service"
 )
 
+// MarketServiceWarmup 描述 Scheduler 依赖的 MarketService 能力子集，便于测试 stub。
+type MarketServiceWarmup interface {
+	WarmupSymbol(symbol string) error
+}
+
 // Jobs 管理后台定时任务。
 type Jobs struct {
-	marketService  *service.MarketService
+	marketService  MarketServiceWarmup
 	signalService  *service.SignalService
 	alertService   *service.AlertService
 	outcomeTracker *service.OutcomeTrackerService
@@ -21,7 +27,7 @@ type Jobs struct {
 
 // NewJobs 创建任务调度器。
 func NewJobs(
-	marketService *service.MarketService,
+	marketService MarketServiceWarmup,
 	signalService *service.SignalService,
 	alertService *service.AlertService,
 	outcomeTracker *service.OutcomeTrackerService,
@@ -46,8 +52,11 @@ func NewJobs(
 	}
 }
 
-// Start 启动定时任务，按配置间隔刷新核心分析数据。
-func (j *Jobs) Start(ctx context.Context) {
+// StartWithKlineEvents 启动事件驱动模式：
+//   - klineEvents 有新收盘事件时立即触发分析
+//   - 每 j.interval 兜底触发一次全量刷新
+//   - klineEvents 为 nil 时退化为纯轮询模式（等价于原 Start）
+func (j *Jobs) StartWithKlineEvents(ctx context.Context, klineEvents <-chan collector.KlineClosedEvent) {
 	j.runOnce()
 
 	ticker := time.NewTicker(j.interval)
@@ -60,6 +69,31 @@ func (j *Jobs) Start(ctx context.Context) {
 			return
 		case <-ticker.C:
 			j.runOnce()
+		case event := <-klineEvents: // nil channel 永不触发此 case
+			j.handleKlineEvent(event)
+		}
+	}
+}
+
+// Start 使用轮询模式启动（兜底）。新部署请使用 StartWithKlineEvents。
+func (j *Jobs) Start(ctx context.Context) {
+	j.StartWithKlineEvents(ctx, nil)
+}
+
+// handleKlineEvent 在 K线收盘时触发对应 symbol/interval 的快速分析链。
+func (j *Jobs) handleKlineEvent(event collector.KlineClosedEvent) {
+	if err := j.marketService.WarmupSymbol(event.Symbol); err != nil {
+		log.Printf("event-driven warmup failed for %s/%s: %v", event.Symbol, event.Interval, err)
+		return
+	}
+	if j.signalService != nil {
+		if _, err := j.signalService.GetSignal(event.Symbol, event.Interval); err != nil {
+			log.Printf("event-driven signal failed for %s/%s: %v", event.Symbol, event.Interval, err)
+		}
+	}
+	if j.alertService != nil {
+		if _, err := j.alertService.EvaluateAll(context.Background(), true); err != nil {
+			log.Printf("event-driven alert eval failed: %v", err)
 		}
 	}
 }
@@ -70,8 +104,10 @@ func (j *Jobs) runOnce() {
 			log.Printf("warmup failed for %s: %v", symbol, err)
 			continue
 		}
-		if _, err := j.signalService.GetSignal(symbol, "1m"); err != nil {
-			log.Printf("signal generation failed for %s: %v", symbol, err)
+		if j.signalService != nil {
+			if _, err := j.signalService.GetSignal(symbol, "1m"); err != nil {
+				log.Printf("signal generation failed for %s: %v", symbol, err)
+			}
 		}
 	}
 
