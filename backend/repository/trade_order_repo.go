@@ -102,3 +102,27 @@ func (r *TradeOrderRepository) List(limit int, symbol, status, source string) ([
 func (r *TradeOrderRepository) Save(order *models.TradeOrder) error {
 	return r.db.Save(order).Error
 }
+
+// FindOpenBySymbols 批量查询多个 symbol 的 open 持仓，返回 symbol→orders 映射。
+func (r *TradeOrderRepository) FindOpenBySymbols(symbols []string) (map[string][]models.TradeOrder, error) {
+	if len(symbols) == 0 {
+		return map[string][]models.TradeOrder{}, nil
+	}
+	var orders []models.TradeOrder
+	err := r.db.
+		Where("symbol IN ? AND status = ?", symbols, "open").
+		Order("created_at desc").
+		Find(&orders).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string][]models.TradeOrder, len(symbols))
+	for _, s := range symbols {
+		result[s] = []models.TradeOrder{}
+	}
+	for _, o := range orders {
+		result[o.Symbol] = append(result[o.Symbol], o)
+	}
+	return result, nil
+}

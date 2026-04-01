@@ -82,19 +82,27 @@ func (r *TradeRuntime) SyncPositions(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if len(positions) == 0 {
+		return nil
+	}
 
+	// 收集所有 position symbol，单次批量查询，消除 N+1
+	symbols := make([]string, 0, len(positions))
 	remote := make(map[string]FuturesPosition, len(positions))
-	for _, position := range positions {
-		remote[position.Symbol] = position
+	for _, p := range positions {
+		symbols = append(symbols, p.Symbol)
+		remote[p.Symbol] = p
+	}
 
-		existing, err := r.orderRepo.FindOpen(position.Symbol)
-		if err != nil {
-			return err
-		}
-		if len(existing) > 0 {
+	openBySymbol, err := r.orderRepo.FindOpenBySymbols(symbols)
+	if err != nil {
+		return err
+	}
+
+	for _, position := range positions {
+		if len(openBySymbol[position.Symbol]) > 0 {
 			continue
 		}
-
 		manual := models.TradeOrder{
 			Symbol:          position.Symbol,
 			Side:            position.Side,

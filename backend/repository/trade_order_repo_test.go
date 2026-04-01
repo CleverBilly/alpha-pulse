@@ -95,3 +95,26 @@ func TestTradeOrderRepositoryFindOpenAndPendingFill(t *testing.T) {
 		t.Fatalf("unexpected open order: %+v", openOrders[0])
 	}
 }
+
+func TestFindOpenBySymbolsReturnsBatchResult(t *testing.T) {
+	db := newTradeOrderTestDB(t)
+	repo := NewTradeOrderRepository(db)
+
+	_ = repo.Create(&models.TradeOrder{Symbol: "BTCUSDT", Status: "open", Source: "system"})
+	_ = repo.Create(&models.TradeOrder{Symbol: "ETHUSDT", Status: "open", Source: "system"})
+	_ = repo.Create(&models.TradeOrder{Symbol: "SOLUSDT", Status: "closed", Source: "system"})
+
+	result, err := repo.FindOpenBySymbols([]string{"BTCUSDT", "ETHUSDT", "SOLUSDT"})
+	if err != nil {
+		t.Fatalf("FindOpenBySymbols: %v", err)
+	}
+	if len(result["BTCUSDT"]) != 1 {
+		t.Errorf("expected 1 BTCUSDT open order, got %d", len(result["BTCUSDT"]))
+	}
+	if len(result["ETHUSDT"]) != 1 {
+		t.Errorf("expected 1 ETHUSDT open order, got %d", len(result["ETHUSDT"]))
+	}
+	if len(result["SOLUSDT"]) != 0 {
+		t.Errorf("expected 0 SOLUSDT open orders, got %d", len(result["SOLUSDT"]))
+	}
+}
