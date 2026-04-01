@@ -20,6 +20,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&AlertPreference{},
 		&TradeSetting{},
 		&TradeOrder{},
+		&SignalConfig{},
 	}
 
 	for _, model := range models {
