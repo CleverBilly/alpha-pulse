@@ -15,6 +15,7 @@ type HandlerSet struct {
 	Auth             *handler.AuthHandler
 	Alert            *handler.AlertHandler
 	Trade            *handler.TradeHandler
+	SignalConfig     *handler.SignalConfigHandler
 	AuthRequired     gin.HandlerFunc
 	CORSAllowOrigins []string
 }
@@ -74,6 +75,10 @@ func SetupRouter(handlers HandlerSet) *gin.Engine {
 			protected.GET("/trades", handlers.Trade.ListOrders)
 			protected.GET("/trades/runtime", handlers.Trade.GetRuntime)
 			protected.POST("/trades/:id/close", handlers.Trade.CloseOrder)
+		}
+		if handlers.SignalConfig != nil {
+			protected.GET("/signal-configs", handlers.SignalConfig.List)
+			protected.PATCH("/signal-configs", handlers.SignalConfig.Patch)
 		}
 	}
 

@@ -75,7 +75,6 @@ func main() {
 	orderFlowEngine := orderflow.NewEngine()
 	structureEngine := structureengine.NewEngine()
 	liquidityEngine := liquidity.NewEngine()
-	signalEngine := signalengine.NewEngine()
 	explainEngine := ai.NewEngine()
 
 	klineRepo := repository.NewKlineRepository(db)
@@ -90,6 +89,17 @@ func main() {
 	alertPreferenceRepo := repository.NewAlertPreferenceRepository(db)
 	tradeSettingRepo := repository.NewTradeSettingRepository(db)
 	tradeOrderRepo := repository.NewTradeOrderRepository(db)
+	signalConfigRepo := repository.NewSignalConfigRepository(db)
+
+	// 从 DB 加载信号配置，初始化支持热更新的 ConfigProvider 与 Signal Engine。
+	signalConfigAllConfigs, err := signalConfigRepo.GetAll()
+	if err != nil {
+		log.Printf("warn: failed to load signal configs, using defaults: %v", err)
+		signalConfigAllConfigs = nil
+	}
+	signalConfigProvider := signalengine.NewDBConfigProvider(signalConfigAllConfigs)
+	signalEngine := signalengine.NewEngineWithConfig(signalConfigProvider)
+	signalConfigHandler := handler.NewSignalConfigHandler(signalConfigProvider, signalConfigRepo)
 
 	marketService := service.NewMarketService(
 		db,
@@ -205,6 +215,7 @@ func main() {
 		Auth:             authHandler,
 		Alert:            alertHandler,
 		Trade:            tradeHandler,
+		SignalConfig:     signalConfigHandler,
 		AuthRequired:     authRequired,
 		CORSAllowOrigins: cfg.CORSAllowOrigins,
 	})
