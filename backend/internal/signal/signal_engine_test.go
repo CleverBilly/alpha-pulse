@@ -1,6 +1,7 @@
 package signal
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -872,4 +873,56 @@ func findFactor(factors []models.SignalFactor, key string) *models.SignalFactor 
 
 func containsText(source, target string) bool {
 	return strings.Contains(source, target)
+}
+
+func TestSignalEngineUsesConfigProviderThreshold(t *testing.T) {
+	// ConfigProvider 返回 buy_threshold=60（高于默认值 35）
+	provider := &stubConfigProvider{
+		values: map[string]string{
+			"buy_threshold":  "60",
+			"sell_threshold": "-60",
+		},
+	}
+	engine := NewEngineWithConfig(provider)
+
+	// score≈51（高于默认阈值 35，但低于自定义阈值 60 → 应为 NEUTRAL）
+	signal := engine.Generate("BTCUSDT", 50000,
+		stubIndicatorWithScore(50),
+		models.OrderFlow{}, models.Structure{}, models.Liquidity{},
+	)
+	if signal.Action != "NEUTRAL" {
+		t.Errorf("expected NEUTRAL with threshold=60 and score≈50, got %s (score=%d)", signal.Action, signal.Score)
+	}
+}
+
+type stubConfigProvider struct {
+	values map[string]string
+}
+
+func (p *stubConfigProvider) GetInt(_, _, key string, defaultVal int) int {
+	if v, ok := p.values[key]; ok {
+		n, _ := strconv.Atoi(v)
+		return n
+	}
+	return defaultVal
+}
+
+// stubIndicatorWithScore 返回一个固定 Indicator，忽略参数，配合 price=50000 和空的
+// OrderFlow/Structure/Liquidity 产生约 51 分（trend+25, momentum+20, volatility+6）。
+// price=50000, EMA20=49800>EMA50=49500→trend+25; RSI=62,MACD bullish→momentum+20; ATR/price=0.8%→volatility+6
+func stubIndicatorWithScore(_ int) models.Indicator {
+	return models.Indicator{
+		IntervalType:    "1m",
+		VWAP:            49700,
+		EMA20:           49800,
+		EMA50:           49500,
+		RSI:             62,
+		MACD:            100,
+		MACDSignal:      80,
+		MACDHistogram:   20,
+		ATR:             400,
+		BollingerUpper:  51000,
+		BollingerMiddle: 49900,
+		BollingerLower:  48800,
+	}
 }

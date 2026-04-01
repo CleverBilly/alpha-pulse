@@ -16,11 +16,18 @@ const (
 )
 
 // Engine 负责综合多模块结果生成交易信号。
-type Engine struct{}
+type Engine struct {
+	configProvider ConfigProvider
+}
 
-// NewEngine 创建信号引擎。
+// NewEngine 创建信号引擎，使用静态默认配置。
 func NewEngine() *Engine {
-	return &Engine{}
+	return &Engine{configProvider: &StaticConfigProvider{}}
+}
+
+// NewEngineWithConfig 创建支持动态配置的信号引擎。
+func NewEngineWithConfig(provider ConfigProvider) *Engine {
+	return &Engine{configProvider: provider}
 }
 
 // Generate 根据多因子评分模型生成最终交易信号。
@@ -32,6 +39,10 @@ func (e *Engine) Generate(
 	structure models.Structure,
 	liquidity models.Liquidity,
 ) models.Signal {
+	// 从 ConfigProvider 读取动态阈值，回退到包级常量默认值
+	buyThresholdVal := e.configProvider.GetInt(symbol, indicator.IntervalType, "buy_threshold", buyThreshold)
+	sellThresholdVal := e.configProvider.GetInt(symbol, indicator.IntervalType, "sell_threshold", sellThreshold)
+
 	factors := []models.SignalFactor{
 		e.scoreTrend(price, indicator),
 		e.scoreMomentum(price, indicator),
@@ -46,7 +57,7 @@ func (e *Engine) Generate(
 	factors = append(factors, volatilityFactor)
 
 	score := clampInt(sumFactorScores(factors), -maxAbsScore, maxAbsScore)
-	action := resolveAction(score)
+	action := resolveActionWithThreshold(score, buyThresholdVal, sellThresholdVal)
 	stopLoss, targetPrice := buildRiskTargets(action, price, indicator.ATR, structure)
 	riskReward := calculateRiskReward(price, stopLoss, targetPrice)
 	confidence := calculateConfidence(score, factors, riskReward)
@@ -489,15 +500,14 @@ func newFactor(key, name, section string, score int, reason string) models.Signa
 	}
 }
 
-func resolveAction(score int) string {
-	switch {
-	case score >= buyThreshold:
+func resolveActionWithThreshold(score, buyThresh, sellThresh int) string {
+	if score >= buyThresh {
 		return "BUY"
-	case score <= sellThreshold:
-		return "SELL"
-	default:
-		return "NEUTRAL"
 	}
+	if score <= sellThresh {
+		return "SELL"
+	}
+	return "NEUTRAL"
 }
 
 func deriveTrendBias(score int) string {
