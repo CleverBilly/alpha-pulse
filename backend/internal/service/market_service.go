@@ -13,6 +13,7 @@ import (
 	structureengine "alpha-pulse/backend/internal/structure"
 	"alpha-pulse/backend/models"
 	"alpha-pulse/backend/repository"
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 )
 
@@ -507,32 +508,41 @@ func (s *MarketService) GetKlineAfter(symbol, interval string, afterMs int64, li
 	return s.klineRepo.FindAfter(symbol, interval, afterMs, limit)
 }
 
-// WarmupSymbol 用于定时任务预热核心数据。
+// WarmupSymbol 并发预热四个分析引擎（1m 周期）。
 func (s *MarketService) WarmupSymbol(symbol string) error {
 	symbol = normalizeSymbol(symbol)
+
+	// Step 1: K线和盘口快照必须先落库，后续引擎依赖。
 	if _, err := s.GetKline(symbol, "1m"); err != nil {
 		return err
 	}
 	if s.orderBookRepo != nil {
 		if snapshot, err := s.collector.GetDepthSnapshot(symbol, 20); err == nil {
-			if err := s.orderBookRepo.Create(&snapshot); err != nil {
-				return err
-			}
+			_ = s.orderBookRepo.Create(&snapshot)
 		}
 	}
-	if _, err := s.GetIndicators(symbol, "1m"); err != nil {
+
+	// Step 2: 四个分析引擎并发执行，任一失败整体返回错误。
+	g, _ := errgroup.WithContext(context.Background())
+
+	g.Go(func() error {
+		_, err := s.GetIndicators(symbol, "1m")
 		return err
-	}
-	if _, err := s.GetOrderFlow(symbol, "1m"); err != nil {
+	})
+	g.Go(func() error {
+		_, err := s.GetOrderFlow(symbol, "1m")
 		return err
-	}
-	if _, err := s.GetStructure(symbol, "1m"); err != nil {
+	})
+	g.Go(func() error {
+		_, err := s.GetStructure(symbol, "1m")
 		return err
-	}
-	if _, err := s.GetLiquidity(symbol, "1m"); err != nil {
+	})
+	g.Go(func() error {
+		_, err := s.GetLiquidity(symbol, "1m")
 		return err
-	}
-	return nil
+	})
+
+	return g.Wait()
 }
 
 func normalizeSymbol(symbol string) string {

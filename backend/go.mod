@@ -1,6 +1,6 @@
 module alpha-pulse/backend
 
-go 1.22
+go 1.25.0
 
 require (
 	github.com/adshao/go-binance/v2 v2.8.10
@@ -10,6 +10,8 @@ require (
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/gorm v1.25.12
 )
+
+require golang.org/x/sync v0.20.0
 
 require (
 	github.com/bitly/go-simplejson v0.5.0 // indirect
