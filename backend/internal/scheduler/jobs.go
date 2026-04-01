@@ -75,7 +75,7 @@ func (j *Jobs) StartWithKlineEvents(ctx context.Context, klineEvents <-chan coll
 	}
 }
 
-// Start 使用轮询模式启动（兜底）。新部署请使用 StartWithKlineEvents。
+// Deprecated: 使用 StartWithKlineEvents 替代。Start 等价于 StartWithKlineEvents(ctx, nil)。
 func (j *Jobs) Start(ctx context.Context) {
 	j.StartWithKlineEvents(ctx, nil)
 }

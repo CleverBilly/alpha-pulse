@@ -250,7 +250,7 @@ func main() {
 	}
 	if cfg.EnableScheduler {
 		schedulerInterval := time.Duration(cfg.SchedulerIntervalSeconds) * time.Second
-		if cfg.EnableStreamCollector && klineEvents != nil {
+		if klineEvents != nil {
 			// 事件驱动模式下兜底间隔放宽至 60s，减少轮询对 DB 的压力。
 			schedulerInterval = 60 * time.Second
 		}

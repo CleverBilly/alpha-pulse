@@ -35,6 +35,7 @@ func TestKlineEventTriggersWarmup(t *testing.T) {
 
 	// 等待处理
 	time.Sleep(100 * time.Millisecond)
+	cancel() // 确保 goroutine 在断言前退出，避免测试退出时 goroutine 泄漏
 
 	if warmupCount.Load() < 1 {
 		t.Errorf("expected WarmupSymbol to be called at least once, got %d", warmupCount.Load())
