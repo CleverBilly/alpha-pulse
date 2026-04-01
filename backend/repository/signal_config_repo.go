@@ -16,10 +16,10 @@ func NewSignalConfigRepository(db *gorm.DB) *SignalConfigRepository {
 	return &SignalConfigRepository{db: db}
 }
 
-// GetAll 返回所有信号配置。
+// GetAll 返回所有信号配置，按 ID 升序排列。
 func (r *SignalConfigRepository) GetAll() ([]models.SignalConfig, error) {
 	var configs []models.SignalConfig
-	return configs, r.db.Find(&configs).Error
+	return configs, r.db.Order("id asc").Find(&configs).Error
 }
 
 // GetBySymbolInterval 按 symbol + interval 查询所有配置。

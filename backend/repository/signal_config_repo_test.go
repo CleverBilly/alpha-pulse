@@ -70,6 +70,9 @@ func TestSignalConfigUpsertUpdate(t *testing.T) {
 	if configs[0].Value != "50" {
 		t.Errorf("expected value=50 after update, got %s", configs[0].Value)
 	}
+	if configs[0].UpdatedAt.IsZero() {
+		t.Error("expected UpdatedAt to be set after upsert")
+	}
 }
 
 func TestSignalConfigGetBySymbolInterval(t *testing.T) {
