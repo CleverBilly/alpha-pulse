@@ -37,18 +37,24 @@ type TradeStaticConfig struct {
 
 // TradeExecutorService 负责执行限价开仓与兜底收口。
 type TradeExecutorService struct {
-	client   TradeClient
-	orderRepo *repository.TradeOrderRepository
-	now      func() time.Time
+	client       TradeClient
+	orderRepo    *repository.TradeOrderRepository
+	accountCache *AccountStateCache // nil 时降级为直接调用 API
+	now          func() time.Time
 }
 
-// NewTradeExecutorService 创建 TradeExecutorService。
+// NewTradeExecutorService 创建 TradeExecutorService。签名保持不变，accountCache 通过 SetAccountStateCache 注入。
 func NewTradeExecutorService(client TradeClient, orderRepo *repository.TradeOrderRepository) *TradeExecutorService {
 	return &TradeExecutorService{
-		client:   client,
+		client:    client,
 		orderRepo: orderRepo,
-		now:      time.Now,
+		now:       time.Now,
 	}
+}
+
+// SetAccountStateCache 注入账户状态缓存（可选）。注入后 ExecuteLimitEntry 优先读缓存，降低下单延迟。
+func (s *TradeExecutorService) SetAccountStateCache(cache *AccountStateCache) {
+	s.accountCache = cache
 }
 
 // ExecuteLimitEntry 提交限价开仓并创建 pending_fill 订单。
@@ -60,17 +66,38 @@ func (s *TradeExecutorService) ExecuteLimitEntry(ctx context.Context, event Aler
 		return models.TradeOrder{}, fmt.Errorf("risk reward below threshold")
 	}
 
-	balance, err := s.client.GetFuturesBalance()
-	if err != nil {
-		return models.TradeOrder{}, err
-	}
-	leverage, err := s.client.GetFuturesLeverage(event.Symbol)
-	if err != nil {
-		return models.TradeOrder{}, err
-	}
-	rules, err := s.client.GetFuturesSymbolRules(event.Symbol)
-	if err != nil {
-		return models.TradeOrder{}, err
+	var balance float64
+	var leverage int
+	var rules FuturesSymbolRules
+	var err error
+
+	if s.accountCache != nil && !s.accountCache.IsStale() {
+		balance, err = s.accountCache.GetBalance()
+		if err != nil {
+			return models.TradeOrder{}, err
+		}
+		leverage, err = s.accountCache.GetLeverage(event.Symbol)
+		if err != nil {
+			return models.TradeOrder{}, err
+		}
+		rules, err = s.accountCache.GetRules(event.Symbol)
+		if err != nil {
+			return models.TradeOrder{}, err
+		}
+	} else {
+		// 降级路径：cache 未注入或已过期，直接调用 Binance API。
+		balance, err = s.client.GetFuturesBalance()
+		if err != nil {
+			return models.TradeOrder{}, err
+		}
+		leverage, err = s.client.GetFuturesLeverage(event.Symbol)
+		if err != nil {
+			return models.TradeOrder{}, err
+		}
+		rules, err = s.client.GetFuturesSymbolRules(event.Symbol)
+		if err != nil {
+			return models.TradeOrder{}, err
+		}
 	}
 
 	rawQty := (balance * settings.RiskPct / 100) * float64(leverage) / event.EntryPrice
