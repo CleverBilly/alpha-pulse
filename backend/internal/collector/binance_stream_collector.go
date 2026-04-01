@@ -104,6 +104,8 @@ func (c *BinanceStreamCollector) handleKlineEvent(event *binancesdk.WsKlineEvent
 	if event == nil || !event.Kline.IsFinal {
 		return
 	}
+	// 防御性检查：Start() 已通过 klineEvents != nil 门控才启动 runKlineLoop，
+	// 此处保留是为了让单元测试可以直接构造 BinanceStreamCollector 调用而不需走完整 Start() 流程。
 	if c.klineEvents == nil {
 		return
 	}
