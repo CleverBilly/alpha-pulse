@@ -100,9 +100,15 @@ func TestFindOpenBySymbolsReturnsBatchResult(t *testing.T) {
 	db := newTradeOrderTestDB(t)
 	repo := NewTradeOrderRepository(db)
 
-	_ = repo.Create(&models.TradeOrder{Symbol: "BTCUSDT", Status: "open", Source: "system"})
-	_ = repo.Create(&models.TradeOrder{Symbol: "ETHUSDT", Status: "open", Source: "system"})
-	_ = repo.Create(&models.TradeOrder{Symbol: "SOLUSDT", Status: "closed", Source: "system"})
+	if err := repo.Create(&models.TradeOrder{Symbol: "BTCUSDT", Status: "open", Source: "system"}); err != nil {
+		t.Fatalf("create BTCUSDT order: %v", err)
+	}
+	if err := repo.Create(&models.TradeOrder{Symbol: "ETHUSDT", Status: "open", Source: "system"}); err != nil {
+		t.Fatalf("create ETHUSDT order: %v", err)
+	}
+	if err := repo.Create(&models.TradeOrder{Symbol: "SOLUSDT", Status: "closed", Source: "system"}); err != nil {
+		t.Fatalf("create SOLUSDT order: %v", err)
+	}
 
 	result, err := repo.FindOpenBySymbols([]string{"BTCUSDT", "ETHUSDT", "SOLUSDT"})
 	if err != nil {
