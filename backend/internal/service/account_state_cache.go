@@ -87,12 +87,15 @@ func (c *AccountStateCache) GetBalance() (float64, error) {
 	return c.balance, nil
 }
 
-// GetLeverage 返回指定 symbol 的缓存杠杆。symbol 未缓存或缓存未初始化时返回错误。
+// GetLeverage 返回指定 symbol 的缓存杠杆。symbol 未缓存、缓存未初始化或已超过硬过期阈值（60s）时返回错误。
 func (c *AccountStateCache) GetLeverage(symbol string) (int, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.refreshedAt.IsZero() {
 		return 0, fmt.Errorf("account state cache not yet initialized")
+	}
+	if time.Since(c.refreshedAt) > accountCacheHardExpiry {
+		return 0, fmt.Errorf("account state cache hard-expired (>60s)")
 	}
 	lev, ok := c.leverage[symbol]
 	if !ok {
@@ -101,12 +104,15 @@ func (c *AccountStateCache) GetLeverage(symbol string) (int, error) {
 	return lev, nil
 }
 
-// GetRules 返回指定 symbol 的缓存交易规则。symbol 未缓存或缓存未初始化时返回错误。
+// GetRules 返回指定 symbol 的缓存交易规则。symbol 未缓存、缓存未初始化或已超过硬过期阈值（60s）时返回错误。
 func (c *AccountStateCache) GetRules(symbol string) (FuturesSymbolRules, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.refreshedAt.IsZero() {
 		return FuturesSymbolRules{}, fmt.Errorf("account state cache not yet initialized")
+	}
+	if time.Since(c.refreshedAt) > accountCacheHardExpiry {
+		return FuturesSymbolRules{}, fmt.Errorf("account state cache hard-expired (>60s)")
 	}
 	r, ok := c.rules[symbol]
 	if !ok {
@@ -115,22 +121,24 @@ func (c *AccountStateCache) GetRules(symbol string) (FuturesSymbolRules, error) 
 	return r, nil
 }
 
-// StartBackgroundRefresh 立即执行一次 Refresh，之后每隔 interval 循环刷新，受 ctx 控制退出。
-// 刷新失败只记录日志，不中断循环，保证已有缓存继续可用。
+// StartBackgroundRefresh 启动后台刷新 goroutine，每隔 interval 调用一次 Refresh。
+// 会立即返回；调用方无需加 go。
 func (c *AccountStateCache) StartBackgroundRefresh(ctx context.Context, interval time.Duration) {
-	if err := c.Refresh(); err != nil {
-		log.Printf("account state cache initial refresh failed: %v", err)
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if err := c.Refresh(); err != nil {
-				log.Printf("account state cache refresh failed: %v", err)
+	go func() {
+		if err := c.Refresh(); err != nil {
+			log.Printf("account state cache initial refresh failed: %v", err)
+		}
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := c.Refresh(); err != nil {
+					log.Printf("account state cache refresh failed: %v", err)
+				}
 			}
 		}
-	}
+	}()
 }

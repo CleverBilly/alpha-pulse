@@ -268,7 +268,7 @@ func main() {
 	}
 	if cfg.TradeEnabled {
 		accountCache := service.NewAccountStateCache(binanceClient, cfg.TradeAllowedSymbols)
-		go accountCache.StartBackgroundRefresh(ctx, 30*time.Second)
+		accountCache.StartBackgroundRefresh(ctx, 30*time.Second)
 		tradeExecutor.SetAccountStateCache(accountCache)
 		go runTradeLoop(ctx, time.Duration(cfg.TradeWatcherIntervalSeconds)*time.Second, "trade entry watcher", tradeRuntime.ReconcilePendingEntries)
 		go runTradeLoop(ctx, time.Duration(cfg.TradeSyncIntervalSeconds)*time.Second, "trade position sync", tradeRuntime.SyncPositions)
