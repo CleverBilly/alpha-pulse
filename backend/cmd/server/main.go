@@ -234,6 +234,7 @@ func main() {
 					cacheInvalidator.InvalidateSymbol(symbol)
 				}
 			},
+			nil, // klineEvents: Task 3 会替换为真实 channel 以驱动事件触发分析
 		)
 		streamCollector.Start(ctx)
 	} else {

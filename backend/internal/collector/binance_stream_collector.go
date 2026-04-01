@@ -29,14 +29,17 @@ type BinanceStreamCollector struct {
 	aggTradeRepo   *repository.AggTradeRepository
 	orderBookRepo  *repository.OrderBookSnapshotRepository
 	onWrite        func(symbol string)
+	klineEvents    chan<- KlineClosedEvent // K线收盘事件出口（nil 表示不发布）
 }
 
 // NewBinanceStreamCollector 创建流式采集器。
+// klineEvents 为 nil 时禁用 K线收盘事件发布；Task 3 会传入真实 channel。
 func NewBinanceStreamCollector(
 	symbols []string,
 	aggTradeRepo *repository.AggTradeRepository,
 	orderBookRepo *repository.OrderBookSnapshotRepository,
 	onWrite func(symbol string),
+	klineEvents chan<- KlineClosedEvent,
 ) *BinanceStreamCollector {
 	return &BinanceStreamCollector{
 		symbols:        normalizeSymbols(symbols),
@@ -45,10 +48,11 @@ func NewBinanceStreamCollector(
 		aggTradeRepo:   aggTradeRepo,
 		orderBookRepo:  orderBookRepo,
 		onWrite:        onWrite,
+		klineEvents:    klineEvents,
 	}
 }
 
-// Start 启动真实成交流和盘口快照流。
+// Start 启动真实成交流、盘口快照流，以及（当 klineEvents 非 nil 时）K线收盘流。
 func (c *BinanceStreamCollector) Start(ctx context.Context) {
 	if len(c.symbols) == 0 {
 		log.Println("binance stream collector skipped: no symbols configured")
@@ -57,6 +61,60 @@ func (c *BinanceStreamCollector) Start(ctx context.Context) {
 
 	go c.runAggTradeLoop(ctx)
 	go c.runPartialDepthLoop(ctx)
+	if c.klineEvents != nil {
+		go c.runKlineLoop(ctx)
+	}
+}
+
+// runKlineLoop 订阅所有 symbol 的 1m K线流，收盘时通过 klineEvents channel 发布事件。
+func (c *BinanceStreamCollector) runKlineLoop(ctx context.Context) {
+	symbolIntervals := make(map[string][]string, len(c.symbols))
+	for _, symbol := range c.symbols {
+		symbolIntervals[symbol] = []string{"1m"}
+	}
+
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		doneC, stopC, err := binancesdk.WsCombinedKlineServeMultiInterval(
+			symbolIntervals,
+			c.handleKlineEvent,
+			func(streamErr error) {
+				log.Printf("binance kline stream error: %v", streamErr)
+			},
+		)
+		if err != nil {
+			log.Printf("start kline stream failed: %v", err)
+			if !sleepWithContext(ctx, c.reconnectDelay) {
+				return
+			}
+			continue
+		}
+		log.Printf("binance kline stream connected: symbols=%s", strings.Join(c.symbols, ","))
+		if !c.waitStream(ctx, doneC, stopC, "kline") {
+			return
+		}
+	}
+}
+
+// handleKlineEvent 处理单条 K线事件，仅在 IsFinal=true 时向 klineEvents channel 发布收盘事件。
+// channel 满时丢弃事件以避免阻塞 WebSocket 回调 goroutine。
+func (c *BinanceStreamCollector) handleKlineEvent(event *binancesdk.WsKlineEvent) {
+	if event == nil || !event.Kline.IsFinal {
+		return
+	}
+	if c.klineEvents == nil {
+		return
+	}
+	select {
+	case c.klineEvents <- KlineClosedEvent{
+		Symbol:   strings.ToUpper(event.Symbol),
+		Interval: event.Kline.Interval,
+	}:
+	default:
+		log.Printf("kline event channel full, dropping %s %s", event.Symbol, event.Kline.Interval)
+	}
 }
 
 func (c *BinanceStreamCollector) runAggTradeLoop(ctx context.Context) {
